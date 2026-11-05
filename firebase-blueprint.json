@@ -1,0 +1,447 @@
+{
+  "entities": {
+    "ProposalRecord": {
+      "title": "ProposalRecord",
+      "description": "Synchronized Cipta Karya infrastructure program proposal for TA 2027-2030.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique proposal identifier matching document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "kodeUsulan": {
+          "type": "string",
+          "description": "Institutional proposal code.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "namaProgram": {
+          "type": "string",
+          "description": "Infrastructure package or program name.",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "sektor": {
+          "type": "string",
+          "description": "Technical Cipta Karya sector.",
+          "enum": [
+            "Sistem Penyediaan Air Minum (SPAM)",
+            "Sanitasi",
+            "Pengembangan Kawasan Strategis (PKS)",
+            "Bina Penataan Bangunan (BPB)"
+          ],
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "kabupatenKota": {
+          "type": "string",
+          "description": "Regency or city name in Nusa Tenggara Barat.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "kecamatanKawasan": {
+          "type": "string",
+          "description": "District or strategic area name.",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "locationQuery": {
+          "type": "string",
+          "description": "Google Maps Places API query string.",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "hasManualPosition": {
+          "type": "boolean",
+          "description": "Whether manual coordinates are explicitly set."
+        },
+        "manualLat": {
+          "type": "number",
+          "description": "Manual latitude coordinate (-90 to 90)."
+        },
+        "manualLng": {
+          "type": "number",
+          "description": "Manual longitude coordinate (-180 to 180)."
+        },
+        "manualAddressLabel": {
+          "type": "string",
+          "description": "Optional manual address or coordinate label.",
+          "maxLength": 240
+        },
+        "volumeTarget": {
+          "type": "number",
+          "description": "Physical output target volume."
+        },
+        "satuanTarget": {
+          "type": "string",
+          "description": "Unit of physical output target.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "penerimaManfaatJiwa": {
+          "type": "number",
+          "description": "Estimated beneficiaries in persons."
+        },
+        "sumberDana": {
+          "type": "string",
+          "description": "Funding source category.",
+          "enum": ["APBN Rupiah Murni", "SBSN", "PHLN", "KPBU"],
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "skemaKontrak": {
+          "type": "string",
+          "description": "Contracting scheme (SYC or MYC).",
+          "enum": ["SYC", "MYC"],
+          "minLength": 3,
+          "maxLength": 3
+        },
+        "pagu2027": {
+          "type": "number",
+          "description": "Indicative budget for FY 2027 in Billion IDR."
+        },
+        "pagu2028": {
+          "type": "number",
+          "description": "Indicative budget for FY 2028 in Billion IDR."
+        },
+        "pagu2029": {
+          "type": "number",
+          "description": "Indicative budget for FY 2029 in Billion IDR."
+        },
+        "pagu2030": {
+          "type": "number",
+          "description": "Indicative budget for FY 2030 in Billion IDR."
+        },
+        "skorRc": {
+          "type": "number",
+          "description": "Manual Readiness Criteria (RC) score percentage from 0 to 100."
+        },
+        "rcDokumenPerencanaan": {
+          "type": "boolean",
+          "description": "Readiness criteria: masterplan or feasibility study."
+        },
+        "rcDedRab": {
+          "type": "boolean",
+          "description": "Readiness criteria: DED and cost estimate."
+        },
+        "rcKesiapanLahan": {
+          "type": "boolean",
+          "description": "Readiness criteria: clean and clear land status."
+        },
+        "rcDokumenLingkungan": {
+          "type": "boolean",
+          "description": "Readiness criteria: AMDAL or UKL-UPL approval."
+        },
+        "rcLembagaPengelola": {
+          "type": "boolean",
+          "description": "Readiness criteria: operating institution readiness."
+        },
+        "statusVerifikasi": {
+          "type": "string",
+          "description": "Verification status of Readiness Criteria.",
+          "enum": [
+            "Terverifikasi Lengkap",
+            "Revisi Dokumen RC",
+            "Menunggu Konreg"
+          ],
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "prioritasNasional": {
+          "type": "string",
+          "description": "National priority tagging.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "serviceRadiusKm": {
+          "type": "number",
+          "description": "Service coverage radius in kilometers."
+        },
+        "corridorGroup": {
+          "type": "string",
+          "description": "Optional regional network corridor identifier.",
+          "maxLength": 160
+        },
+        "catatanTeknis": {
+          "type": "string",
+          "description": "Technical synchronization notes.",
+          "maxLength": 1000
+        },
+        "templateMetaJson": {
+          "type": "string",
+          "description": "Serialized JSON metadata for KEMENPU executive preview template fields.",
+          "maxLength": 250000
+        },
+        "updatedDateLabel": {
+          "type": "string",
+          "description": "Formatted YYYY-MM-DD date label for display.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "isPublished": {
+          "type": "boolean",
+          "description": "Whether the proposal is visible in Viewer Mode."
+        },
+        "isLocked": {
+          "type": "boolean",
+          "description": "Terminal lock flag restricting non-admin edits."
+        },
+        "authorUid": {
+          "type": "string",
+          "description": "UID of the user who created the record.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        }
+      },
+      "required": [
+        "id",
+        "kodeUsulan",
+        "namaProgram",
+        "sektor",
+        "kabupatenKota",
+        "kecamatanKawasan",
+        "locationQuery",
+        "hasManualPosition",
+        "manualLat",
+        "manualLng",
+        "manualAddressLabel",
+        "volumeTarget",
+        "satuanTarget",
+        "penerimaManfaatJiwa",
+        "sumberDana",
+        "skemaKontrak",
+        "pagu2027",
+        "pagu2028",
+        "pagu2029",
+        "pagu2030",
+        "rcDokumenPerencanaan",
+        "rcDedRab",
+        "rcKesiapanLahan",
+        "rcDokumenLingkungan",
+        "rcLembagaPengelola",
+        "statusVerifikasi",
+        "prioritasNasional",
+        "serviceRadiusKm",
+        "corridorGroup",
+        "catatanTeknis",
+        "updatedDateLabel",
+        "isPublished",
+        "isLocked",
+        "authorUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Non-PII profile metadata for an authenticated account.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "User UID matching parent path.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "unitKerja": {
+          "type": "string",
+          "description": "Organizational unit label.",
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "displayName", "unitKerja", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Strictly isolated PII record for an authenticated user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "User UID matching parent path.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified account email address.",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "AdminGrant": {
+      "title": "AdminGrant",
+      "description": "Trusted role registry document granting admin privileges to a UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Target admin UID matching document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "grantedByUid": {
+          "type": "string",
+          "description": "UID of the bootstrapped admin who granted access.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "note": {
+          "type": "string",
+          "description": "Administrative note.",
+          "maxLength": 200
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "grantedByUid", "note", "createdAt", "updatedAt"]
+    },
+    "PinWriteAudit": {
+      "title": "PinWriteAudit",
+      "description": "Write-only atomic capability proof authorizing PIN-authenticated manager mutations on proposals.",
+      "type": "object",
+      "properties": {
+        "proposalId": {
+          "type": "string",
+          "description": "Target proposal ID authorized in the same atomic write batch.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "grantKey": {
+          "type": "string",
+          "description": "Server-issued 64-character hexadecimal PIN capability key verified via SHA-256.",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]+$"
+        },
+        "action": {
+          "type": "string",
+          "description": "Authorized mutation operation type.",
+          "enum": ["create", "update", "delete"],
+          "minLength": 6,
+          "maxLength": 6
+        },
+        "operatorUid": {
+          "type": "string",
+          "description": "Canonical PIN manager operator identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "issuedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp matching request.time of the atomic batch."
+        }
+      },
+      "required": ["proposalId", "grantKey", "action", "operatorUid", "issuedAt"]
+    },
+    "SystemBootstrapState": {
+      "title": "SystemBootstrapState",
+      "description": "Singleton database initialization marker preventing deleted baseline proposals from re-seeding.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Fixed document identifier ('bootstrap').",
+          "minLength": 9,
+          "maxLength": 9,
+          "enum": ["bootstrap"]
+        },
+        "initialized": {
+          "type": "boolean",
+          "description": "Whether initial baseline proposals have already been seeded once."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when bootstrap marker was recorded."
+        }
+      },
+      "required": ["id", "initialized", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/proposals/{proposalId}": {
+      "schema": { "$ref": "#/entities/ProposalRecord" },
+      "description": "Synchronized Cipta Karya infrastructure proposals for TA 2027-2030."
+    },
+    "/pin_audit/{proposalId}": {
+      "schema": { "$ref": "#/entities/PinWriteAudit" },
+      "description": "Write-only atomic capability proof collection (unreadable by clients) gating manager mutations."
+    },
+    "/system_state/{stateId}": {
+      "schema": { "$ref": "#/entities/SystemBootstrapState" },
+      "description": "Singleton bootstrap state marker (stateId == 'bootstrap') ensuring deletions persist permanently."
+    },
+    "/users/{userId}/public/{profileId}": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Non-PII public profile document (profileId == 'profile')."
+    },
+    "/users/{userId}/private/{infoId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII document containing email (infoId == 'info')."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminGrant" },
+      "description": "Trusted administrator UID registry managed exclusively by the bootstrapped admin."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "SIMPRA BPBPK Nusa Tenggara Barat TA. 2027–2030",
+  "description": "Dashboard Sinkronisasi Program Infrastruktur Cipta Karya Tahun Anggaran 2027–2030",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

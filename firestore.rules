@@ -1,0 +1,413 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'sinkronisasiprogrambpbpkntb@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprint: PinWriteAudit (Write-Only Atomic Capability Proof)
+    function isValidPinWriteAudit(data, proposalId) {
+      return data.keys().hasAll(['proposalId', 'grantKey', 'action', 'operatorUid', 'issuedAt'])
+        && data.keys().hasOnly(['proposalId', 'grantKey', 'action', 'operatorUid', 'issuedAt'])
+        && isValidId(data.proposalId)
+        && data.proposalId == proposalId
+        && data.grantKey is string
+        && data.grantKey.size() == 64
+        && data.grantKey.matches('^[a-f0-9]+$')
+        && hashing.sha256(data.grantKey).toHexString().lower() == 'bbcb8f642d5033fbc4db8ffbad14df1dd6555c7201fe97f08e4a17a48310d6cf'
+        && data.action is string
+        && data.action.size() == 6
+        && data.action in ['create', 'update', 'delete']
+        && isValidId(data.operatorUid)
+        && data.operatorUid == 'operator-pin-bpbpk-ntb'
+        && data.issuedAt is timestamp;
+    }
+
+    function isValidPinProofAfter(proof, proposalId, expectedAction) {
+      return proof.proposalId == proposalId
+        && proof.action == expectedAction
+        && proof.operatorUid == 'operator-pin-bpbpk-ntb'
+        && proof.issuedAt == request.time
+        && proof.grantKey is string
+        && proof.grantKey.size() == 64
+        && hashing.sha256(proof.grantKey).toHexString().lower() == 'bbcb8f642d5033fbc4db8ffbad14df1dd6555c7201fe97f08e4a17a48310d6cf';
+    }
+
+    function isPinManagerAuthorized(proposalId, expectedAction) {
+      return existsAfter(/databases/$(database)/documents/pin_audit/$(proposalId))
+        && isValidPinProofAfter(
+          getAfter(/databases/$(database)/documents/pin_audit/$(proposalId)).data,
+          proposalId,
+          expectedAction
+        );
+    }
+
+    // Validation Blueprint: SystemBootstrapState
+    function isValidSystemBootstrapState(data, stateId) {
+      return data.keys().hasAll(['id', 'initialized', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'initialized', 'updatedAt'])
+        && data.id is string
+        && data.id.size() == 9
+        && data.id == 'bootstrap'
+        && data.id == stateId
+        && data.initialized is bool
+        && data.initialized == true
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: ProposalRecord
+    function isValidProposalRecord(data, proposalId) {
+      return data.keys().hasAll([
+          'id', 'kodeUsulan', 'namaProgram', 'sektor', 'kabupatenKota', 'kecamatanKawasan',
+          'locationQuery', 'hasManualPosition', 'manualLat', 'manualLng', 'manualAddressLabel',
+          'volumeTarget', 'satuanTarget', 'penerimaManfaatJiwa', 'sumberDana', 'skemaKontrak',
+          'pagu2027', 'pagu2028', 'pagu2029', 'pagu2030',
+          'rcDokumenPerencanaan', 'rcDedRab', 'rcKesiapanLahan', 'rcDokumenLingkungan', 'rcLembagaPengelola',
+          'statusVerifikasi', 'prioritasNasional', 'serviceRadiusKm', 'corridorGroup', 'catatanTeknis',
+          'updatedDateLabel', 'isPublished', 'isLocked', 'authorUid', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'kodeUsulan', 'namaProgram', 'sektor', 'kabupatenKota', 'kecamatanKawasan',
+          'locationQuery', 'hasManualPosition', 'manualLat', 'manualLng', 'manualAddressLabel',
+          'volumeTarget', 'satuanTarget', 'penerimaManfaatJiwa', 'sumberDana', 'skemaKontrak',
+          'pagu2027', 'pagu2028', 'pagu2029', 'pagu2030',
+          'skorRc',
+          'rcDokumenPerencanaan', 'rcDedRab', 'rcKesiapanLahan', 'rcDokumenLingkungan', 'rcLembagaPengelola',
+          'statusVerifikasi', 'prioritasNasional', 'serviceRadiusKm', 'corridorGroup', 'catatanTeknis',
+          'templateMetaJson',
+          'updatedDateLabel', 'isPublished', 'isLocked', 'authorUid', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.id == proposalId
+        && data.kodeUsulan is string && data.kodeUsulan.size() >= 1 && data.kodeUsulan.size() <= 64
+        && data.namaProgram is string && data.namaProgram.size() >= 1 && data.namaProgram.size() <= 300
+        && data.sektor is string && data.sektor.size() >= 1 && data.sektor.size() <= 80
+        && data.sektor in [
+          'Sistem Penyediaan Air Minum (SPAM)',
+          'Sanitasi',
+          'Pengembangan Kawasan Strategis (PKS)',
+          'Bina Penataan Bangunan (BPB)'
+        ]
+        && data.kabupatenKota is string && data.kabupatenKota.size() >= 1 && data.kabupatenKota.size() <= 100
+        && data.kecamatanKawasan is string && data.kecamatanKawasan.size() >= 1 && data.kecamatanKawasan.size() <= 160
+        && data.locationQuery is string && data.locationQuery.size() >= 1 && data.locationQuery.size() <= 240
+        && data.hasManualPosition is bool
+        && data.manualLat is number && data.manualLat >= -90 && data.manualLat <= 90
+        && data.manualLng is number && data.manualLng >= -180 && data.manualLng <= 180
+        && data.manualAddressLabel is string && data.manualAddressLabel.size() <= 240
+        && data.volumeTarget is number && data.volumeTarget >= 0 && data.volumeTarget <= 1000000000
+        && data.satuanTarget is string && data.satuanTarget.size() >= 1 && data.satuanTarget.size() <= 64
+        && data.penerimaManfaatJiwa is number && data.penerimaManfaatJiwa >= 0 && data.penerimaManfaatJiwa <= 500000000
+        && data.sumberDana is string && data.sumberDana.size() >= 1 && data.sumberDana.size() <= 64
+        && data.sumberDana in ['APBN Rupiah Murni', 'SBSN', 'PHLN', 'KPBU']
+        && data.skemaKontrak is string && data.skemaKontrak.size() == 3
+        && data.skemaKontrak in ['SYC', 'MYC']
+        && data.pagu2027 is number && data.pagu2027 >= 0 && data.pagu2027 <= 1000000
+        && data.pagu2028 is number && data.pagu2028 >= 0 && data.pagu2028 <= 1000000
+        && data.pagu2029 is number && data.pagu2029 >= 0 && data.pagu2029 <= 1000000
+        && data.pagu2030 is number && data.pagu2030 >= 0 && data.pagu2030 <= 1000000
+        && (!('skorRc' in data) || (data.skorRc is number && data.skorRc >= 0 && data.skorRc <= 100))
+        && data.rcDokumenPerencanaan is bool
+        && data.rcDedRab is bool
+        && data.rcKesiapanLahan is bool
+        && data.rcDokumenLingkungan is bool
+        && data.rcLembagaPengelola is bool
+        && data.statusVerifikasi is string && data.statusVerifikasi.size() >= 1 && data.statusVerifikasi.size() <= 64
+        && data.statusVerifikasi in ['Terverifikasi Lengkap', 'Revisi Dokumen RC', 'Menunggu Konreg']
+        && data.prioritasNasional is string && data.prioritasNasional.size() >= 1 && data.prioritasNasional.size() <= 200
+        && data.serviceRadiusKm is number && data.serviceRadiusKm >= 0.5 && data.serviceRadiusKm <= 100
+        && data.corridorGroup is string && data.corridorGroup.size() <= 160
+        && data.catatanTeknis is string && data.catatanTeknis.size() <= 1000
+        && (!('templateMetaJson' in data) || (data.templateMetaJson is string && data.templateMetaJson.size() <= 250000))
+        && data.updatedDateLabel is string && data.updatedDateLabel.size() == 10
+        && data.updatedDateLabel.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.isPublished is bool
+        && data.isLocked is bool
+        && isValidId(data.authorUid)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: UserPublicProfile (Non-PII)
+    function isValidUserPublicProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'unitKerja', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'unitKerja', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.unitKerja is string && data.unitKerja.size() <= 160
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: UserPrivateInfo (Isolated PII)
+    function isValidUserPrivateInfo(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: AdminGrant
+    function isValidAdminGrant(data, adminUid) {
+      return data.keys().hasAll(['uid', 'grantedByUid', 'note', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'grantedByUid', 'note', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == adminUid
+        && isValidId(data.grantedByUid)
+        && data.note is string && data.note.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Collection 1: Infrastructure Proposals (/proposals/{proposalId})
+    match /proposals/{proposalId} {
+      allow get: if isValidId(proposalId)
+        && (
+          resource == null
+          || existing().isPublished == true
+          || (isVerifiedUser() && existing().authorUid == request.auth.uid)
+          || isAdmin()
+        );
+
+      allow list: if existing().isPublished == true
+        || (isVerifiedUser() && existing().authorUid == request.auth.uid);
+
+      allow create: if isValidId(proposalId)
+        && isValidProposalRecord(incoming(), proposalId)
+        && incoming().isLocked == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isVerifiedUser() && incoming().authorUid == request.auth.uid)
+          || (incoming().authorUid == 'operator-pin-bpbpk-ntb' && isPinManagerAuthorized(proposalId, 'create'))
+        );
+
+      allow update: if isValidProposalRecord(incoming(), proposalId)
+        && isValidId(proposalId)
+        && incoming().id == existing().id
+        && incoming().authorUid == existing().authorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Authorized Manager (Capability Proof) or Admin Full Update
+          ((isPinManagerAuthorized(proposalId, 'update') || isAdmin())
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'kodeUsulan', 'namaProgram', 'sektor', 'kabupatenKota', 'kecamatanKawasan',
+              'locationQuery', 'hasManualPosition', 'manualLat', 'manualLng', 'manualAddressLabel',
+              'volumeTarget', 'satuanTarget', 'penerimaManfaatJiwa', 'sumberDana', 'skemaKontrak',
+              'pagu2027', 'pagu2028', 'pagu2029', 'pagu2030', 'skorRc',
+              'rcDokumenPerencanaan', 'rcDedRab', 'rcKesiapanLahan', 'rcDokumenLingkungan', 'rcLembagaPengelola',
+              'statusVerifikasi', 'prioritasNasional', 'serviceRadiusKm', 'corridorGroup', 'catatanTeknis',
+              'templateMetaJson',
+              'updatedDateLabel', 'isPublished', 'isLocked', 'updatedAt'
+            ]))
+          // Action 2: Verified Creator Full Update on Unlocked Proposal
+          || (isOwner(existing().authorUid)
+            && existing().isLocked == false
+            && incoming().isLocked == existing().isLocked
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'kodeUsulan', 'namaProgram', 'sektor', 'kabupatenKota', 'kecamatanKawasan',
+              'locationQuery', 'hasManualPosition', 'manualLat', 'manualLng', 'manualAddressLabel',
+              'volumeTarget', 'satuanTarget', 'penerimaManfaatJiwa', 'sumberDana', 'skemaKontrak',
+              'pagu2027', 'pagu2028', 'pagu2029', 'pagu2030', 'skorRc',
+              'rcDokumenPerencanaan', 'rcDedRab', 'rcKesiapanLahan', 'rcDokumenLingkungan', 'rcLembagaPengelola',
+              'statusVerifikasi', 'prioritasNasional', 'serviceRadiusKm', 'corridorGroup', 'catatanTeknis',
+              'templateMetaJson',
+              'updatedDateLabel', 'isPublished', 'updatedAt'
+            ]))
+          // Action 3: Verified Reviewer RC & Coordinate Update on Unlocked Proposal
+          || (isVerifiedUser()
+            && existing().isLocked == false
+            && incoming().isLocked == existing().isLocked
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'skorRc',
+              'rcDokumenPerencanaan', 'rcDedRab', 'rcKesiapanLahan',
+              'rcDokumenLingkungan', 'rcLembagaPengelola',
+              'hasManualPosition', 'manualLat', 'manualLng', 'manualAddressLabel',
+              'templateMetaJson',
+              'statusVerifikasi', 'updatedDateLabel', 'updatedAt'
+            ]))
+        );
+
+      allow delete: if isValidId(proposalId)
+        && (
+          (isVerifiedUser()
+            && (existing().isLocked == false || isAdmin())
+            && (existing().authorUid == request.auth.uid || isAdmin()))
+          || isPinManagerAuthorized(proposalId, 'delete')
+        );
+    }
+
+    // Collection 2: Write-Only Atomic Capability Proofs (/pin_audit/{proposalId})
+    match /pin_audit/{proposalId} {
+      allow get, list: if false;
+
+      allow create: if isValidId(proposalId)
+        && isValidPinWriteAudit(incoming(), proposalId)
+        && incoming().issuedAt == request.time;
+
+      allow update: if isValidPinWriteAudit(incoming(), proposalId)
+        && isValidId(proposalId)
+        && incoming().proposalId == existing().proposalId
+        && incoming().operatorUid == existing().operatorUid
+        && incoming().issuedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'grantKey', 'action', 'issuedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // Collection 3: Singleton Bootstrap State Marker (/system_state/{stateId})
+    match /system_state/{stateId} {
+      allow get: if stateId == 'bootstrap';
+      allow list: if false;
+
+      allow create: if stateId == 'bootstrap'
+        && isValidSystemBootstrapState(incoming(), stateId)
+        && incoming().updatedAt == request.time
+        && (isVerifiedUser() || isPinManagerAuthorized('bootstrap', 'create'));
+
+      allow update: if isValidSystemBootstrapState(incoming(), stateId)
+        && stateId == 'bootstrap'
+        && incoming().id == existing().id
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['initialized', 'updatedAt'])
+        && (isVerifiedUser() || isPinManagerAuthorized('bootstrap', 'update'));
+
+      allow delete: if false;
+    }
+
+    // Collection 4 & 5: Split User Profile & Isolated Private PII (/users/{userId}/...)
+    match /users/{userId} {
+      allow read, write: if false;
+
+      match /public/{profileId} {
+        allow get: if isValidId(userId)
+          && profileId == 'profile'
+          && (isOwner(userId) || isAdmin());
+
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && profileId == 'profile'
+          && isValidUserPublicProfile(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidUserPublicProfile(incoming(), userId)
+          && isValidId(userId)
+          && profileId == 'profile'
+          && (isOwner(userId) || isAdmin())
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'unitKerja', 'updatedAt'
+          ]);
+
+        allow delete: if isValidId(userId)
+          && profileId == 'profile'
+          && isAdmin();
+      }
+
+      match /private/{infoId} {
+        allow get: if isValidId(userId)
+          && infoId == 'info'
+          && (isOwner(userId) || isAdmin());
+
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && infoId == 'info'
+          && isValidUserPrivateInfo(incoming(), userId)
+          && incoming().email == request.auth.token.email
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidUserPrivateInfo(incoming(), userId)
+          && isOwner(userId)
+          && isValidId(userId)
+          && infoId == 'info'
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().email == request.auth.token.email
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'email', 'updatedAt'
+          ]);
+
+        allow delete: if isValidId(userId)
+          && infoId == 'info'
+          && isAdmin();
+      }
+    }
+
+    // Collection 6: Trusted Admin Role Registry (/admins/{adminUid})
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid)
+        && (isOwner(adminUid) || isAdmin());
+
+      allow create: if isBootstrappedAdmin()
+        && isValidId(adminUid)
+        && isValidAdminGrant(incoming(), adminUid)
+        && incoming().grantedByUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidAdminGrant(incoming(), adminUid)
+        && isBootstrappedAdmin()
+        && isValidId(adminUid)
+        && incoming().uid == existing().uid
+        && incoming().grantedByUid == existing().grantedByUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'note', 'updatedAt'
+        ]);
+
+      allow delete: if isBootstrappedAdmin()
+        && isValidId(adminUid);
+    }
+  }
+}
