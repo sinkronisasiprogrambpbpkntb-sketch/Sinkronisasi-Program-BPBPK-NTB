@@ -38,30 +38,7 @@ async function startServer(): Promise<void> {
     res.status(200).json({ status: 'ok' });
   });
 
-  const DEFAULT_ACCESS_PIN = '071324';
-  const rawEnvPin = (process.env.SIMPRA_ACCESS_PIN || '').trim();
-  const expectedPin =
-    rawEnvPin && rawEnvPin !== 'MY_SIMPRA_ACCESS_PIN' ? rawEnvPin : DEFAULT_ACCESS_PIN;
-
-  const verifyPinConstantTime = (candidateRaw: unknown): boolean => {
-    if (typeof candidateRaw !== 'string') return false;
-    const candidate = candidateRaw.trim();
-    const bufA = Buffer.from(candidate, 'utf8');
-    const bufB = Buffer.from(expectedPin, 'utf8');
-    if (bufA.length !== bufB.length) return false;
-    return crypto.timingSafeEqual(bufA, bufB);
-  };
-
-  const handlePinAuth = (req: Request, res: Response) => {
-    const body = (req.body ?? {}) as { pin?: unknown };
-    if (!verifyPinConstantTime(body.pin)) {
-      res.status(401).json({
-        ok: false,
-        error: 'Kode PIN tidak sesuai. Silakan periksa kembali 6 digit PIN Anda.',
-      });
-      return;
-    }
-
+  const handleEditorSession = (_req: Request, res: Response) => {
     res.status(200).json({
       ok: true,
       grantKey: deriveFirestoreGrantKey(),
@@ -71,8 +48,10 @@ async function startServer(): Promise<void> {
     });
   };
 
-  app.post('/api/auth/verify-pin', handlePinAuth);
-  app.post('/api/auth/editor-session', handlePinAuth);
+  app.post('/api/auth/verify-pin', handleEditorSession);
+  app.get('/api/auth/verify-pin', handleEditorSession);
+  app.post('/api/auth/editor-session', handleEditorSession);
+  app.get('/api/auth/editor-session', handleEditorSession);
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');

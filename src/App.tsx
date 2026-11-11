@@ -71,8 +71,8 @@ import {
   WorkspaceView,
 } from './types/ciptaKarya';
 
-const STORAGE_KEY = 'simpra_ntb_ta_2027_2030_clean_v3';
-const LOCAL_BOOTSTRAP_KEY = 'simpra_ntb_bootstrapped_clean_v3';
+const STORAGE_KEY = 'simpra_ntb_ta_2027_2030_rekap_v4';
+const LOCAL_BOOTSTRAP_KEY = 'simpra_ntb_bootstrapped_rekap_v4';
 const SESSION_MODE_KEY = 'simpra_ntb_pin_mode_v1';
 const ACCOUNT_PROFILE_STORAGE_KEY = 'simpra_ntb_pin_profile_v1';
 
@@ -105,11 +105,13 @@ function readInitialLocalProposals(): UsulanProgram[] {
     localStorage.removeItem('sipaki_ntb_ta_2027_2030_v2');
     localStorage.removeItem('sipro_ciptakarya_ta_2027_2030_v1');
     localStorage.removeItem('simpra_ntb_bootstrapped_v1');
+    localStorage.removeItem('simpra_ntb_ta_2027_2030_clean_v3');
+    localStorage.removeItem('simpra_ntb_bootstrapped_clean_v3');
 
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as UsulanProgram[];
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.map(normalizeProposalSektor);
       }
     }
@@ -120,15 +122,7 @@ function readInitialLocalProposals(): UsulanProgram[] {
 }
 
 function getInitialAccessModeFromUrlOrSession(): AccessMode {
-  try {
-    const savedMode = sessionStorage.getItem(SESSION_MODE_KEY);
-    if (savedMode === 'account' && hasActivePinSession()) {
-      return 'account';
-    }
-  } catch {
-    // Ignore restricted sessionStorage errors
-  }
-  return 'portal';
+  return 'account';
 }
 
 function readInitialAccountProfile(): AccountSessionProfile {
@@ -982,7 +976,7 @@ function DashboardWorkspace() {
           </div>
         </div>
 
-        {/* Sidebar Footer: Active PIN Session & Controls */}
+        {/* Sidebar Footer: Active Mode & Controls */}
         <div className="p-4 border-t border-slate-800 space-y-2.5">
           <div className="px-2 space-y-1">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-white truncate">
@@ -992,8 +986,9 @@ function DashboardWorkspace() {
             <div className="text-[11px] text-slate-400 truncate">
               {accountProfile.unitKerja}
             </div>
-            <div className="text-[10px] text-slate-500 truncate">
-              Sesi PIN Terverifikasi · Cloud Aktif
+            <div className="text-[10px] text-emerald-400 font-medium truncate flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+              <span className="truncate">Mode Pengelola & Edit Aktif (Tanpa PIN)</span>
             </div>
           </div>
 
@@ -1004,15 +999,6 @@ function DashboardWorkspace() {
           >
             <Eye className="w-3.5 h-3.5 text-blue-400" />
             <span>Preview Usulan / Template</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void handleLogoutAccount()}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Keluar Sesi PIN</span>
           </button>
         </div>
       </aside>
@@ -1084,11 +1070,11 @@ function DashboardWorkspace() {
             <button
               type="button"
               onClick={() => void handleLogoutAccount()}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              title="Keluar dari akun dan kembali ke halaman masuk"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Buka portal informasi akses"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Keluar</span>
+              <LogOut className="w-3.5 h-3.5 text-slate-500" />
+              <span>Portal Akses</span>
             </button>
           </div>
         </header>

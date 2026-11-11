@@ -122,7 +122,7 @@ export type AccessMode = 'portal' | 'account';
 export interface AccountSessionProfile {
   displayName: string;
   unitKerja: string;
-  loginMethod: 'pin';
+  loginMethod: 'direct' | 'pin';
 }
 
 export interface SpatialLayerVisibility {
