@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import {
   BarChart3,
+  CloudUpload,
   Edit3,
   Eye,
   LayoutDashboard,
@@ -19,6 +20,7 @@ import {
 import { AccessPortalView } from './components/AccessPortalView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
+import { GoogleDriveBackupModal } from './components/GoogleDriveBackupModal';
 import { ProposalDetailPanel } from './components/ProposalDetailPanel';
 import { ProposalFormDrawer } from './components/ProposalFormDrawer';
 import { ProposalPreviewModal } from './components/ProposalPreviewModal';
@@ -344,6 +346,7 @@ function DashboardWorkspace() {
 
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
+  const [driveBackupOpen, setDriveBackupOpen] = useState<boolean>(false);
   const [editingProposal, setEditingProposal] = useState<UsulanProgram | null>(null);
   const [previewProposalId, setPreviewProposalId] = useState<string | null>(null);
   const [showTemplateDemo, setShowTemplateDemo] = useState<boolean>(false);
@@ -1000,6 +1003,16 @@ function DashboardWorkspace() {
             <Eye className="w-3.5 h-3.5 text-blue-400" />
             <span>Preview Usulan / Template</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setDriveBackupOpen(true)}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-200 bg-blue-900/60 hover:bg-blue-900 border border-blue-700/50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            title="Simpan cadangan perubahan usulan ke Google Drive"
+          >
+            <CloudUpload className="w-3.5 h-3.5 text-blue-300" />
+            <span>Simpan ke Google Drive</span>
+          </button>
         </div>
       </aside>
 
@@ -1049,10 +1062,20 @@ function DashboardWorkspace() {
               disabled={isSavingManual}
               onClick={() => void handleManualSaveAll()}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              title="Simpan seluruh perubahan edit maupun penambahan usulan"
+              title="Simpan seluruh perubahan edit maupun penambahan usulan ke Cloud Database"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSavingManual ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDriveBackupOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Simpan cadangan data usulan ke link folder Google Drive resmi"
+            >
+              <CloudUpload className="w-3.5 h-3.5" />
+              <span>Simpan ke Google Drive</span>
             </button>
 
             <button
@@ -1650,6 +1673,16 @@ function DashboardWorkspace() {
           onConfirm={() => void handleConfirmDelete()}
         />
       )}
+
+      {/* Google Drive Backup & Save Modal */}
+      <GoogleDriveBackupModal
+        isOpen={driveBackupOpen}
+        onClose={() => setDriveBackupOpen(false)}
+        proposals={proposals}
+        resolvedPlaces={resolvedPlaces}
+        operatorName={accountProfile.displayName}
+        onSuccessNotice={(msg) => showNotice(msg)}
+      />
     </div>
   );
 }

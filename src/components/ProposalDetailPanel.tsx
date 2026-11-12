@@ -283,7 +283,7 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
       <div className="p-5">
         <div className="flex items-baseline justify-between mb-3">
           <h4 className="text-xs font-semibold text-slate-900">
-            Rencana Pagu Indikatif ({formatActiveYears(proposal.pagu)})
+            Pagu Anggaran Indikatif ({formatActiveYears(proposal.pagu)})
           </h4>
           <span className="font-mono text-sm font-semibold tabular-nums text-blue-700">
             {formatRpMiliar(totalPagu)}

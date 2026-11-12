@@ -932,10 +932,10 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
             </div>
           </section>
 
-          {/* 3. Kebutuhan Anggaran & Rencana Pelaksanaan */}
+          {/* 3. Kebutuhan Anggaran & Output–Outcome */}
           <section className="space-y-4">
             <div className="text-xs font-bold uppercase tracking-wide text-[#0b3c7c] border-b border-slate-200 pb-1.5">
-              3. Kebutuhan Anggaran, Rencana Pelaksanaan & Output–Outcome
+              3. Kebutuhan Anggaran & Output–Outcome
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
@@ -1043,70 +1043,6 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                     ))}
                   </select>
                 </div>
-              </div>
-            </div>
-
-            {/* Rencana Pelaksanaan */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Durasi (Hari)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={durasiHari}
-                  onChange={(e) => {
-                    setDurasiHari(e.target.value);
-                    markFieldEdited();
-                  }}
-                  className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Durasi (Bulan)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={durasiBulan}
-                  onChange={(e) => {
-                    setDurasiBulan(e.target.value);
-                    markFieldEdited();
-                  }}
-                  className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Waktu Mulai
-                </label>
-                <input
-                  type="text"
-                  value={waktuMulai}
-                  onChange={(e) => {
-                    setWaktuMulai(e.target.value);
-                    markFieldEdited();
-                  }}
-                  placeholder="Contoh: Januari 2027"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Waktu Selesai
-                </label>
-                <input
-                  type="text"
-                  value={waktuSelesai}
-                  onChange={(e) => {
-                    setWaktuSelesai(e.target.value);
-                    markFieldEdited();
-                  }}
-                  placeholder="Contoh: Juni 2028"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
-                />
               </div>
             </div>
 

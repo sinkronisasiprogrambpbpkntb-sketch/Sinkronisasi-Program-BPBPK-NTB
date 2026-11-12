@@ -3,7 +3,6 @@ import type { GeoJsonObject } from 'geojson';
 import L from 'leaflet';
 import {
   AlertTriangle,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -481,7 +480,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   .brand-name { font-size:26px; font-weight:900; letter-spacing:-0.02em; }
   .brand-tag { font-size:8.5px; font-weight:700; color:#0b3c7c; letter-spacing:0.06em; }
   .row3 { display:grid; grid-template-columns: 5fr 4fr 3fr; gap:14px; margin-bottom:14px; }
-  .row2 { display:grid; grid-template-columns: 4fr 3fr 5fr; gap:14px; margin-bottom:14px; }
+  .row2 { display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:14px; }
   .row-bottom { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
   .card { border:1px solid #cbd5e1; border-radius:14px; padding:14px 16px; }
   .card-title { font-size:15px; font-weight:700; color:#1e293b; padding-bottom:8px; margin-bottom:10px; border-bottom:1px solid #e2e8f0; }
@@ -534,14 +533,6 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           <div>Estimasi total kebutuhan anggaran sebesar <strong>Rp ${formatNumberMiliar(totalPagu)} Miliar</strong></div>
           <div>&#10070; Fisik Rp ${formatNumberMiliar(details.biayaFisikMiliar)} Miliar</div>
           <div>&#10070; Manajemen Konstruksi/Supervisi Rp ${formatNumberMiliar(details.biayaSupervisiMiliar)} Miliar</div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Rencana Pelaksanaan</div>
-        <div style="font-size:12.5px;line-height:1.6;">
-          <div>Durasi pelaksanaan selama ${details.durasiHari} hari / ${details.durasiBulan} bulan</div>
-          <div>Mulai &nbsp;&nbsp;&nbsp;: ${details.waktuMulai}</div>
-          <div>Selesai : ${details.waktuSelesai}</div>
         </div>
       </div>
       <div class="card">
@@ -833,10 +824,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
             </div>
           </div>
 
-          {/* ROW 2: Kebutuhan Anggaran (4) | Rencana Pelaksanaan (3) | Output & Outcome (5) */}
+          {/* ROW 2: Kebutuhan Anggaran (6) | Output & Outcome (6) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
             {/* Card 4: Kebutuhan Anggaran */}
-            <div className="lg:col-span-4 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
+            <div className="lg:col-span-6 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
               <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-200">
                 <Wallet className="w-5 h-5 text-[#0284c7] shrink-0" />
                 <h2 className="text-sm sm:text-base font-bold text-slate-800">
@@ -882,33 +873,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               </div>
             </div>
 
-            {/* Card 5: Rencana Pelaksanaan */}
-            <div className="lg:col-span-3 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
-              <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-200">
-                <Calendar className="w-5 h-5 text-[#0284c7] shrink-0" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-800">
-                  Rencana Pelaksanaan
-                </h2>
-              </div>
-              <div className="text-xs text-slate-700 leading-relaxed space-y-1.5">
-                <p>
-                  Durasi pelaksanaan selama{' '}
-                  <strong className="font-mono text-slate-900">{details.durasiHari}</strong> hari /{' '}
-                  <strong className="font-mono text-slate-900">{details.durasiBulan}</strong> bulan
-                </p>
-                <div className="grid grid-cols-[56px_10px_1fr] gap-y-0.5 pt-0.5">
-                  <span className="text-slate-600">Mulai</span>
-                  <span>:</span>
-                  <span className="font-medium text-slate-900">{details.waktuMulai}</span>
-                  <span className="text-slate-600">Selesai</span>
-                  <span>:</span>
-                  <span className="font-medium text-slate-900">{details.waktuSelesai}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 6: Output & Outcome */}
-            <div className="lg:col-span-5 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
+            {/* Card 5: Output & Outcome */}
+            <div className="lg:col-span-6 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
               <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-200">
                 <PieChart className="w-5 h-5 text-[#0284c7] shrink-0" />
                 <h2 className="text-sm sm:text-base font-bold text-slate-800">
