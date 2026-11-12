@@ -5,7 +5,6 @@ import {
   CloudUpload,
   Edit3,
   Eye,
-  LayoutDashboard,
   LogOut,
   Map as MapIcon,
   Menu,
@@ -164,7 +163,7 @@ function downloadTextFile(content: string, filename: string, mimeType: string) {
 
 const VIEW_LABELS: Record<WorkspaceView, string> = {
   [WorkspaceView.OVERVIEW]: 'Ikhtisar & Peta Terpadu',
-  [WorkspaceView.SPATIAL]: 'Eksplorasi Data Spasial',
+  [WorkspaceView.SPATIAL]: 'Fitur Spasial GIS',
   [WorkspaceView.MATRIX]: 'Matriks Usulan & Kesiapan RC',
   [WorkspaceView.BUDGET]: 'Proyeksi Anggaran 2027–2030',
 };
@@ -338,7 +337,7 @@ function DashboardWorkspace() {
   const { resolvedPlaces, isResolving, resolverError, registerResolvedPlace } =
     useSpatialResolver(proposals);
 
-  const [activeView, setActiveView] = useState<WorkspaceView>(WorkspaceView.OVERVIEW);
+  const [activeView, setActiveView] = useState<WorkspaceView>(WorkspaceView.MATRIX);
   const [yearFilter, setYearFilter] = useState<YearFilter>('ALL');
   const [sektorFilter, setSektorFilter] = useState<SektorFilter>('ALL');
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
@@ -865,9 +864,8 @@ function DashboardWorkspace() {
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }> = [
-    { id: WorkspaceView.OVERVIEW, label: 'Ikhtisar & Spasial', icon: LayoutDashboard },
-    { id: WorkspaceView.SPATIAL, label: 'Eksplorasi Peta GIS', icon: MapIcon },
     { id: WorkspaceView.MATRIX, label: 'Matriks Usulan & RC', icon: Table2 },
+    { id: WorkspaceView.SPATIAL, label: 'Fitur Spasial GIS', icon: MapIcon },
     { id: WorkspaceView.BUDGET, label: 'Proyeksi 2027–2030', icon: BarChart3 },
   ];
 
@@ -1255,123 +1253,84 @@ function DashboardWorkspace() {
             </div>
           </section>
 
-          {/* VIEW 1: IKHTISAR & PETA TERPADU */}
-          {activeView === WorkspaceView.OVERVIEW && (
-            <>
-              <div
-                ref={mapSectionRef}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch"
-              >
-                <div className="lg:col-span-8">
-                  <SpatialMapView
-                    proposals={filteredProposals}
-                    resolvedPlaces={resolvedPlaces}
-                    isResolving={isResolving}
-                    resolverError={resolverError}
-                    selectedProposalId={selectedProposalId}
-                    focusTrigger={focusTrigger}
-                    yearFilter={yearFilter}
-                    canEdit={canEdit}
-                    canManageProposal={canManageProposal}
-                    heightClassName="h-[520px]"
-                    pickingModeForTitle={pickingProposal?.namaProgram ?? null}
-                    onCancelPickingMode={() => setPickingProposalId(null)}
-                    onPickCoordinate={(pos) => void handlePickCoordinate(pos)}
-                    onSelectProposal={(id) => setSelectedProposalId(id || null)}
-                    onInspectDetail={(id) => {
-                      setSelectedProposalId(id);
-                      setPreviewProposalId(id);
-                    }}
-                    onEditProposal={(p) => {
-                      if (!canManageProposal(p)) return;
-                      setEditingProposal(p);
-                      setDrawerOpen(true);
-                    }}
-                    onDeleteProposal={(p) => {
-                      if (!canManageProposal(p)) return;
-                      setPendingDeleteTargets([p]);
-                    }}
-                    onExportGeoJson={handleExportGeoJson}
-                  />
-                </div>
-
-                <div className="lg:col-span-4">
-                  <ProposalDetailPanel
-                    proposal={selectedProposal}
-                    resolvedInfo={
-                      selectedProposal ? resolvedPlaces[selectedProposal.locationQuery] : undefined
-                    }
-                    canEdit={canEdit}
-                    canManageSelected={selectedProposal ? canManageProposal(selectedProposal) : false}
-                    onPreview={(id) => {
-                      setShowTemplateDemo(false);
-                      setPreviewProposalId(id);
-                    }}
-                    onFocusOnMap={handleFocusOnMap}
-                    onStartPickCoordinate={handleStartPickCoordinate}
-                    onToggleReadiness={(id, key) => void handleToggleReadiness(id, key)}
-                    onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
-                    onSaveProposal={(p) => void handleSaveSingleFromPanel(p)}
-                    onEdit={(p) => {
-                      if (!canManageProposal(p)) return;
-                      setEditingProposal(p);
-                      setDrawerOpen(true);
-                    }}
-                    onDelete={handleRequestDeleteById}
-                    onAddNew={() => {
-                      if (!canEdit) return;
-                      setEditingProposal(null);
-                      setDrawerOpen(true);
-                    }}
-                    onOpenTemplateDemo={() => {
-                      setPreviewProposalId(null);
-                      setShowTemplateDemo(true);
-                    }}
-                  />
-                </div>
+          {/* VIEW: MATRIKS USULAN & KESIAPAN RC */}
+          {activeView === WorkspaceView.MATRIX && (
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+              <div className="xl:col-span-8">
+                <ProposalTable
+                  proposals={filteredProposals}
+                  resolvedPlaces={resolvedPlaces}
+                  selectedProposalId={selectedProposalId}
+                  canEdit={canEdit}
+                  isSavingAll={isSavingManual}
+                  canManageProposal={canManageProposal}
+                  onSelectProposal={(id) => setSelectedProposalId(id)}
+                  onPreviewProposal={(id) => {
+                    setShowTemplateDemo(false);
+                    setPreviewProposalId(id);
+                  }}
+                  onEditProposal={(p) => {
+                    if (!canManageProposal(p)) return;
+                    setEditingProposal(p);
+                    setDrawerOpen(true);
+                  }}
+                  onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
+                  onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
+                  onJumpToMap={handleFocusOnMap}
+                  onAddNew={() => {
+                    if (!canEdit) return;
+                    setEditingProposal(null);
+                    setDrawerOpen(true);
+                  }}
+                  onSaveAll={() => void handleManualSaveAll()}
+                  onExportCsv={handleExportCsv}
+                  onExportGeoJson={handleExportGeoJson}
+                  onOpenTemplateDemo={() => {
+                    setPreviewProposalId(null);
+                    setShowTemplateDemo(true);
+                  }}
+                />
               </div>
-
-              <AnalyticsView proposals={filteredProposals} compact />
-
-              <ProposalTable
-                proposals={filteredProposals}
-                resolvedPlaces={resolvedPlaces}
-                selectedProposalId={selectedProposalId}
-                canEdit={canEdit}
-                isSavingAll={isSavingManual}
-                canManageProposal={canManageProposal}
-                onSelectProposal={(id) => setSelectedProposalId(id)}
-                onPreviewProposal={(id) => {
-                  setShowTemplateDemo(false);
-                  setPreviewProposalId(id);
-                }}
-                onEditProposal={(p) => {
-                  if (!canManageProposal(p)) return;
-                  setEditingProposal(p);
-                  setDrawerOpen(true);
-                }}
-                onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
-                onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
-                onJumpToMap={handleFocusOnMap}
-                onAddNew={() => {
-                  if (!canEdit) return;
-                  setEditingProposal(null);
-                  setDrawerOpen(true);
-                }}
-                onSaveAll={() => void handleManualSaveAll()}
-                onExportCsv={handleExportCsv}
-                onExportGeoJson={handleExportGeoJson}
-                onOpenTemplateDemo={() => {
-                  setPreviewProposalId(null);
-                  setShowTemplateDemo(true);
-                }}
-              />
-            </>
+              <div className="xl:col-span-4">
+                <ProposalDetailPanel
+                  proposal={selectedProposal}
+                  resolvedInfo={
+                    selectedProposal ? resolvedPlaces[selectedProposal.locationQuery] : undefined
+                  }
+                  canEdit={canEdit}
+                  canManageSelected={selectedProposal ? canManageProposal(selectedProposal) : false}
+                  onPreview={(id) => {
+                    setShowTemplateDemo(false);
+                    setPreviewProposalId(id);
+                  }}
+                  onFocusOnMap={handleFocusOnMap}
+                  onStartPickCoordinate={handleStartPickCoordinate}
+                  onToggleReadiness={(id, key) => void handleToggleReadiness(id, key)}
+                  onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
+                  onSaveProposal={(p) => void handleSaveSingleFromPanel(p)}
+                  onEdit={(p) => {
+                    if (!canManageProposal(p)) return;
+                    setEditingProposal(p);
+                    setDrawerOpen(true);
+                  }}
+                  onDelete={handleRequestDeleteById}
+                  onAddNew={() => {
+                    if (!canEdit) return;
+                    setEditingProposal(null);
+                    setDrawerOpen(true);
+                  }}
+                  onOpenTemplateDemo={() => {
+                    setPreviewProposalId(null);
+                    setShowTemplateDemo(true);
+                  }}
+                />
+              </div>
+            </div>
           )}
 
-          {/* VIEW 2: EKSPLORASI DATA SPASIAL (GIS WORKSPACE) */}
+          {/* VIEW: FITUR SPASIAL GIS */}
           {activeView === WorkspaceView.SPATIAL && (
-            <div ref={mapSectionRef} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div ref={mapSectionRef} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               <div className="lg:col-span-8">
                 <SpatialMapView
                   proposals={filteredProposals}
@@ -1439,7 +1398,7 @@ function DashboardWorkspace() {
                   }}
                 />
 
-                {/* Spatial Layer Directory */}
+                {/* Spatial Active Directory */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4">
                   <div className="text-xs font-semibold text-slate-900 mb-2">
                     Daftar Objek Spasial Aktif ({filteredProposals.length})
@@ -1516,82 +1475,7 @@ function DashboardWorkspace() {
             </div>
           )}
 
-          {/* VIEW 3: MATRIKS USULAN & KESIAPAN RC */}
-          {activeView === WorkspaceView.MATRIX && (
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-              <div className="xl:col-span-8">
-                <ProposalTable
-                  proposals={filteredProposals}
-                  resolvedPlaces={resolvedPlaces}
-                  selectedProposalId={selectedProposalId}
-                  canEdit={canEdit}
-                  isSavingAll={isSavingManual}
-                  canManageProposal={canManageProposal}
-                  onSelectProposal={(id) => setSelectedProposalId(id)}
-                  onPreviewProposal={(id) => {
-                    setShowTemplateDemo(false);
-                    setPreviewProposalId(id);
-                  }}
-                  onEditProposal={(p) => {
-                    if (!canManageProposal(p)) return;
-                    setEditingProposal(p);
-                    setDrawerOpen(true);
-                  }}
-                  onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
-                  onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
-                  onJumpToMap={handleFocusOnMap}
-                  onAddNew={() => {
-                    if (!canEdit) return;
-                    setEditingProposal(null);
-                    setDrawerOpen(true);
-                  }}
-                  onSaveAll={() => void handleManualSaveAll()}
-                  onExportCsv={handleExportCsv}
-                  onExportGeoJson={handleExportGeoJson}
-                  onOpenTemplateDemo={() => {
-                    setPreviewProposalId(null);
-                    setShowTemplateDemo(true);
-                  }}
-                />
-              </div>
-              <div className="xl:col-span-4">
-                <ProposalDetailPanel
-                  proposal={selectedProposal}
-                  resolvedInfo={
-                    selectedProposal ? resolvedPlaces[selectedProposal.locationQuery] : undefined
-                  }
-                  canEdit={canEdit}
-                  canManageSelected={selectedProposal ? canManageProposal(selectedProposal) : false}
-                  onPreview={(id) => {
-                    setShowTemplateDemo(false);
-                    setPreviewProposalId(id);
-                  }}
-                  onFocusOnMap={handleFocusOnMap}
-                  onStartPickCoordinate={handleStartPickCoordinate}
-                  onToggleReadiness={(id, key) => void handleToggleReadiness(id, key)}
-                  onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
-                  onSaveProposal={(p) => void handleSaveSingleFromPanel(p)}
-                  onEdit={(p) => {
-                    if (!canManageProposal(p)) return;
-                    setEditingProposal(p);
-                    setDrawerOpen(true);
-                  }}
-                  onDelete={handleRequestDeleteById}
-                  onAddNew={() => {
-                    if (!canEdit) return;
-                    setEditingProposal(null);
-                    setDrawerOpen(true);
-                  }}
-                  onOpenTemplateDemo={() => {
-                    setPreviewProposalId(null);
-                    setShowTemplateDemo(true);
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* VIEW 4: PROYEKSI ANGGARAN 2027-2030 */}
+          {/* VIEW 2: PROYEKSI ANGGARAN 2027-2030 */}
           {activeView === WorkspaceView.BUDGET && <AnalyticsView proposals={filteredProposals} />}
         </main>
 

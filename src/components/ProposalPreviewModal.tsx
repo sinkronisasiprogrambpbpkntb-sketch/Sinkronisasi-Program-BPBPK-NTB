@@ -239,7 +239,7 @@ export interface ProposalPreviewModalProps {
   onSaveProposal?: (proposal: UsulanProgram) => void;
   onEditProposal: (proposal: UsulanProgram) => void;
   onDeleteProposal: (proposal: UsulanProgram) => void;
-  onFocusMainMap: (id: string) => void;
+  onFocusMainMap?: (id: string) => void;
 }
 
 function formatNumberMiliar(val: number): string {
@@ -540,8 +540,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px;line-height:1.6;">
           <div>
             <strong>Output</strong>
-            <div>&#10070; ${proposal.volumeTarget.toLocaleString('id-ID')} ${proposal.satuanTarget}</div>
-            ${details.outputTambahan ? `<div>&#10070; ${details.outputTambahan}</div>` : ''}
+            ${details.outputTambahan ? `<div>&#10070; ${details.outputTambahan}</div>` : '<div>&#10070; —</div>'}
           </div>
           <div>
             <strong>Outcome</strong>
@@ -884,19 +883,15 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-700 leading-relaxed">
                 <div className="space-y-1">
                   <div className="font-bold text-slate-900">Output</div>
-                  <div className="flex items-start gap-1.5">
-                    <span aria-hidden="true">❖</span>
-                    <span>
-                      <strong className="font-mono text-slate-900">
-                        {proposal.volumeTarget.toLocaleString('id-ID')}
-                      </strong>{' '}
-                      {proposal.satuanTarget}
-                    </span>
-                  </div>
-                  {details.outputTambahan && (
+                  {details.outputTambahan ? (
                     <div className="flex items-start gap-1.5">
                       <span aria-hidden="true">❖</span>
                       <span>{details.outputTambahan}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-1.5 text-slate-400">
+                      <span aria-hidden="true">❖</span>
+                      <span>—</span>
                     </div>
                   )}
                 </div>
@@ -991,7 +986,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                       </div>
                     )}
 
-                    {!isTemplateDemo && (
+                    {!isTemplateDemo && onFocusMainMap && (
                       <button
                         type="button"
                         onClick={() => {

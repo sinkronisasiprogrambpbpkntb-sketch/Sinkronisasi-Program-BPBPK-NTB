@@ -32,8 +32,8 @@ interface ProposalDetailPanelProps {
   canEdit: boolean;
   canManageSelected?: boolean;
   onPreview: (id: string) => void;
-  onFocusOnMap: (id: string) => void;
-  onStartPickCoordinate: (proposal: UsulanProgram) => void;
+  onFocusOnMap?: (id: string) => void;
+  onStartPickCoordinate?: (proposal: UsulanProgram) => void;
   onToggleReadiness: (id: string, key: keyof ReadinessCriteria) => void;
   onUpdateSkorRc: (id: string, skorRc: number) => void;
   onSaveProposal?: (proposal: UsulanProgram) => void;
@@ -234,16 +234,18 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
             <span>Preview Usulan</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => onFocusOnMap(proposal.id)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-          >
-            <LocateFixed className="w-3.5 h-3.5" />
-            <span>Fokus Peta</span>
-          </button>
+          {onFocusOnMap && (
+            <button
+              type="button"
+              onClick={() => onFocusOnMap(proposal.id)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <LocateFixed className="w-3.5 h-3.5" />
+              <span>Fokus Peta</span>
+            </button>
+          )}
 
-          {canEdit && !proposal.isLocked && (
+          {canEdit && !proposal.isLocked && onStartPickCoordinate && (
             <button
               type="button"
               onClick={() => onStartPickCoordinate(proposal)}
@@ -333,7 +335,7 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
 
       {/* Spatial Metadata & Attribution */}
       <div className="p-5">
-        <h4 className="text-xs font-semibold text-slate-900 mb-2">Atribut Lokasi & Geospasial</h4>
+        <h4 className="text-xs font-semibold text-slate-900 mb-2">Atribut & Referensi Wilayah Usulan</h4>
         {position ? (
           <div className="text-xs space-y-1 text-slate-600">
             <div className="flex items-center justify-between">

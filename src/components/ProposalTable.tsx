@@ -39,7 +39,7 @@ interface ProposalTableProps {
   onEditProposal: (proposal: UsulanProgram) => void;
   onUpdateSkorRc: (id: string, skorRc: number) => void;
   onDeleteProposals: (targets: UsulanProgram[]) => void;
-  onJumpToMap: (id: string) => void;
+  onJumpToMap?: (id: string) => void;
   onAddNew: () => void;
   onSaveAll?: () => void;
   onExportCsv: () => void;
@@ -605,18 +605,20 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                           </button>
                         )}
 
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onJumpToMap(p.id);
-                          }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 rounded-md transition-colors cursor-pointer whitespace-nowrap"
-                          title="Fokus ke lokasi peta spasial"
-                        >
-                          <LocateFixed className="w-3.5 h-3.5" />
-                          <span>Peta</span>
-                        </button>
+                        {onJumpToMap && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onJumpToMap(p.id);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 rounded-md transition-colors cursor-pointer whitespace-nowrap"
+                            title="Fokus ke lokasi peta spasial"
+                          >
+                            <LocateFixed className="w-3.5 h-3.5" />
+                            <span>Peta</span>
+                          </button>
+                        )}
 
                         {allowManageRow && (
                           <button
