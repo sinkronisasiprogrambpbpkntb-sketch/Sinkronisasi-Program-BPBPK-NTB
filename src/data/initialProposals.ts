@@ -1891,8 +1891,7 @@ export function exportProposalsAsCsv(
     'Pagu 2030 (Rp M)',
     'Total Pagu 2027-2030 (Rp M)',
     'Kesiapan RC (%)',
-    'Status Verifikasi',
-    'Status Manual',
+    'Status',
   ];
 
   const escapeCsv = (val: string | number) => {
@@ -1925,7 +1924,6 @@ export function exportProposalsAsCsv(
       p.pagu.y2030,
       getTotalPaguUsulan(p.pagu),
       getReadinessScore(p.readiness, p.skorRc).percentage,
-      p.statusVerifikasi,
       p.templateDetails?.statusManual ?? '',
     ]
       .map(escapeCsv)

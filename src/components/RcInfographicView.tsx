@@ -75,6 +75,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
 }) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [tierFilter, setTierFilter] = useState<RcTierFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const allRanked = useMemo<RankedProposalItem[]>(() => {
@@ -82,8 +83,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       const score = getReadinessScore(p.readiness, p.skorRc);
       const tierMeta = getTierMeta(score.percentage);
       const totalPagu = getTotalPaguUsulan(p.pagu);
-      const statusDisplay =
-        p.templateDetails?.statusManual?.trim() || p.statusVerifikasi;
+      const statusDisplay = p.templateDetails?.statusManual?.trim() || 'Belum diisi status';
 
       return {
         proposal: p,
@@ -113,9 +113,64 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     return items;
   }, [proposals, sortOrder]);
 
+  const statusOptions = useMemo(() => {
+    const manualMap = new Map<string, number>();
+    let emptyManualCount = 0;
+    for (const item of allRanked) {
+      const m = item.proposal.templateDetails?.statusManual?.trim() ?? '';
+      if (m) {
+        manualMap.set(m, (manualMap.get(m) ?? 0) + 1);
+      } else {
+        emptyManualCount += 1;
+      }
+    }
+
+    const manualOptions = Array.from(manualMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b, 'id-ID'))
+      .map(([label, count]) => ({
+        value: `manual:${label}`,
+        label,
+        count,
+      }));
+
+    return {
+      manualOptions,
+      emptyManualCount,
+    };
+  }, [allRanked]);
+
+  const effectiveStatusFilter = useMemo(() => {
+    if (statusFilter === 'ALL') return 'ALL';
+    if (statusFilter === 'manual:__EMPTY__') {
+      return statusOptions.emptyManualCount > 0 ? statusFilter : 'ALL';
+    }
+    if (statusFilter.startsWith('manual:')) {
+      return statusOptions.manualOptions.some((o) => o.value === statusFilter)
+        ? statusFilter
+        : 'ALL';
+    }
+    return 'ALL';
+  }, [statusFilter, statusOptions]);
+
+  const statusScoped = useMemo(() => {
+    if (effectiveStatusFilter === 'ALL') return allRanked;
+    if (effectiveStatusFilter === 'manual:__EMPTY__') {
+      return allRanked.filter(
+        (item) => !(item.proposal.templateDetails?.statusManual?.trim() ?? '')
+      );
+    }
+    if (effectiveStatusFilter.startsWith('manual:')) {
+      const target = effectiveStatusFilter.slice('manual:'.length);
+      return allRanked.filter(
+        (item) => (item.proposal.templateDetails?.statusManual?.trim() ?? '') === target
+      );
+    }
+    return allRanked;
+  }, [allRanked, effectiveStatusFilter]);
+
   const filteredRanked = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return allRanked.filter((item) => {
+    return statusScoped.filter((item) => {
       if (tierFilter !== 'ALL' && item.tier !== tierFilter) return false;
       if (!q) return true;
       const p = item.proposal;
@@ -124,13 +179,13 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
         p.kodeUsulan.toLowerCase().includes(q) ||
         p.kabupatenKota.toLowerCase().includes(q) ||
         SEKTOR_SHORT_LABELS[p.sektor].toLowerCase().includes(q) ||
-        item.statusDisplay.toLowerCase().includes(q)
+        (p.templateDetails?.statusManual ?? '').toLowerCase().includes(q)
       );
     });
-  }, [allRanked, tierFilter, searchQuery]);
+  }, [statusScoped, tierFilter, searchQuery]);
 
   const summaryStats = useMemo(() => {
-    if (allRanked.length === 0) {
+    if (statusScoped.length === 0) {
       return {
         highest: null as RankedProposalItem | null,
         lowest: null as RankedProposalItem | null,
@@ -142,31 +197,31 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       };
     }
 
-    const sortedDesc = [...allRanked].sort((a, b) =>
+    const sortedDesc = [...statusScoped].sort((a, b) =>
       b.rcPercentage !== a.rcPercentage
         ? b.rcPercentage - a.rcPercentage
         : b.totalPagu - a.totalPagu
     );
 
-    const highCount = allRanked.filter((x) => x.tier === 'HIGH').length;
-    const mediumCount = allRanked.filter((x) => x.tier === 'MEDIUM').length;
-    const lowCount = allRanked.filter((x) => x.tier === 'LOW').length;
-    const sumPct = allRanked.reduce((acc, x) => acc + x.rcPercentage, 0);
+    const highCount = statusScoped.filter((x) => x.tier === 'HIGH').length;
+    const mediumCount = statusScoped.filter((x) => x.tier === 'MEDIUM').length;
+    const lowCount = statusScoped.filter((x) => x.tier === 'LOW').length;
+    const sumPct = statusScoped.reduce((acc, x) => acc + x.rcPercentage, 0);
 
     return {
       highest: sortedDesc[0],
       lowest: sortedDesc[sortedDesc.length - 1],
-      averagePct: Math.round(sumPct / allRanked.length),
+      averagePct: Math.round(sumPct / statusScoped.length),
       highCount,
       mediumCount,
       lowCount,
-      totalCount: allRanked.length,
+      totalCount: statusScoped.length,
     };
-  }, [allRanked]);
+  }, [statusScoped]);
 
   const sectorAverages = useMemo(() => {
     const list = Object.values(SektorCiptaKarya).map((sek) => {
-      const items = allRanked.filter((x) => x.proposal.sektor === sek);
+      const items = statusScoped.filter((x) => x.proposal.sektor === sek);
       const count = items.length;
       const avgPct =
         count > 0
@@ -189,7 +244,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     return list.sort((a, b) =>
       sortOrder === 'desc' ? b.avgPct - a.avgPct : a.avgPct - b.avgPct
     );
-  }, [allRanked, sortOrder]);
+  }, [statusScoped, sortOrder]);
 
   const regionalAverages = useMemo(() => {
     const map: Record<
@@ -197,7 +252,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       { kabupaten: string; count: number; sumPct: number; totalPagu: number }
     > = {};
 
-    for (const item of allRanked) {
+    for (const item of statusScoped) {
       const kab = item.proposal.kabupatenKota;
       if (!map[kab]) {
         map[kab] = { kabupaten: kab, count: 0, sumPct: 0, totalPagu: 0 };
@@ -217,7 +272,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       .sort((a, b) =>
         sortOrder === 'desc' ? b.avgPct - a.avgPct : a.avgPct - b.avgPct
       );
-  }, [allRanked, sortOrder]);
+  }, [statusScoped, sortOrder]);
 
   const handleExportRankingCsv = () => {
     const headers = [
@@ -287,7 +342,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
               <span aria-hidden="true"> · </span>
               <span>{yearFilterLabel}</span>
               <span aria-hidden="true"> · </span>
-              <span className="font-mono tabular-nums">{allRanked.length}</span> Paket
+              <span className="font-mono tabular-nums">{statusScoped.length}</span> Paket
             </p>
           </div>
 
@@ -335,8 +390,8 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
           </div>
         </div>
 
-        {/* Filter Bar: Tier & Search */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        {/* Filter Bar: Tier, Status Usulan & Search */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-slate-100">
           <div
             className="inline-flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-lg"
             role="group"
@@ -365,16 +420,37 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
             ))}
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari paket, kode, kabupaten, status..."
-              aria-label="Cari paket pada infografis skor RC"
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-            />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full xl:w-auto">
+            <select
+              value={effectiveStatusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filter Status Usulan"
+              className="h-9 px-3 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 w-full sm:w-64"
+            >
+              <option value="ALL">Semua Status Usulan ({allRanked.length})</option>
+              {statusOptions.manualOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} ({opt.count})
+                </option>
+              ))}
+              {statusOptions.emptyManualCount > 0 && (
+                <option value="manual:__EMPTY__">
+                  Belum Diisi Status ({statusOptions.emptyManualCount})
+                </option>
+              )}
+            </select>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari paket, kode, kabupaten, status..."
+                aria-label="Cari paket pada infografis skor RC"
+                className="w-full h-9 pl-8 pr-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -514,7 +590,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Menampilkan <span className="font-mono tabular-nums">{filteredRanked.length}</span>{' '}
-                dari <span className="font-mono tabular-nums">{allRanked.length}</span> paket
+                dari <span className="font-mono tabular-nums">{statusScoped.length}</span> paket
                 beserta perbandingan ambang kesiapan 80%
               </p>
             </div>
@@ -523,12 +599,13 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
           {filteredRanked.length === 0 ? (
             <div className="py-12 text-center space-y-3">
               <p className="text-xs text-slate-500">
-                Tidak ada paket usulan yang cocok dengan filter kesiapan atau pencarian saat ini.
+                Tidak ada paket usulan yang cocok dengan filter status, kesiapan, atau pencarian saat ini.
               </p>
               <button
                 type="button"
                 onClick={() => {
                   setTierFilter('ALL');
+                  setStatusFilter('ALL');
                   setSearchQuery('');
                 }}
                 className="px-3.5 py-2 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap"

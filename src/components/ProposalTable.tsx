@@ -1,10 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle,
   ArrowUpDown,
   Check,
-  CheckCircle2,
-  Clock,
   Download,
   Edit3,
   Eye,
@@ -22,11 +19,7 @@ import {
   SEKTOR_SHORT_LABELS,
   tryParseNumberFlexible,
 } from '../data/initialProposals';
-import {
-  ResolvedPlaceInfo,
-  StatusVerifikasi,
-  UsulanProgram,
-} from '../types/ciptaKarya';
+import { ResolvedPlaceInfo, UsulanProgram } from '../types/ciptaKarya';
 
 interface ProposalTableProps {
   proposals: UsulanProgram[];
@@ -269,11 +262,41 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
     return Array.from(new Set(proposals.map((p) => p.kabupatenKota))).sort();
   }, [proposals]);
 
+  const manualStatusOptions = useMemo(() => {
+    const set = new Set<string>();
+    let hasEmpty = false;
+    for (const p of proposals) {
+      const m = p.templateDetails?.statusManual?.trim() ?? '';
+      if (m) set.add(m);
+      else hasEmpty = true;
+    }
+    return {
+      values: Array.from(set).sort((a, b) => a.localeCompare(b, 'id-ID')),
+      hasEmpty,
+    };
+  }, [proposals]);
+
+  const effectiveStatusFilter = useMemo(() => {
+    if (statusFilter === 'ALL') return 'ALL';
+    if (statusFilter === '__EMPTY__') {
+      return manualStatusOptions.hasEmpty ? '__EMPTY__' : 'ALL';
+    }
+    return manualStatusOptions.values.includes(statusFilter) ? statusFilter : 'ALL';
+  }, [statusFilter, manualStatusOptions]);
+
   const filteredAndSorted = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const list = proposals.filter((p) => {
       if (kabupatenFilter !== 'ALL' && p.kabupatenKota !== kabupatenFilter) return false;
-      if (statusFilter !== 'ALL' && p.statusVerifikasi !== statusFilter) return false;
+      const m = p.templateDetails?.statusManual?.trim() ?? '';
+      if (effectiveStatusFilter === '__EMPTY__' && m !== '') return false;
+      if (
+        effectiveStatusFilter !== 'ALL' &&
+        effectiveStatusFilter !== '__EMPTY__' &&
+        m !== effectiveStatusFilter
+      ) {
+        return false;
+      }
       if (!q) return true;
       return (
         p.namaProgram.toLowerCase().includes(q) ||
@@ -304,7 +327,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
     });
 
     return list;
-  }, [proposals, searchQuery, kabupatenFilter, statusFilter, sortKey, sortAsc]);
+  }, [proposals, searchQuery, kabupatenFilter, effectiveStatusFilter, sortKey, sortAsc]);
 
   const manageableVisibleItems = useMemo(() => {
     if (!canEdit) return [];
@@ -384,17 +407,20 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
           </select>
 
           <select
-            value={statusFilter}
+            value={effectiveStatusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            aria-label="Filter Status Verifikasi"
+            aria-label="Filter Status Usulan"
             className="h-9 px-3 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:border-blue-700"
           >
-            <option value="ALL">Semua Status RC</option>
-            {Object.values(StatusVerifikasi).map((st) => (
+            <option value="ALL">Semua Status Usulan</option>
+            {manualStatusOptions.values.map((st) => (
               <option key={st} value={st}>
                 {st}
               </option>
             ))}
+            {manualStatusOptions.hasEmpty && (
+              <option value="__EMPTY__">Belum Diisi Status</option>
+            )}
           </select>
         </div>
 
@@ -661,30 +687,18 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                     </td>
 
                     <td className="py-3 px-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        {p.statusVerifikasi === StatusVerifikasi.TERVERIFIKASI && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        )}
-                        {p.statusVerifikasi === StatusVerifikasi.REVISI_RC && (
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        )}
-                        {p.statusVerifikasi === StatusVerifikasi.MENUNGGU_KONREG && (
-                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        )}
-                        {canEdit && !p.isLocked ? (
-                          <ManualRcCellInput
-                            value={rc.percentage}
-                            hasExplicitManual={p.skorRc !== undefined}
-                            ariaLabel={`Skor RC Manual ${p.namaProgram}`}
-                            onCommit={(nextVal) => onUpdateSkorRc(p.id, nextVal)}
-                          />
-                        ) : (
-                          <span className="font-mono font-semibold tabular-nums text-slate-800">
-                            {rc.percentage}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">{p.statusVerifikasi}</div>
+                      {canEdit && !p.isLocked ? (
+                        <ManualRcCellInput
+                          value={rc.percentage}
+                          hasExplicitManual={p.skorRc !== undefined}
+                          ariaLabel={`Skor RC Manual ${p.namaProgram}`}
+                          onCommit={(nextVal) => onUpdateSkorRc(p.id, nextVal)}
+                        />
+                      ) : (
+                        <span className="font-mono font-semibold tabular-nums text-slate-800">
+                          {rc.percentage}%
+                        </span>
+                      )}
                     </td>
 
                     <td className="py-3 px-3 whitespace-nowrap">
