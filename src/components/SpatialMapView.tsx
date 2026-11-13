@@ -49,7 +49,7 @@ function getSektorCode(sektor: SektorCiptaKarya): string {
     case SektorCiptaKarya.AIR_MINUM:
       return 'AM';
     case SektorCiptaKarya.SANITASI:
-      return 'PLP';
+      return 'SAN';
     case SektorCiptaKarya.KAWASAN_STRATEGIS:
       return 'PKS';
     case SektorCiptaKarya.BINA_PENATAAN_BANGUNAN:
@@ -410,7 +410,7 @@ export const SpatialMapView: React.FC<SpatialMapViewProps> = ({
     }
   }, [proposals, resolvedPlaces, layerVisibility, customGeoJson, selectedProposalId]);
 
-  // Render Proposal Sector Badges (AM / PLP / PKS / BPB)
+  // Render Proposal Sector Badges (AM / SAN / PKS / BPB)
   useEffect(() => {
     const markerGroup = markersGroupRef.current;
     if (!markerGroup) return;
@@ -725,10 +725,12 @@ export const SpatialMapView: React.FC<SpatialMapViewProps> = ({
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Target Fisik</div>
-                <div className="font-mono font-semibold tabular-nums text-slate-900">
-                  {selectedProposalObj.volumeTarget.toLocaleString('id-ID')}{' '}
-                  {selectedProposalObj.satuanTarget}
+                <div className="text-slate-500">Target Fisik / Output</div>
+                <div className="font-semibold text-slate-900 leading-snug">
+                  {selectedProposalObj.templateDetails?.outputTambahan?.trim() ||
+                    (selectedProposalObj.volumeTarget > 0
+                      ? `${selectedProposalObj.volumeTarget} ${selectedProposalObj.satuanTarget}`
+                      : '—')}
                 </div>
               </div>
             </div>
@@ -785,7 +787,7 @@ export const SpatialMapView: React.FC<SpatialMapViewProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="inline-block w-3 h-3 rounded-xs bg-teal-700" aria-hidden="true" />
-            <span>PLP · Sanitasi & Persampahan</span>
+            <span>SAN · Sanitasi & Persampahan</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="inline-block w-3 h-3 rounded-xs bg-amber-600" aria-hidden="true" />

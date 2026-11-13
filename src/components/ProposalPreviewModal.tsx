@@ -25,10 +25,13 @@ import {
   buildSpatialGeoJsonLayers,
   deriveReadinessFromRcTable,
   formatActiveYears,
+  formatRcChecklistSummary,
+  getRcChecklistFlags,
   getReadinessScore,
   getTotalPaguUsulan,
   KEMENPU_RC_ROWS,
   resolveProposalTemplateDetails,
+  tryParseNumberFlexible,
 } from '../data/initialProposals';
 import {
   LatLngPoint,
@@ -84,7 +87,7 @@ function getSektorMarkerBadge(sektor: SektorCiptaKarya): { code: string; bgHex: 
     case SektorCiptaKarya.AIR_MINUM:
       return { code: 'AM', bgHex: '#1d4ed8' };
     case SektorCiptaKarya.SANITASI:
-      return { code: 'PLP', bgHex: '#0f766e' };
+      return { code: 'SAN', bgHex: '#0f766e' };
     case SektorCiptaKarya.KAWASAN_STRATEGIS:
       return { code: 'PKS', bgHex: '#d97706' };
     case SektorCiptaKarya.BINA_PENATAAN_BANGUNAN:
@@ -364,11 +367,11 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     overrideDetails?: Partial<ProposalTemplateDetails>,
     overrideSkorRc?: number
   ): UsulanProgram => {
-    const parsedRc = Number(rcDraft);
+    const parsedRc = tryParseNumberFlexible(rcDraft);
     const nextSkorRc =
       overrideSkorRc !== undefined
         ? overrideSkorRc
-        : rcDraft.trim() !== '' && !Number.isNaN(parsedRc)
+        : parsedRc !== null
           ? Math.min(100, Math.max(0, Number(parsedRc.toFixed(1))))
           : currentRcVal;
 
@@ -392,6 +395,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       outcomeTambahan: details.outcomeTambahan,
       deskripsiLokasi: details.deskripsiLokasi,
       lokasiGambarUrl: imageDraftUrl,
+      statusManual: details.statusManual,
       rcDetails: mergedRcDetails,
       ...overrideDetails,
     };
@@ -413,7 +417,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
 
   const handleRcCellChange = (
     key: RcDocKey,
-    field: 'status' | 'keterangan' | 'customLabel',
+    field: 'keterangan' | 'customLabel',
     value: string
   ) => {
     setRcTableDraft((prev) => ({
@@ -423,6 +427,25 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         [field]: value,
       },
     }));
+  };
+
+  const handleRcFlagToggle = (key: RcDocKey, flag: 'ada' | 'kurang' | 'sesuai') => {
+    setRcTableDraft((prev) => {
+      const current = prev[key] ?? { status: '', keterangan: '' };
+      const currentFlags = getRcChecklistFlags(current);
+      const nextFlags = {
+        ...currentFlags,
+        [flag]: !currentFlags[flag],
+      };
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          ...nextFlags,
+          status: formatRcChecklistSummary(nextFlags),
+        },
+      };
+    });
   };
 
   const handleUploadLocationImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -446,13 +469,16 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   const handleDownloadSlideHtml = () => {
     const rcRowsHtml = KEMENPU_RC_ROWS.map((row) => {
       const entry = rcTableDraft[row.key] ?? { status: '', keterangan: '' };
+      const flags = getRcChecklistFlags(entry);
       const docName =
         row.key === 'lainnya' && entry.customLabel?.trim()
           ? entry.customLabel
           : row.defaultLabel;
       return `<tr>
         <td style="padding:7px 10px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;">${docName}</td>
-        <td style="padding:7px 10px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;text-align:center;font-weight:600;">${entry.status || '-'}</td>
+        <td style="padding:7px 6px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;text-align:center;font-weight:700;color:#0f766e;">${flags.ada ? '&#10003;' : '&nbsp;'}</td>
+        <td style="padding:7px 6px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;text-align:center;font-weight:700;color:#b45309;">${flags.kurang ? '&#10003;' : '&nbsp;'}</td>
+        <td style="padding:7px 6px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;text-align:center;font-weight:700;color:#1d4ed8;">${flags.sesuai ? '&#10003;' : '&nbsp;'}</td>
         <td style="padding:7px 10px;border-bottom:1px solid #cbd5e1;">${entry.keterangan || '-'}</td>
       </tr>`;
     }).join('');
@@ -496,7 +522,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         <div class="bars"><div class="bar-blue"></div><div class="bar-gold"></div></div>
         <div>
           <h1>${proposal.namaProgram}</h1>
-          <div class="subtitle">${proposal.kabupatenKota} , ${details.provinsi}</div>
+          <div class="subtitle">${proposal.kabupatenKota} · ${details.provinsi}</div>
         </div>
       </div>
       <div class="brand">
@@ -544,8 +570,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           </div>
           <div>
             <strong>Outcome</strong>
-            <div>&#10070; ${proposal.penerimaManfaatJiwa.toLocaleString('id-ID')} jiwa</div>
-            ${details.outcomeTambahan ? `<div>&#10070; ${details.outcomeTambahan}</div>` : ''}
+            ${details.outcomeTambahan ? `<div>&#10070; ${details.outcomeTambahan}</div>` : '<div>&#10070; —</div>'}
           </div>
         </div>
       </div>
@@ -565,9 +590,14 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         <table>
           <thead>
             <tr>
-              <th style="border-right:1px solid #cbd5e1;">Dokumen</th>
-              <th style="border-right:1px solid #cbd5e1;">Status</th>
-              <th>Keterangan</th>
+              <th rowspan="2" style="border-right:1px solid #cbd5e1;vertical-align:middle;">Dokumen</th>
+              <th colspan="3" style="border-right:1px solid #cbd5e1;border-bottom:1px solid #cbd5e1;">Status</th>
+              <th rowspan="2" style="vertical-align:middle;">Keterangan</th>
+            </tr>
+            <tr>
+              <th style="border-right:1px solid #cbd5e1;font-size:11px;width:54px;">Ada</th>
+              <th style="border-right:1px solid #cbd5e1;font-size:11px;width:58px;">Kurang</th>
+              <th style="border-right:1px solid #cbd5e1;font-size:11px;width:58px;">Sesuai</th>
             </tr>
           </thead>
           <tbody>${rcRowsHtml}</tbody>
@@ -751,7 +781,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   {proposal.namaProgram}
                 </h1>
                 <div className="mt-0.5 text-sm sm:text-base font-medium text-[#5b7fa6] uppercase tracking-wide">
-                  {proposal.kabupatenKota} , {details.provinsi}
+                  {proposal.kabupatenKota} · {details.provinsi}
                 </div>
               </div>
             </div>
@@ -898,19 +928,15 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
 
                 <div className="space-y-1">
                   <div className="font-bold text-slate-900">Outcome</div>
-                  <div className="flex items-start gap-1.5">
-                    <span aria-hidden="true">❖</span>
-                    <span>
-                      <strong className="font-mono text-slate-900">
-                        {proposal.penerimaManfaatJiwa.toLocaleString('id-ID')}
-                      </strong>{' '}
-                      jiwa
-                    </span>
-                  </div>
-                  {details.outcomeTambahan && (
+                  {details.outcomeTambahan ? (
                     <div className="flex items-start gap-1.5">
                       <span aria-hidden="true">❖</span>
                       <span>{details.outcomeTambahan}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-1.5 text-slate-400">
+                      <span aria-hidden="true">❖</span>
+                      <span>—</span>
                     </div>
                   )}
                 </div>
@@ -1046,19 +1072,19 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     {allowManageCurrent ? (
                       <div className="flex items-center bg-slate-50 border border-slate-300 rounded-md px-2 py-0.5 w-20 focus-within:border-blue-700 focus-within:bg-white">
                         <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="any"
+                          type="text"
+                          inputMode="decimal"
                           aria-label="Skor RC Manual (%)"
                           value={rcDraft}
                           onChange={(e) => setRcDraft(e.target.value)}
                           onBlur={() => {
-                            const num = Number(rcDraft);
-                            if (!Number.isNaN(num) && rcDraft.trim() !== '') {
+                            const num = tryParseNumberFlexible(rcDraft);
+                            if (num !== null) {
                               const clamped = Math.min(100, Math.max(0, Number(num.toFixed(1))));
                               setRcDraft(String(clamped));
                               onUpdateSkorRc(proposal.id, clamped);
+                            } else {
+                              setRcDraft(String(currentRcVal));
                             }
                           }}
                           className="w-full text-xs font-mono font-bold tabular-nums text-right text-slate-900 bg-transparent focus:outline-none"
@@ -1073,19 +1099,39 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   </div>
                 </div>
 
-                {/* 3-Column KEMENPU RC Table: Dokumen | Status | Keterangan */}
+                {/* Checklist KEMENPU RC Table: Dokumen | Status (Ada, Kurang, Sesuai) | Keterangan */}
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-xs">
                     <thead>
-                      <tr className="border-b border-slate-300 text-slate-800">
-                        <th className="py-2 px-2.5 text-center font-bold border-r border-slate-300 w-[38%]">
+                      <tr className="border-b border-slate-300 text-slate-800 bg-slate-50/70">
+                        <th
+                          rowSpan={2}
+                          className="py-1.5 px-2.5 text-center font-bold border-r border-slate-300 w-[37%] align-middle"
+                        >
                           Dokumen
                         </th>
-                        <th className="py-2 px-2.5 text-center font-bold border-r border-slate-300 w-[24%]">
+                        <th
+                          colSpan={3}
+                          className="py-1 px-2 text-center font-bold border-r border-slate-300 border-b border-slate-300"
+                        >
                           Status
                         </th>
-                        <th className="py-2 px-2.5 text-center font-bold w-[38%]">
+                        <th
+                          rowSpan={2}
+                          className="py-1.5 px-2.5 text-center font-bold w-[36%] align-middle"
+                        >
                           Keterangan
+                        </th>
+                      </tr>
+                      <tr className="border-b border-slate-300 text-slate-700 bg-slate-50/40 text-[11px]">
+                        <th className="py-1 px-1.5 text-center font-semibold border-r border-slate-300 w-[9%]">
+                          Ada
+                        </th>
+                        <th className="py-1 px-1.5 text-center font-semibold border-r border-slate-300 w-[9%]">
+                          Kurang
+                        </th>
+                        <th className="py-1 px-1.5 text-center font-semibold border-r border-slate-300 w-[9%]">
+                          Sesuai
                         </th>
                       </tr>
                     </thead>
@@ -1095,6 +1141,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           status: '',
                           keterangan: '',
                         };
+                        const flags = getRcChecklistFlags(entry);
+                        const docLabel = entry.customLabel || row.defaultLabel;
                         return (
                           <tr key={row.key} className="hover:bg-slate-50/60">
                             <td className="py-2 px-2.5 border-r border-slate-300 align-middle">
@@ -1109,26 +1157,42 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                                   className="w-full bg-transparent text-xs text-slate-800 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-600 rounded px-1 py-0.5"
                                 />
                               ) : (
-                                <span>{entry.customLabel || row.defaultLabel}</span>
+                                <span>{docLabel}</span>
                               )}
                             </td>
-                            <td className="py-1.5 px-2 border-r border-slate-300 align-middle text-center">
-                              {allowManageCurrent ? (
-                                <input
-                                  type="text"
-                                  value={entry.status}
-                                  onChange={(e) =>
-                                    handleRcCellChange(row.key, 'status', e.target.value)
-                                  }
-                                  placeholder="Lengkap / Proses / -"
-                                  className="w-full bg-transparent text-center text-xs font-medium text-slate-900 placeholder:text-slate-300 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-600 rounded px-1 py-0.5"
-                                />
-                              ) : (
-                                <span className="font-medium text-slate-900">
-                                  {entry.status || ''}
-                                </span>
-                              )}
-                            </td>
+                            {(
+                              [
+                                { key: 'ada', label: 'Ada', accent: 'text-emerald-700 accent-emerald-700' },
+                                { key: 'kurang', label: 'Kurang', accent: 'text-amber-700 accent-amber-600' },
+                                { key: 'sesuai', label: 'Sesuai', accent: 'text-blue-700 accent-blue-700' },
+                              ] as const
+                            ).map((col) => {
+                              const checked = flags[col.key];
+                              return (
+                                <td
+                                  key={col.key}
+                                  className="py-1.5 px-1.5 border-r border-slate-300 align-middle text-center"
+                                >
+                                  {allowManageCurrent ? (
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => handleRcFlagToggle(row.key, col.key)}
+                                      aria-label={`${docLabel} - ${col.label}`}
+                                      className={`w-4 h-4 rounded border-slate-300 cursor-pointer align-middle ${col.accent}`}
+                                    />
+                                  ) : (
+                                    <span
+                                      className={`font-bold text-sm leading-none ${
+                                        checked ? col.accent.split(' ')[0] : 'text-slate-300'
+                                      }`}
+                                    >
+                                      {checked ? '✓' : ''}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
                             <td className="py-1.5 px-2 align-middle">
                               {allowManageCurrent ? (
                                 <input
@@ -1155,7 +1219,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               {allowManageCurrent && onSaveProposal && (
                 <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between gap-2 print:hidden">
                   <span className="text-[11px] text-slate-500">
-                    Kolom Status dan Keterangan RC di atas dapat langsung diketik dan disimpan.
+                    Centang kolom Status (Ada / Kurang / Sesuai) dan isi Keterangan RC di atas lalu simpan.
                   </span>
                   <button
                     type="button"

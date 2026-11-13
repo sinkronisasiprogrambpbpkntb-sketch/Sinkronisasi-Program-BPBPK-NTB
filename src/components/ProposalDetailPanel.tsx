@@ -18,6 +18,7 @@ import {
   getReadinessScore,
   getTotalPaguUsulan,
   SEKTOR_SHORT_LABELS,
+  tryParseNumberFlexible,
 } from '../data/initialProposals';
 import {
   ReadinessCriteria,
@@ -46,13 +47,13 @@ interface ProposalDetailPanelProps {
 const RC_ITEMS: Array<{ key: keyof ReadinessCriteria; label: string; desc: string }> = [
   {
     key: 'dokumenPerencanaan',
-    label: 'Dokumen Induk / FS',
-    desc: 'RISPAM / SSK / RPKPP / Studi Kelayakan',
+    label: 'Dokumen Rencana Induk',
+    desc: 'RISPAM, RIPS, RISPAL, RIPKS / Masterplan yang masih berlaku',
   },
   {
     key: 'dedRab',
-    label: 'DED & RAB Teknis',
-    desc: 'Gambar kerja rinci & reviu harga satuan Balai',
+    label: 'Dokumen FS, DED & RAB Teknis',
+    desc: 'Studi Kelayakan (FS), gambar kerja rinci (DED) & reviu RAB Balai',
   },
   {
     key: 'kesiapanLahan',
@@ -125,10 +126,8 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
 
   useEffect(() => {
     if (!proposal || !canEdit || proposal.isLocked || !rcDirty) return;
-    const trimmed = rcDraft.trim();
-    if (trimmed === '') return;
-    const parsed = Number(trimmed);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 100) return;
+    const parsed = tryParseNumberFlexible(rcDraft);
+    if (parsed === null || parsed < 0 || parsed > 100) return;
 
     const timer = window.setTimeout(() => {
       const clamped = Math.min(100, Math.max(0, Number(parsed.toFixed(1))));
@@ -184,8 +183,8 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
 
   const handleSaveManualRc = () => {
     setRcDirty(false);
-    const num = Number(rcDraft);
-    if (rcDraft.trim() === '' || Number.isNaN(num)) {
+    const num = tryParseNumberFlexible(rcDraft);
+    if (num === null) {
       setRcDraft(String(rcScore.percentage));
       return;
     }
@@ -319,15 +318,21 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
 
         <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs">
           <div>
-            <span className="text-slate-500 block">Target Kapasitas / Output</span>
+            <span className="text-slate-500 block">Output</span>
             <span className="font-mono font-semibold tabular-nums text-slate-900">
-              {proposal.volumeTarget.toLocaleString('id-ID')} {proposal.satuanTarget}
+              {proposal.templateDetails?.outputTambahan?.trim() ||
+                (proposal.volumeTarget > 0
+                  ? `${proposal.volumeTarget} ${proposal.satuanTarget}`
+                  : '—')}
             </span>
           </div>
           <div>
-            <span className="text-slate-500 block">Estimasi Penerima Manfaat</span>
+            <span className="text-slate-500 block">Outcome</span>
             <span className="font-mono font-semibold tabular-nums text-slate-900">
-              {proposal.penerimaManfaatJiwa.toLocaleString('id-ID')} Jiwa
+              {proposal.templateDetails?.outcomeTambahan?.trim() ||
+                (proposal.penerimaManfaatJiwa > 0
+                  ? `${proposal.penerimaManfaatJiwa.toLocaleString('id-ID')} Jiwa`
+                  : '—')}
             </span>
           </div>
         </div>
@@ -396,10 +401,8 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
               <div className="flex items-center bg-white border border-slate-300 rounded-md px-2 py-1 focus-within:border-blue-700 w-20">
                 <input
                   id="detail-manual-rc-input"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"
                   value={rcDraft}
                   onChange={(e) => {
                     setRcDraft(e.target.value);

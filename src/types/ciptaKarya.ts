@@ -22,11 +22,12 @@ export enum WorkspaceView {
   OVERVIEW = 'overview',
   SPATIAL = 'spatial',
   MATRIX = 'matrix',
+  RC_INFOGRAPHIC = 'rc_infographic',
   BUDGET = 'budget',
 }
 
 export interface ReadinessCriteria {
-  dokumenPerencanaan: boolean; // RISPAM / SSK / RPKPP / FS
+  dokumenPerencanaan: boolean; // RISPAM, RIPS, RISPAL, RIPKS / Masterplan
   dedRab: boolean; // Detailed Engineering Design & RAB
   kesiapanLahan: boolean; // Clean & Clear Land Certificate
   dokumenLingkungan: boolean; // AMDAL / UKL-UPL
@@ -35,16 +36,19 @@ export interface ReadinessCriteria {
 
 export type RcDocKey =
   | 'rencanaInduk'
-  | 'studiKelayakan'
+  | 'fsDedRab'
   | 'suratMinatKepalaDaerah'
   | 'sertifikatLahan'
-  | 'ded'
-  | 'rab'
   | 'dokumenLingkungan'
   | 'lainnya';
 
+export type LegacyRcDocKey = RcDocKey | 'studiKelayakan' | 'ded' | 'rab';
+
 export interface RcDocumentEntry {
   status: string;
+  ada?: boolean;
+  kurang?: boolean;
+  sesuai?: boolean;
   keterangan: string;
   customLabel?: string;
 }
@@ -65,7 +69,8 @@ export interface ProposalTemplateDetails {
   outcomeTambahan?: string;
   deskripsiLokasi?: string;
   lokasiGambarUrl?: string;
-  rcDetails?: Partial<Record<RcDocKey, RcDocumentEntry>>;
+  statusManual?: string;
+  rcDetails?: Partial<Record<LegacyRcDocKey, RcDocumentEntry>>;
 }
 
 export interface PaguTahunan {

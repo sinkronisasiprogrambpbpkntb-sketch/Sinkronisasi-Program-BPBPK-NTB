@@ -20,6 +20,7 @@ import {
   getReadinessScore,
   getTotalPaguUsulan,
   SEKTOR_SHORT_LABELS,
+  tryParseNumberFlexible,
 } from '../data/initialProposals';
 import {
   ResolvedPlaceInfo,
@@ -38,6 +39,7 @@ interface ProposalTableProps {
   onPreviewProposal: (id: string) => void;
   onEditProposal: (proposal: UsulanProgram) => void;
   onUpdateSkorRc: (id: string, skorRc: number) => void;
+  onUpdateStatusManual?: (id: string, statusManual: string) => void;
   onDeleteProposals: (targets: UsulanProgram[]) => void;
   onJumpToMap?: (id: string) => void;
   onAddNew: () => void;
@@ -70,10 +72,8 @@ const ManualRcCellInput: React.FC<ManualRcCellInputProps> = ({
 
   useEffect(() => {
     if (!isDirty) return;
-    const trimmed = draft.trim();
-    if (trimmed === '') return;
-    const parsed = Number(trimmed);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 100) return;
+    const parsed = tryParseNumberFlexible(draft);
+    if (parsed === null || parsed < 0 || parsed > 100) return;
 
     const timer = window.setTimeout(() => {
       const clamped = Math.min(100, Math.max(0, Number(parsed.toFixed(1))));
@@ -88,8 +88,8 @@ const ManualRcCellInput: React.FC<ManualRcCellInputProps> = ({
 
   const commit = () => {
     setIsDirty(false);
-    const parsed = Number(draft);
-    if (draft.trim() === '' || Number.isNaN(parsed)) {
+    const parsed = tryParseNumberFlexible(draft);
+    if (parsed === null) {
       setDraft(String(value));
       return;
     }
@@ -110,10 +110,8 @@ const ManualRcCellInput: React.FC<ManualRcCellInputProps> = ({
         title="Ketik Skor RC manual (0–100) lalu klik tombol simpan atau tekan Enter"
       >
         <input
-          type="number"
-          min="0"
-          max="100"
-          step="any"
+          type="text"
+          inputMode="decimal"
           aria-label={ariaLabel}
           value={draft}
           onChange={(e) => {
@@ -150,7 +148,95 @@ const ManualRcCellInput: React.FC<ManualRcCellInputProps> = ({
   );
 };
 
-type SortKey = 'kode' | 'pagu' | 'rc' | 'kabupaten';
+interface ManualStatusCellInputProps {
+  value: string;
+  ariaLabel: string;
+  onCommit: (nextVal: string) => void;
+}
+
+const ManualStatusCellInput: React.FC<ManualStatusCellInputProps> = ({
+  value,
+  ariaLabel,
+  onCommit,
+}) => {
+  const [draft, setDraft] = useState<string>(value);
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+
+  useEffect(() => {
+    setDraft(value);
+    setIsDirty(false);
+  }, [value]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const timer = window.setTimeout(() => {
+      const trimmed = draft.trim();
+      if (trimmed !== value) {
+        onCommit(trimmed);
+      }
+      setIsDirty(false);
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [draft, isDirty, value, onCommit]);
+
+  const commit = () => {
+    setIsDirty(false);
+    const trimmed = draft.trim();
+    setDraft(trimmed);
+    if (trimmed !== value) {
+      onCommit(trimmed);
+    }
+  };
+
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1"
+    >
+      <div
+        className="flex items-center bg-white border border-slate-300 rounded px-2 py-1 focus-within:border-blue-700 w-36"
+        title="Ketik Status usulan secara manual lalu tekan Enter atau klik simpan"
+      >
+        <input
+          type="text"
+          aria-label={ariaLabel}
+          value={draft}
+          placeholder="Isi status..."
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setIsDirty(true);
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              (e.currentTarget as HTMLInputElement).blur();
+            }
+          }}
+          className="w-full text-xs text-slate-900 placeholder:text-slate-400 bg-transparent focus:outline-none"
+        />
+      </div>
+      {isDirty && (
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            commit();
+          }}
+          className="inline-flex items-center justify-center p-1 rounded bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer shrink-0"
+          title="Klik untuk menyimpan Status"
+          aria-label="Simpan Status Manual"
+        >
+          <Check className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+};
+
+type SortKey = 'kode' | 'pagu' | 'rc' | 'kabupaten' | 'status';
 
 export const ProposalTable: React.FC<ProposalTableProps> = ({
   proposals,
@@ -163,6 +249,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
   onPreviewProposal,
   onEditProposal,
   onUpdateSkorRc,
+  onUpdateStatusManual,
   onDeleteProposals,
   onJumpToMap,
   onAddNew,
@@ -192,7 +279,9 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
         p.namaProgram.toLowerCase().includes(q) ||
         p.kodeUsulan.toLowerCase().includes(q) ||
         p.kabupatenKota.toLowerCase().includes(q) ||
-        p.kecamatanKawasan.toLowerCase().includes(q)
+        p.kecamatanKawasan.toLowerCase().includes(q) ||
+        (p.templateDetails?.outputTambahan ?? '').toLowerCase().includes(q) ||
+        (p.templateDetails?.statusManual ?? '').toLowerCase().includes(q)
       );
     });
 
@@ -200,6 +289,11 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
       let cmp = 0;
       if (sortKey === 'kode') cmp = a.kodeUsulan.localeCompare(b.kodeUsulan);
       if (sortKey === 'kabupaten') cmp = a.kabupatenKota.localeCompare(b.kabupatenKota);
+      if (sortKey === 'status') {
+        cmp = (a.templateDetails?.statusManual ?? '').localeCompare(
+          b.templateDetails?.statusManual ?? ''
+        );
+      }
       if (sortKey === 'pagu') cmp = getTotalPaguUsulan(a.pagu) - getTotalPaguUsulan(b.pagu);
       if (sortKey === 'rc') {
         cmp =
@@ -460,6 +554,16 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                     <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </th>
+                <th className="py-3 px-3 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('status')}
+                    className="inline-flex items-center gap-1 hover:text-slate-900 cursor-pointer"
+                  >
+                    <span>Status</span>
+                    <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </th>
                 <th className="py-3 px-4 text-right whitespace-nowrap">Tindakan</th>
               </tr>
             </thead>
@@ -521,9 +625,19 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                       )}
                     </td>
 
-                    <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap text-slate-700">
-                      <div>{p.volumeTarget.toLocaleString('id-ID')}</div>
-                      <div className="font-sans text-[11px] text-slate-400">{p.satuanTarget}</div>
+                    <td className="py-3 px-3 text-right text-slate-700 max-w-[190px]">
+                      {p.templateDetails?.outputTambahan?.trim() ? (
+                        <div className="text-xs font-medium text-slate-800 leading-snug">
+                          {p.templateDetails.outputTambahan.trim()}
+                        </div>
+                      ) : p.volumeTarget > 0 ? (
+                        <div className="font-mono tabular-nums whitespace-nowrap">
+                          <div>{p.volumeTarget}</div>
+                          <div className="font-sans text-[11px] text-slate-400">{p.satuanTarget}</div>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
 
                     <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap text-slate-700">
@@ -571,6 +685,20 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                         )}
                       </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">{p.statusVerifikasi}</div>
+                    </td>
+
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      {canEdit && !p.isLocked && onUpdateStatusManual ? (
+                        <ManualStatusCellInput
+                          value={p.templateDetails?.statusManual ?? ''}
+                          ariaLabel={`Status Manual ${p.namaProgram}`}
+                          onCommit={(nextVal) => onUpdateStatusManual(p.id, nextVal)}
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-700">
+                          {p.templateDetails?.statusManual?.trim() || '—'}
+                        </span>
+                      )}
                     </td>
 
                     <td className="py-3 px-4 text-right whitespace-nowrap">

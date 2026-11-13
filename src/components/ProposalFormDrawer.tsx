@@ -2,10 +2,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ImagePlus, Save, Search, Trash2, X } from 'lucide-react';
 import {
   deriveReadinessFromRcTable,
+  formatRcChecklistSummary,
   formatRpMiliar,
+  getRcChecklistFlags,
   getReadinessScore,
   KEMENPU_RC_ROWS,
+  parseNumberFlexible,
   resolveProposalTemplateDetails,
+  tryParseNumberFlexible,
 } from '../data/initialProposals';
 import { PlaceSuggestionItem, useModernPlaceAutocomplete } from '../hooks/useSpatialResolver';
 import {
@@ -47,16 +51,23 @@ const DEFAULT_READINESS: ReadinessCriteria = {
 
 function createEmptyRcTable(): Record<RcDocKey, RcDocumentEntry> {
   return {
-    rencanaInduk: { status: '', keterangan: '' },
-    studiKelayakan: { status: '', keterangan: '' },
-    suratMinatKepalaDaerah: { status: '', keterangan: '' },
-    sertifikatLahan: { status: '', keterangan: '' },
-    ded: { status: '', keterangan: '' },
-    rab: { status: '', keterangan: '' },
-    dokumenLingkungan: { status: '', keterangan: '' },
+    rencanaInduk: { status: '', ada: false, kurang: false, sesuai: false, keterangan: '' },
+    fsDedRab: { status: '', ada: false, kurang: false, sesuai: false, keterangan: '' },
+    suratMinatKepalaDaerah: {
+      status: '',
+      ada: false,
+      kurang: false,
+      sesuai: false,
+      keterangan: '',
+    },
+    sertifikatLahan: { status: '', ada: false, kurang: false, sesuai: false, keterangan: '' },
+    dokumenLingkungan: { status: '', ada: false, kurang: false, sesuai: false, keterangan: '' },
     lainnya: {
       customLabel: 'Lainnya.....(silakan tambahkan)',
       status: '',
+      ada: false,
+      kurang: false,
+      sesuai: false,
       keterangan: '',
     },
   };
@@ -107,10 +118,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
   const [durasiBulan, setDurasiBulan] = useState<string>('18');
   const [waktuMulai, setWaktuMulai] = useState<string>('Januari 2027');
   const [waktuSelesai, setWaktuSelesai] = useState<string>('Juni 2028');
-  const [volumeTarget, setVolumeTarget] = useState<string>('100');
-  const [satuanTarget, setSatuanTarget] = useState<string>('Liter/detik');
   const [outputTambahan, setOutputTambahan] = useState<string>('');
-  const [penerimaManfaatJiwa, setPenerimaManfaatJiwa] = useState<string>('25000');
   const [outcomeTambahan, setOutcomeTambahan] = useState<string>('');
 
   // Spatial Context & Location Image
@@ -124,6 +132,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
   const [statusVerifikasi, setStatusVerifikasi] = useState<StatusVerifikasi>(
     StatusVerifikasi.MENUNGGU_KONREG
   );
+  const [statusManual, setStatusManual] = useState<string>('');
   const [skorRcInput, setSkorRcInput] = useState<string>('80');
   const [readiness, setReadiness] = useState<ReadinessCriteria>(DEFAULT_READINESS);
   const [rcTable, setRcTable] = useState<Record<RcDocKey, RcDocumentEntry>>(createEmptyRcTable);
@@ -195,10 +204,12 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       setDurasiBulan(String(tpl.durasiBulan));
       setWaktuMulai(tpl.waktuMulai);
       setWaktuSelesai(tpl.waktuSelesai);
-      setVolumeTarget(String(editingProposal.volumeTarget));
-      setSatuanTarget(editingProposal.satuanTarget);
-      setOutputTambahan(tpl.outputTambahan);
-      setPenerimaManfaatJiwa(String(editingProposal.penerimaManfaatJiwa));
+      setOutputTambahan(
+        tpl.outputTambahan ||
+          (editingProposal.volumeTarget > 0
+            ? `${editingProposal.volumeTarget} ${editingProposal.satuanTarget}`.trim()
+            : '')
+      );
       setOutcomeTambahan(tpl.outcomeTambahan);
 
       setServiceRadiusKm(String(editingProposal.serviceRadiusKm));
@@ -207,6 +218,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       setLokasiGambarUrl(tpl.lokasiGambarUrl);
 
       setStatusVerifikasi(editingProposal.statusVerifikasi);
+      setStatusManual(tpl.statusManual);
       setSkorRcInput(
         String(getReadinessScore(editingProposal.readiness, editingProposal.skorRc).percentage)
       );
@@ -247,10 +259,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       setDurasiBulan('18');
       setWaktuMulai('Januari 2027');
       setWaktuSelesai('Juni 2028');
-      setVolumeTarget('100');
-      setSatuanTarget('Liter/detik');
       setOutputTambahan('');
-      setPenerimaManfaatJiwa('30000');
       setOutcomeTambahan('');
 
       setServiceRadiusKm('4.0');
@@ -259,6 +268,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       setLokasiGambarUrl(undefined);
 
       setStatusVerifikasi(StatusVerifikasi.MENUNGGU_KONREG);
+      setStatusManual('');
       setSkorRcInput('80');
       setReadiness(DEFAULT_READINESS);
       setRcTable(createEmptyRcTable());
@@ -268,10 +278,10 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
 
   const liveTotalPagu = useMemo(() => {
     return (
-      Math.max(0, Number(pagu2027) || 0) +
-      Math.max(0, Number(pagu2028) || 0) +
-      Math.max(0, Number(pagu2029) || 0) +
-      Math.max(0, Number(pagu2030) || 0)
+      Math.max(0, parseNumberFlexible(pagu2027)) +
+      Math.max(0, parseNumberFlexible(pagu2028)) +
+      Math.max(0, parseNumberFlexible(pagu2029)) +
+      Math.max(0, parseNumberFlexible(pagu2030))
     );
   }, [pagu2027, pagu2028, pagu2029, pagu2030]);
 
@@ -289,10 +299,10 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       return { ok: false, error: 'Nama usulan kegiatan wajib diisi.' };
     }
 
-    const y2027 = Math.max(0, Number(pagu2027) || 0);
-    const y2028 = Math.max(0, Number(pagu2028) || 0);
-    const y2029 = Math.max(0, Number(pagu2029) || 0);
-    const y2030 = Math.max(0, Number(pagu2030) || 0);
+    const y2027 = Math.max(0, parseNumberFlexible(pagu2027));
+    const y2028 = Math.max(0, parseNumberFlexible(pagu2028));
+    const y2029 = Math.max(0, parseNumberFlexible(pagu2029));
+    const y2030 = Math.max(0, parseNumberFlexible(pagu2030));
 
     if (y2027 + y2028 + y2029 + y2030 <= 0) {
       return {
@@ -301,10 +311,9 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       };
     }
 
-    const parsedSkorRc = Number(skorRcInput);
+    const parsedSkorRc = tryParseNumberFlexible(skorRcInput);
     if (
-      skorRcInput.trim() === '' ||
-      Number.isNaN(parsedSkorRc) ||
+      parsedSkorRc === null ||
       parsedSkorRc < 0 ||
       parsedSkorRc > 100
     ) {
@@ -322,11 +331,11 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
           error: 'Koordinat Latitude dan Longitude harus diisi keduanya atau dikosongkan keduanya.',
         };
       }
-      const latNum = Number(latInput);
-      const lngNum = Number(lngInput);
+      const latNum = tryParseNumberFlexible(latInput);
+      const lngNum = tryParseNumberFlexible(lngInput);
       if (
-        Number.isNaN(latNum) ||
-        Number.isNaN(lngNum) ||
+        latNum === null ||
+        lngNum === null ||
         latNum < -90 ||
         latNum > 90 ||
         lngNum < -180 ||
@@ -357,15 +366,15 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
     const totalPaguSum = Number((y2027 + y2028 + y2029 + y2030).toFixed(2));
     const parsedFisik =
       biayaFisikMiliar.trim() !== ''
-        ? Math.max(0, Number(biayaFisikMiliar) || 0)
+        ? Math.max(0, parseNumberFlexible(biayaFisikMiliar))
         : Number((totalPaguSum * 0.95).toFixed(2));
     const parsedSupervisi =
       biayaSupervisiMiliar.trim() !== ''
-        ? Math.max(0, Number(biayaSupervisiMiliar) || 0)
+        ? Math.max(0, parseNumberFlexible(biayaSupervisiMiliar))
         : Number(Math.max(0, totalPaguSum - parsedFisik).toFixed(2));
 
-    const parsedBulan = Math.max(1, Math.round(Number(durasiBulan) || 12));
-    const parsedHari = Math.max(1, Math.round(Number(durasiHari) || parsedBulan * 30));
+    const parsedBulan = Math.max(1, Math.round(parseNumberFlexible(durasiBulan) || 12));
+    const parsedHari = Math.max(1, Math.round(parseNumberFlexible(durasiHari) || parsedBulan * 30));
 
     const templateDetails: ProposalTemplateDetails = {
       provinsi: effectiveProvinsi,
@@ -383,6 +392,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       outcomeTambahan: outcomeTambahan.trim(),
       deskripsiLokasi: deskripsiLokasi.trim(),
       lokasiGambarUrl,
+      statusManual: statusManual.trim(),
       rcDetails: rcTable,
     };
 
@@ -398,9 +408,11 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       locationQuery: effectiveQuery,
       manualPosition: parsedManualPosition,
       manualAddressLabel: pickedAddress || undefined,
-      volumeTarget: Math.max(0.1, Number(volumeTarget) || 1),
-      satuanTarget: satuanTarget.trim() || 'Unit',
-      penerimaManfaatJiwa: Math.max(0, Math.round(Number(penerimaManfaatJiwa) || 0)),
+      volumeTarget:
+        outputTambahan.trim() === '' ? 0 : (editingProposal?.volumeTarget ?? 0),
+      satuanTarget:
+        outputTambahan.trim() === '' ? '' : (editingProposal?.satuanTarget ?? ''),
+      penerimaManfaatJiwa: editingProposal?.penerimaManfaatJiwa ?? 0,
       sumberDana,
       skemaKontrak,
       pagu: { y2027, y2028, y2029, y2030 },
@@ -408,7 +420,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       readiness: derivedReadiness,
       statusVerifikasi,
       prioritasNasional: prioritasNasional.trim() || 'PN 2 · Layanan Dasar Infrastruktur',
-      serviceRadiusKm: Math.max(0.5, Number(serviceRadiusKm) || 3.5),
+      serviceRadiusKm: Math.max(0.5, parseNumberFlexible(serviceRadiusKm) || 3.5),
       corridorGroup: corridorGroup.trim() || undefined,
       catatanTeknis:
         catatanTeknis.trim() || deskripsiLokasi.trim() || latarBelakang.trim() || '-',
@@ -463,12 +475,10 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
     totalCount,
     sektor,
     pickedAddress,
-    volumeTarget,
-    satuanTarget,
-    penerimaManfaatJiwa,
     sumberDana,
     skemaKontrak,
     statusVerifikasi,
+    statusManual,
     prioritasNasional,
     serviceRadiusKm,
     corridorGroup,
@@ -523,7 +533,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
     }
   };
 
-  const updateRcCell = (key: RcDocKey, field: keyof RcDocumentEntry, value: string) => {
+  const updateRcCell = (key: RcDocKey, field: 'keterangan' | 'customLabel', value: string) => {
     setRcTable((prev) => ({
       ...prev,
       [key]: {
@@ -531,6 +541,26 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
         [field]: value,
       },
     }));
+    markFieldEdited();
+  };
+
+  const toggleRcFlag = (key: RcDocKey, flag: 'ada' | 'kurang' | 'sesuai') => {
+    setRcTable((prev) => {
+      const current = prev[key] ?? { status: '', keterangan: '' };
+      const currentFlags = getRcChecklistFlags(current);
+      const nextFlags = {
+        ...currentFlags,
+        [flag]: !currentFlags[flag],
+      };
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          ...nextFlags,
+          status: formatRcChecklistSummary(nextFlags),
+        },
+      };
+    });
     markFieldEdited();
   };
 
@@ -636,15 +666,6 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                   onChange={(e) => {
                     const val = e.target.value as SektorCiptaKarya;
                     setSektor(val);
-                    if (!editingProposal) {
-                      if (val === SektorCiptaKarya.AIR_MINUM) setSatuanTarget('Liter/detik');
-                      if (val === SektorCiptaKarya.SANITASI)
-                        setSatuanTarget('Sambungan Rumah (SR)');
-                      if (val === SektorCiptaKarya.KAWASAN_STRATEGIS)
-                        setSatuanTarget('Hektare (Ha)');
-                      if (val === SektorCiptaKarya.BINA_PENATAAN_BANGUNAN)
-                        setSatuanTarget('m² Bangunan');
-                    }
                     markFieldEdited();
                   }}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:border-blue-700"
@@ -786,43 +807,51 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Latitude (Opsional)</label>
                   <input
-                    type="number"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     value={latInput}
                     onChange={(e) => {
-                      setLatInput(e.target.value);
+                      const raw = e.target.value;
+                      const pairMatch = raw.match(
+                        /^\s*(-?\d+(?:[.,]\d+)?)\s*(?:[;\s]+|,\s+)(-?\d+(?:[.,]\d+)?)\s*$/
+                      );
+                      if (pairMatch) {
+                        setLatInput(pairMatch[1]);
+                        setLngInput(pairMatch[2]);
+                      } else {
+                        setLatInput(raw);
+                      }
                       markFieldEdited();
                     }}
-                    placeholder="Otomatis"
+                    placeholder="-8.5833 (Otomatis)"
                     className="w-full px-3 py-1.5 text-xs font-mono tabular-nums bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Longitude (Opsional)</label>
                   <input
-                    type="number"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     value={lngInput}
                     onChange={(e) => {
                       setLngInput(e.target.value);
                       markFieldEdited();
                     }}
-                    placeholder="Otomatis"
+                    placeholder="116.1167 (Otomatis)"
                     className="w-full px-3 py-1.5 text-xs font-mono tabular-nums bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Radius Layanan (km)</label>
                   <input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    max="25"
+                    type="text"
+                    inputMode="decimal"
                     value={serviceRadiusKm}
                     onChange={(e) => {
                       setServiceRadiusKm(e.target.value);
                       markFieldEdited();
                     }}
+                    placeholder="4.0"
                     className="w-full px-3 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
                   />
                 </div>
@@ -979,14 +1008,14 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                   <div key={item.label}>
                     <label className="block text-[11px] text-slate-600 mb-1">{item.label}</label>
                     <input
-                      type="number"
-                      step="0.5"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       value={item.val}
                       onChange={(e) => {
                         item.setter(e.target.value);
                         markFieldEdited();
                       }}
+                      placeholder="0"
                       className="w-full px-2.5 py-1.5 text-xs font-mono tabular-nums bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
                     />
                   </div>
@@ -999,14 +1028,14 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                     Biaya Fisik (Rp Miliar)
                   </label>
                   <input
-                    type="number"
-                    step="0.05"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={biayaFisikMiliar}
                     onChange={(e) => {
                       setBiayaFisikMiliar(e.target.value);
                       markFieldEdited();
                     }}
+                    placeholder="0"
                     className="w-full px-2.5 py-1.5 text-xs font-mono tabular-nums bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
                   />
                 </div>
@@ -1015,14 +1044,14 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                     Manajemen Konstruksi / Supervisi (Rp Miliar)
                   </label>
                   <input
-                    type="number"
-                    step="0.05"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={biayaSupervisiMiliar}
                     onChange={(e) => {
                       setBiayaSupervisiMiliar(e.target.value);
                       markFieldEdited();
                     }}
+                    placeholder="0"
                     className="w-full px-2.5 py-1.5 text-xs font-mono tabular-nums bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
                   />
                 </div>
@@ -1047,41 +1076,10 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
             </div>
 
             {/* Output & Outcome */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Output Utama (Volume)
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.1"
-                  value={volumeTarget}
-                  onChange={(e) => {
-                    setVolumeTarget(e.target.value);
-                    markFieldEdited();
-                  }}
-                  className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Satuan Output Utama
-                </label>
-                <input
-                  type="text"
-                  value={satuanTarget}
-                  onChange={(e) => {
-                    setSatuanTarget(e.target.value);
-                    markFieldEdited();
-                  }}
-                  placeholder="Liter/detik"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Output Kedua (Opsional)
+                  Output (Opsional)
                 </label>
                 <input
                   type="text"
@@ -1094,28 +1092,9 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Outcome Utama — Penerima Manfaat (Jiwa)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={penerimaManfaatJiwa}
-                  onChange={(e) => {
-                    setPenerimaManfaatJiwa(e.target.value);
-                    markFieldEdited();
-                  }}
-                  className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Outcome Tambahan (Opsional)
+                  Outcome (Opsional)
                 </label>
                 <input
                   type="text"
@@ -1212,14 +1191,14 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
           <section className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-1.5">
               <div className="text-xs font-bold uppercase tracking-wide text-[#0b3c7c]">
-                5. Status Readiness Criteria (RC) — 8 Dokumen Standar KEMENPU
+                5. Status Readiness Criteria (RC) — 6 Dokumen Standar KEMENPU
               </div>
               <span className="text-[11px] text-slate-500">
-                Isi kolom Status (mis. Lengkap / Proses / Belum) & Keterangan
+                Centang Status (Ada / Kurang / Sesuai) & isi Keterangan
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Status Sinkronisasi Konreg
@@ -1241,14 +1220,27 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Status Matriks (Manual)
+                </label>
+                <input
+                  type="text"
+                  value={statusManual}
+                  onChange={(e) => {
+                    setStatusManual(e.target.value);
+                    markFieldEdited();
+                  }}
+                  placeholder="Isi status manual..."
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:border-blue-700"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
                   Skor Kesiapan RC (%)
                 </label>
                 <div className="flex items-center bg-white border border-slate-300 rounded-lg px-3 py-2 focus-within:border-blue-700">
                   <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     required
                     value={skorRcInput}
                     onChange={(e) => {
@@ -1267,14 +1259,30 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold">
-                    <th className="py-2 px-3 w-[38%]">Dokumen</th>
-                    <th className="py-2 px-3 w-[24%] border-l border-slate-200">Status</th>
-                    <th className="py-2 px-3 border-l border-slate-200">Keterangan</th>
+                    <th rowSpan={2} className="py-2 px-3 w-[37%] align-middle">
+                      Dokumen
+                    </th>
+                    <th
+                      colSpan={3}
+                      className="py-1.5 px-2 text-center border-l border-b border-slate-200"
+                    >
+                      Status
+                    </th>
+                    <th rowSpan={2} className="py-2 px-3 border-l border-slate-200 align-middle">
+                      Keterangan
+                    </th>
+                  </tr>
+                  <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-600 text-[11px] font-semibold">
+                    <th className="py-1 px-2 text-center border-l border-slate-200 w-[8%]">Ada</th>
+                    <th className="py-1 px-2 text-center border-l border-slate-200 w-[8%]">Kurang</th>
+                    <th className="py-1 px-2 text-center border-l border-slate-200 w-[8%]">Sesuai</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {KEMENPU_RC_ROWS.map((row) => {
                     const entry = rcTable[row.key] ?? { status: '', keterangan: '' };
+                    const flags = getRcChecklistFlags(entry);
+                    const docLabel = entry.customLabel || row.defaultLabel;
                     return (
                       <tr key={row.key}>
                         <td className="py-1.5 px-3 text-slate-800 align-middle">
@@ -1291,15 +1299,26 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                             <span>{row.defaultLabel}</span>
                           )}
                         </td>
-                        <td className="py-1.5 px-2 border-l border-slate-200 align-middle">
-                          <input
-                            type="text"
-                            value={entry.status}
-                            onChange={(e) => updateRcCell(row.key, 'status', e.target.value)}
-                            placeholder="Lengkap / Proses / -"
-                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-700"
-                          />
-                        </td>
+                        {(
+                          [
+                            { key: 'ada', label: 'Ada', accent: 'accent-emerald-700' },
+                            { key: 'kurang', label: 'Kurang', accent: 'accent-amber-600' },
+                            { key: 'sesuai', label: 'Sesuai', accent: 'accent-blue-700' },
+                          ] as const
+                        ).map((col) => (
+                          <td
+                            key={col.key}
+                            className="py-1.5 px-2 border-l border-slate-200 align-middle text-center"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={flags[col.key]}
+                              onChange={() => toggleRcFlag(row.key, col.key)}
+                              aria-label={`${docLabel} - ${col.label}`}
+                              className={`w-4 h-4 rounded border-slate-300 cursor-pointer align-middle ${col.accent}`}
+                            />
+                          </td>
+                        ))}
                         <td className="py-1.5 px-2 border-l border-slate-200 align-middle">
                           <input
                             type="text"

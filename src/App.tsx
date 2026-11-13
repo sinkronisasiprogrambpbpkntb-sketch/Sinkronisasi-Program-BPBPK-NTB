@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import {
+  BarChart2,
   BarChart3,
   CloudUpload,
   Edit3,
@@ -24,6 +25,7 @@ import { ProposalDetailPanel } from './components/ProposalDetailPanel';
 import { ProposalFormDrawer } from './components/ProposalFormDrawer';
 import { ProposalPreviewModal } from './components/ProposalPreviewModal';
 import { ProposalTable } from './components/ProposalTable';
+import { RcInfographicView } from './components/RcInfographicView';
 import { SpatialMapView } from './components/SpatialMapView';
 import {
   exportProposalsAsCsv,
@@ -33,6 +35,7 @@ import {
   getReadinessScore,
   INITIAL_PROPOSALS,
   isActiveInYear,
+  resolveProposalTemplateDetails,
   SEKTOR_SHORT_LABELS,
   TEMPLATE_DEMO_PROPOSAL,
 } from './data/initialProposals';
@@ -64,6 +67,7 @@ import {
   AccessMode,
   AccountSessionProfile,
   LatLngPoint,
+  RcDocKey,
   ReadinessCriteria,
   ResolvedPlaceInfo,
   SektorCiptaKarya,
@@ -165,6 +169,7 @@ const VIEW_LABELS: Record<WorkspaceView, string> = {
   [WorkspaceView.OVERVIEW]: 'Ikhtisar & Peta Terpadu',
   [WorkspaceView.SPATIAL]: 'Fitur Spasial GIS',
   [WorkspaceView.MATRIX]: 'Matriks Usulan & Kesiapan RC',
+  [WorkspaceView.RC_INFOGRAPHIC]: 'Infografis Skor RC (Tertinggi – Terendah)',
   [WorkspaceView.BUDGET]: 'Proyeksi Anggaran 2027–2030',
 };
 
@@ -528,31 +533,47 @@ function DashboardWorkspace() {
       const target = proposals.find((p) => p.id === id);
       if (!target) return;
 
+      const nextValue = !target.readiness[key];
       const nextReadiness: ReadinessCriteria = {
         ...target.readiness,
-        [key]: !target.readiness[key],
+        [key]: nextValue,
+      };
+
+      const readinessToRcDocKey: Record<keyof ReadinessCriteria, RcDocKey> = {
+        dokumenPerencanaan: 'rencanaInduk',
+        dedRab: 'fsDedRab',
+        kesiapanLahan: 'sertifikatLahan',
+        dokumenLingkungan: 'dokumenLingkungan',
+        lembagaPengelola: 'suratMinatKepalaDaerah',
+      };
+      const docKey = readinessToRcDocKey[key];
+      const resolvedDetails = resolveProposalTemplateDetails(target);
+      const currentEntry = resolvedDetails.rcDetails[docKey] ?? { status: '', keterangan: '' };
+      const nextEntry = nextValue
+        ? { ...currentEntry, ada: true, kurang: false, sesuai: true, status: 'Ada, Sesuai' }
+        : { ...currentEntry, ada: false, kurang: true, sesuai: false, status: 'Kurang' };
+
+      const updatedProposal: UsulanProgram = {
+        ...target,
+        readiness: nextReadiness,
+        templateDetails: {
+          ...target.templateDetails,
+          ...resolvedDetails,
+          rcDetails: {
+            ...resolvedDetails.rcDetails,
+            [docKey]: nextEntry,
+          },
+        },
+        updatedAt: new Date().toISOString().slice(0, 10),
       };
 
       setProposals((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? {
-                ...p,
-                readiness: nextReadiness,
-                updatedAt: new Date().toISOString().slice(0, 10),
-              }
-            : p
-        )
+        prev.map((p) => (p.id === id ? updatedProposal : p))
       );
       markLocalBootstrapped();
 
       try {
-        await updateProposalReadinessInFirestore(
-          id,
-          nextReadiness,
-          target.statusVerifikasi,
-          target
-        );
+        await saveProposalToFirestore(updatedProposal);
       } catch (err) {
         const quota = extractQuotaNoticeFromError(err);
         if (quota) setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
@@ -592,6 +613,41 @@ function DashboardWorkspace() {
         const quota = extractQuotaNoticeFromError(err);
         if (quota) setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
         showNotice('Skor RC manual tersimpan secara lokal (sinkronisasi Cloud tertunda).');
+      }
+    },
+    [canEdit, proposals, markLocalBootstrapped, showNotice]
+  );
+
+  const handleUpdateStatusManual = useCallback(
+    async (id: string, rawStatusManual: string) => {
+      if (!canEdit) return;
+      const target = proposals.find((p) => p.id === id);
+      if (!target) return;
+
+      const cleanedStatus = rawStatusManual.trim();
+      const updatedProposal: UsulanProgram = {
+        ...target,
+        templateDetails: {
+          ...(target.templateDetails ?? {}),
+          statusManual: cleanedStatus,
+        },
+        updatedAt: new Date().toISOString().slice(0, 10),
+      };
+
+      setProposals((prev) => prev.map((p) => (p.id === id ? updatedProposal : p)));
+      markLocalBootstrapped();
+
+      try {
+        await saveProposalToFirestore(updatedProposal);
+        showNotice(
+          cleanedStatus
+            ? `Status manual usulan "${target.kodeUsulan}" (${cleanedStatus}) tersimpan.`
+            : `Status manual usulan "${target.kodeUsulan}" diperbarui.`
+        );
+      } catch (err) {
+        const quota = extractQuotaNoticeFromError(err);
+        if (quota) setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
+        showNotice('Status manual tersimpan secara lokal (sinkronisasi Cloud tertunda).');
       }
     },
     [canEdit, proposals, markLocalBootstrapped, showNotice]
@@ -866,6 +922,7 @@ function DashboardWorkspace() {
   }> = [
     { id: WorkspaceView.MATRIX, label: 'Matriks Usulan & RC', icon: Table2 },
     { id: WorkspaceView.SPATIAL, label: 'Fitur Spasial GIS', icon: MapIcon },
+    { id: WorkspaceView.RC_INFOGRAPHIC, label: 'Infografis Skor RC', icon: BarChart2 },
     { id: WorkspaceView.BUDGET, label: 'Proyeksi 2027–2030', icon: BarChart3 },
   ];
 
@@ -1275,6 +1332,7 @@ function DashboardWorkspace() {
                     setDrawerOpen(true);
                   }}
                   onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
+                  onUpdateStatusManual={(id, val) => void handleUpdateStatusManual(id, val)}
                   onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
                   onJumpToMap={handleFocusOnMap}
                   onAddNew={() => {
@@ -1473,6 +1531,20 @@ function DashboardWorkspace() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* SUB-MENU VIEW: INFOGRAFIS SKOR RC TERTINGGI - TERENDAH */}
+          {activeView === WorkspaceView.RC_INFOGRAPHIC && (
+            <RcInfographicView
+              proposals={filteredProposals}
+              yearFilterLabel={yearFilter === 'ALL' ? 'TA 2027–2030' : `TA ${yearFilter}`}
+              onPreviewProposal={(id) => {
+                setSelectedProposalId(id);
+                setShowTemplateDemo(false);
+                setPreviewProposalId(id);
+              }}
+              onFocusOnMap={handleFocusOnMap}
+            />
           )}
 
           {/* VIEW 2: PROYEKSI ANGGARAN 2027-2030 */}

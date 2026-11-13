@@ -1,4 +1,5 @@
 import {
+  LegacyRcDocKey,
   ProposalTemplateDetails,
   RcDocKey,
   RcDocumentEntry,
@@ -51,12 +52,12 @@ export const KEMENPU_RC_ROWS: Array<{
   {
     key: 'rencanaInduk',
     defaultLabel: 'Rencana Induk',
-    placeholderNote: 'RISPAM / SSK / Masterplan Kawasan',
+    placeholderNote: 'RISPAM, RIPS, RISPAL, RIPKS / Masterplan yang masih berlaku',
   },
   {
-    key: 'studiKelayakan',
-    defaultLabel: 'Studi Kelayakan',
-    placeholderNote: 'Feasibility Study (FS)',
+    key: 'fsDedRab',
+    defaultLabel: 'Dokumen FS, DED, dan RAB',
+    placeholderNote: 'Studi Kelayakan (FS), Gambar DED, & RAB',
   },
   {
     key: 'suratMinatKepalaDaerah',
@@ -67,16 +68,6 @@ export const KEMENPU_RC_ROWS: Array<{
     key: 'sertifikatLahan',
     defaultLabel: 'Sertifikat Lahan',
     placeholderNote: 'Status lahan Clean & Clear',
-  },
-  {
-    key: 'ded',
-    defaultLabel: 'Detailed Engineering Design (DED)',
-    placeholderNote: 'Gambar rencana teknis rinci',
-  },
-  {
-    key: 'rab',
-    defaultLabel: 'Rencana Anggaran Biaya (RAB)',
-    placeholderNote: 'RAB & reviu harga satuan',
   },
   {
     key: 'dokumenLingkungan',
@@ -1339,22 +1330,52 @@ export const TEMPLATE_DEMO_PROPOSAL: UsulanProgram = {
     deskripsiLokasi:
       'Gambaran lokasi kegiatan/ kondisi sistem jaringan/ kondisi awal vs rencana yang bisa menjelaskan urgensitas kegiatan',
     rcDetails: {
-      rencanaInduk: { status: '', keterangan: '' },
-      studiKelayakan: { status: '', keterangan: '' },
-      suratMinatKepalaDaerah: { status: '', keterangan: '' },
-      sertifikatLahan: { status: '', keterangan: '' },
-      ded: { status: '', keterangan: '' },
-      rab: { status: '', keterangan: '' },
-      dokumenLingkungan: { status: '', keterangan: '' },
+      rencanaInduk: { status: '', ada: false, kurang: false, sesuai: false, keterangan: '' },
+      fsDedRab: { status: '', ada: false, kurang: false, sesuai: false, keterangan: '' },
+      suratMinatKepalaDaerah: {
+        status: '',
+        ada: false,
+        kurang: false,
+        sesuai: false,
+        keterangan: '',
+      },
+      sertifikatLahan: { status: '', ada: false, kurang: false, sesuai: false, keterangan: '' },
+      dokumenLingkungan: { status: '', ada: false, kurang: false, sesuai: false, keterangan: '' },
       lainnya: {
         customLabel: 'Lainnya.....(silakan tambahkan)',
         status: '',
+        ada: false,
+        kurang: false,
+        sesuai: false,
         keterangan: '',
       },
     },
   },
   updatedAt: new Date().toISOString().slice(0, 10),
 };
+
+export function tryParseNumberFlexible(val: string | number | undefined | null): number | null {
+  if (val === undefined || val === null) return null;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+  const str = String(val).trim();
+  if (str === '') return null;
+  let cleaned = str.replace(/\s/g, '');
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    if (cleaned.indexOf('.') < cleaned.indexOf(',')) {
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      cleaned = cleaned.replace(/,/g, '');
+    }
+  } else if (cleaned.includes(',')) {
+    cleaned = cleaned.replace(',', '.');
+  }
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function parseNumberFlexible(val: string | number | undefined | null): number {
+  return tryParseNumberFlexible(val) ?? 0;
+}
 
 export function getTotalPaguUsulan(pagu: UsulanProgram['pagu']): number {
   return Number((pagu.y2027 + pagu.y2028 + pagu.y2029 + pagu.y2030).toFixed(2));
@@ -1413,43 +1434,92 @@ export function resolveProposalTemplateDetails(proposal: UsulanProgram): Require
         ? `Desember ${activeYearLabels[activeYearLabels.length - 1]}`
         : '-';
 
-  const defaultRcStatus = (flag: boolean) => (flag ? 'Lengkap' : 'Belum Lengkap');
   const existingRc = d.rcDetails ?? {};
 
+  const normalizeEntry = (
+    entry: RcDocumentEntry | undefined,
+    fallbackReadyFlag?: boolean,
+    defaultCustomLabel?: string
+  ): RcDocumentEntry => {
+    if (!entry) {
+      const ada = Boolean(fallbackReadyFlag);
+      const sesuai = Boolean(fallbackReadyFlag);
+      const kurang = fallbackReadyFlag === false;
+      return {
+        status: formatRcChecklistSummary({ ada, kurang, sesuai }),
+        ada,
+        kurang,
+        sesuai,
+        keterangan: '',
+        ...(defaultCustomLabel ? { customLabel: defaultCustomLabel } : {}),
+      };
+    }
+    const flags = getRcChecklistFlags(entry);
+    return {
+      ...entry,
+      ...flags,
+      status: entry.status?.trim() || formatRcChecklistSummary(flags),
+      keterangan: entry.keterangan ?? '',
+      ...(defaultCustomLabel && !entry.customLabel ? { customLabel: defaultCustomLabel } : {}),
+    };
+  };
+
+  const resolveMergedFsDedRab = (): RcDocumentEntry => {
+    if (existingRc.fsDedRab) {
+      return normalizeEntry(existingRc.fsDedRab);
+    }
+    const legacyParts = [
+      existingRc.studiKelayakan,
+      existingRc.ded,
+      existingRc.rab,
+    ].filter((item): item is RcDocumentEntry => Boolean(item));
+
+    if (legacyParts.length === 0) {
+      return normalizeEntry(undefined, proposal.readiness.dedRab);
+    }
+
+    const partFlags = legacyParts.map((item) => getRcChecklistFlags(item));
+    const anyAda = partFlags.some((f) => f.ada);
+    const anyKurang = partFlags.some((f) => f.kurang || !f.sesuai);
+    const allSesuai = partFlags.every((f) => f.sesuai && !f.kurang);
+    const flags = {
+      ada: anyAda,
+      kurang: allSesuai ? false : anyKurang,
+      sesuai: allSesuai,
+    };
+
+    const notes = Array.from(
+      new Set(
+        legacyParts
+          .map((item) => item.keterangan?.trim())
+          .filter((text): text is string => Boolean(text))
+      )
+    );
+
+    return {
+      status: formatRcChecklistSummary(flags),
+      ...flags,
+      keterangan: notes.join(' · '),
+    };
+  };
+
   const rcDetails: Record<RcDocKey, RcDocumentEntry> = {
-    rencanaInduk: existingRc.rencanaInduk ?? {
-      status: defaultRcStatus(proposal.readiness.dokumenPerencanaan),
-      keterangan: '',
-    },
-    studiKelayakan: existingRc.studiKelayakan ?? {
-      status: defaultRcStatus(proposal.readiness.dokumenPerencanaan),
-      keterangan: '',
-    },
-    suratMinatKepalaDaerah: existingRc.suratMinatKepalaDaerah ?? {
-      status: defaultRcStatus(proposal.readiness.lembagaPengelola),
-      keterangan: '',
-    },
-    sertifikatLahan: existingRc.sertifikatLahan ?? {
-      status: defaultRcStatus(proposal.readiness.kesiapanLahan),
-      keterangan: '',
-    },
-    ded: existingRc.ded ?? {
-      status: defaultRcStatus(proposal.readiness.dedRab),
-      keterangan: '',
-    },
-    rab: existingRc.rab ?? {
-      status: defaultRcStatus(proposal.readiness.dedRab),
-      keterangan: '',
-    },
-    dokumenLingkungan: existingRc.dokumenLingkungan ?? {
-      status: defaultRcStatus(proposal.readiness.dokumenLingkungan),
-      keterangan: '',
-    },
-    lainnya: existingRc.lainnya ?? {
-      customLabel: 'Lainnya.....(silakan tambahkan)',
-      status: '',
-      keterangan: '',
-    },
+    rencanaInduk: normalizeEntry(existingRc.rencanaInduk, proposal.readiness.dokumenPerencanaan),
+    fsDedRab: resolveMergedFsDedRab(),
+    suratMinatKepalaDaerah: normalizeEntry(
+      existingRc.suratMinatKepalaDaerah,
+      proposal.readiness.lembagaPengelola
+    ),
+    sertifikatLahan: normalizeEntry(existingRc.sertifikatLahan, proposal.readiness.kesiapanLahan),
+    dokumenLingkungan: normalizeEntry(
+      existingRc.dokumenLingkungan,
+      proposal.readiness.dokumenLingkungan
+    ),
+    lainnya: normalizeEntry(
+      existingRc.lainnya,
+      undefined,
+      'Lainnya.....(silakan tambahkan)'
+    ),
   };
 
   return {
@@ -1463,13 +1533,17 @@ export function resolveProposalTemplateDetails(proposal: UsulanProgram): Require
       'Sinkronisasi Program Infrastruktur Cipta Karya BPBPK Nusa Tenggara Barat TA 2027–2030',
     manfaatKegiatan:
       d.manfaatKegiatan?.trim() ||
-      `Meningkatkan akses layanan infrastruktur dasar bagi ${proposal.penerimaManfaatJiwa.toLocaleString('id-ID')} jiwa di ${proposal.kabupatenKota}.`,
+      (proposal.penerimaManfaatJiwa > 0
+        ? `Meningkatkan akses layanan infrastruktur dasar bagi ${proposal.penerimaManfaatJiwa.toLocaleString('id-ID')} jiwa di ${proposal.kabupatenKota}.`
+        : `Meningkatkan akses layanan infrastruktur dasar di ${proposal.kabupatenKota}.`),
     lingkupPekerjaan:
       Array.isArray(d.lingkupPekerjaan) && d.lingkupPekerjaan.length > 0
         ? d.lingkupPekerjaan
         : [
             `Pembangunan / optimalisasi ${proposal.namaProgram}`,
-            `Pekerjaan fisik kapasitas ${proposal.volumeTarget.toLocaleString('id-ID')} ${proposal.satuanTarget}`,
+            ...(proposal.volumeTarget > 0
+              ? [`Pekerjaan fisik kapasitas ${proposal.volumeTarget} ${proposal.satuanTarget}`]
+              : []),
           ],
     biayaFisikMiliar,
     biayaSupervisiMiliar,
@@ -1484,40 +1558,96 @@ export function resolveProposalTemplateDetails(proposal: UsulanProgram): Require
       proposal.catatanTeknis?.trim() ||
       `Lokasi kegiatan berada di ${proposal.kecamatanKawasan}, ${proposal.kabupatenKota} dengan radius cakupan layanan ${proposal.serviceRadiusKm} km.`,
     lokasiGambarUrl: d.lokasiGambarUrl,
+    statusManual: d.statusManual?.trim() ?? '',
     rcDetails,
   };
 }
 
+export function getRcChecklistFlags(entry?: Partial<RcDocumentEntry>): {
+  ada: boolean;
+  kurang: boolean;
+  sesuai: boolean;
+} {
+  if (!entry) return { ada: false, kurang: false, sesuai: false };
+  if (
+    entry.ada !== undefined ||
+    entry.kurang !== undefined ||
+    entry.sesuai !== undefined
+  ) {
+    return {
+      ada: Boolean(entry.ada),
+      kurang: Boolean(entry.kurang),
+      sesuai: Boolean(entry.sesuai),
+    };
+  }
+  const norm = (entry.status ?? '').trim().toLowerCase();
+  if (!norm || norm === '-') {
+    return { ada: false, kurang: false, sesuai: false };
+  }
+  if (
+    (norm.includes('lengkap') && !norm.includes('belum')) ||
+    norm.includes('sesuai') ||
+    norm === 'selesai' ||
+    norm === 'terpenuhi' ||
+    norm === 'siap'
+  ) {
+    return { ada: true, kurang: false, sesuai: true };
+  }
+  if (norm === 'ada') {
+    return { ada: true, kurang: false, sesuai: false };
+  }
+  if (norm.includes('proses') || norm.includes('revisi') || norm.includes('sebagian')) {
+    return { ada: true, kurang: true, sesuai: false };
+  }
+  if (norm.includes('kurang') || norm.includes('belum')) {
+    return { ada: false, kurang: true, sesuai: false };
+  }
+  return { ada: false, kurang: false, sesuai: false };
+}
+
+export function formatRcChecklistSummary(flags: {
+  ada: boolean;
+  kurang: boolean;
+  sesuai: boolean;
+}): string {
+  const parts: string[] = [];
+  if (flags.ada) parts.push('Ada');
+  if (flags.kurang) parts.push('Kurang');
+  if (flags.sesuai) parts.push('Sesuai');
+  return parts.join(', ');
+}
+
 export function deriveReadinessFromRcTable(
-  rcDetails: Partial<Record<RcDocKey, RcDocumentEntry>>,
+  rcDetails: Partial<Record<LegacyRcDocKey, RcDocumentEntry>>,
   fallback: ReadinessCriteria
 ): ReadinessCriteria {
-  const isReadyText = (s?: string) => {
-    if (!s) return false;
-    const norm = s.trim().toLowerCase();
-    return (
-      norm.includes('lengkap') && !norm.includes('belum')
-    ) || norm === 'ada' || norm === 'selesai' || norm === 'terpenuhi' || norm === 'siap';
+  const isEntryReady = (entry?: RcDocumentEntry) => {
+    if (!entry) return false;
+    const flags = getRcChecklistFlags(entry);
+    if (flags.sesuai && !flags.kurang) return true;
+    if (flags.ada && !flags.kurang) return true;
+    return false;
   };
 
   return {
-    dokumenPerencanaan:
-      rcDetails.rencanaInduk || rcDetails.studiKelayakan
-        ? isReadyText(rcDetails.rencanaInduk?.status) ||
-          isReadyText(rcDetails.studiKelayakan?.status)
-        : fallback.dokumenPerencanaan,
-    dedRab:
-      rcDetails.ded || rcDetails.rab
-        ? isReadyText(rcDetails.ded?.status) && isReadyText(rcDetails.rab?.status)
+    dokumenPerencanaan: rcDetails.rencanaInduk
+      ? isEntryReady(rcDetails.rencanaInduk)
+      : fallback.dokumenPerencanaan,
+    dedRab: rcDetails.fsDedRab
+      ? isEntryReady(rcDetails.fsDedRab)
+      : rcDetails.studiKelayakan || rcDetails.ded || rcDetails.rab
+        ? [rcDetails.studiKelayakan, rcDetails.ded, rcDetails.rab]
+            .filter((item): item is RcDocumentEntry => Boolean(item))
+            .every((item) => isEntryReady(item))
         : fallback.dedRab,
     kesiapanLahan: rcDetails.sertifikatLahan
-      ? isReadyText(rcDetails.sertifikatLahan.status)
+      ? isEntryReady(rcDetails.sertifikatLahan)
       : fallback.kesiapanLahan,
     dokumenLingkungan: rcDetails.dokumenLingkungan
-      ? isReadyText(rcDetails.dokumenLingkungan.status)
+      ? isEntryReady(rcDetails.dokumenLingkungan)
       : fallback.dokumenLingkungan,
     lembagaPengelola: rcDetails.suratMinatKepalaDaerah
-      ? isReadyText(rcDetails.suratMinatKepalaDaerah.status)
+      ? isEntryReady(rcDetails.suratMinatKepalaDaerah)
       : fallback.lembagaPengelola,
   };
 }
@@ -1762,6 +1892,7 @@ export function exportProposalsAsCsv(
     'Total Pagu 2027-2030 (Rp M)',
     'Kesiapan RC (%)',
     'Status Verifikasi',
+    'Status Manual',
   ];
 
   const escapeCsv = (val: string | number) => {
@@ -1782,8 +1913,9 @@ export function exportProposalsAsCsv(
       p.kecamatanKawasan,
       pos ? pos.lat.toFixed(6) : '',
       pos ? pos.lng.toFixed(6) : '',
-      p.volumeTarget,
-      p.satuanTarget,
+      p.templateDetails?.outputTambahan?.trim() ||
+        (p.volumeTarget > 0 ? String(p.volumeTarget) : ''),
+      p.templateDetails?.outputTambahan?.trim() ? '' : p.satuanTarget,
       p.penerimaManfaatJiwa,
       p.sumberDana,
       p.skemaKontrak,
@@ -1794,6 +1926,7 @@ export function exportProposalsAsCsv(
       getTotalPaguUsulan(p.pagu),
       getReadinessScore(p.readiness, p.skorRc).percentage,
       p.statusVerifikasi,
+      p.templateDetails?.statusManual ?? '',
     ]
       .map(escapeCsv)
       .join(',');
