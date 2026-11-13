@@ -4,6 +4,7 @@ import {
   Circle,
   Crosshair,
   Edit3,
+  ExternalLink,
   Eye,
   LocateFixed,
   Plus,
@@ -459,6 +460,37 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
             );
           })}
         </div>
+
+        {proposal.templateDetails?.linkDataRc?.trim() && (() => {
+          const rawLink = proposal.templateDetails.linkDataRc.trim();
+          const safeHref =
+            !/^(javascript|data|vbscript):/i.test(rawLink) && !/\s/.test(rawLink)
+              ? /^https?:\/\//i.test(rawLink)
+                ? rawLink
+                : rawLink.includes('.')
+                  ? `https://${rawLink}`
+                  : null
+              : null;
+          return (
+            <div className="mt-3 pt-3 border-t border-slate-100 text-xs flex items-center justify-between gap-2">
+              <span className="font-medium text-slate-800 shrink-0">Link Data RC:</span>
+              {safeHref ? (
+                <a
+                  href={safeHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-blue-700 hover:underline truncate max-w-[230px]"
+                  title={rawLink}
+                >
+                  <span className="truncate">{rawLink}</span>
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                </a>
+              ) : (
+                <span className="text-slate-600 truncate">{rawLink}</span>
+              )}
+            </div>
+          );
+        })()}
 
         {proposal.catatanTeknis && (
           <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600">

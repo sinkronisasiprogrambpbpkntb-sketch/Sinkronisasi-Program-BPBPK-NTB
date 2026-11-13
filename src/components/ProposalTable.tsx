@@ -4,6 +4,7 @@ import {
   Check,
   Download,
   Edit3,
+  ExternalLink,
   Eye,
   LocateFixed,
   Plus,
@@ -33,6 +34,7 @@ interface ProposalTableProps {
   onEditProposal: (proposal: UsulanProgram) => void;
   onUpdateSkorRc: (id: string, skorRc: number) => void;
   onUpdateStatusManual?: (id: string, statusManual: string) => void;
+  onUpdateLinkDataRc?: (id: string, linkDataRc: string) => void;
   onDeleteProposals: (targets: UsulanProgram[]) => void;
   onJumpToMap?: (id: string) => void;
   onAddNew: () => void;
@@ -229,6 +231,120 @@ const ManualStatusCellInput: React.FC<ManualStatusCellInputProps> = ({
   );
 };
 
+function normalizeExternalUrl(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed || /\s/.test(trimmed)) return null;
+  if (/^(javascript|data|vbscript):/i.test(trimmed)) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.includes('.')) {
+    return `https://${trimmed}`;
+  }
+  return null;
+}
+
+interface ManualLinkCellInputProps {
+  value: string;
+  ariaLabel: string;
+  onCommit: (nextVal: string) => void;
+}
+
+const ManualLinkCellInput: React.FC<ManualLinkCellInputProps> = ({
+  value,
+  ariaLabel,
+  onCommit,
+}) => {
+  const [draft, setDraft] = useState<string>(value);
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+
+  useEffect(() => {
+    setDraft(value);
+    setIsDirty(false);
+  }, [value]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const timer = window.setTimeout(() => {
+      const trimmed = draft.trim();
+      if (trimmed !== value) {
+        onCommit(trimmed);
+      }
+      setIsDirty(false);
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [draft, isDirty, value, onCommit]);
+
+  const commit = () => {
+    setIsDirty(false);
+    const trimmed = draft.trim();
+    setDraft(trimmed);
+    if (trimmed !== value) {
+      onCommit(trimmed);
+    }
+  };
+
+  const validHref = normalizeExternalUrl(draft);
+
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1"
+    >
+      <div
+        className="flex items-center bg-white border border-slate-300 rounded px-2 py-1 focus-within:border-blue-700 w-44"
+        title="Tempel atau ketik tautan Link Data RC lalu tekan Enter atau klik simpan"
+      >
+        <input
+          type="text"
+          aria-label={ariaLabel}
+          value={draft}
+          placeholder="https://drive.google.com/..."
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setIsDirty(true);
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              (e.currentTarget as HTMLInputElement).blur();
+            }
+          }}
+          className="w-full text-xs text-slate-900 placeholder:text-slate-400 bg-transparent focus:outline-none"
+        />
+      </div>
+      {isDirty && (
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            commit();
+          }}
+          className="inline-flex items-center justify-center p-1 rounded bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer shrink-0"
+          title="Klik untuk menyimpan Link Data RC"
+          aria-label="Simpan Link Data RC"
+        >
+          <Check className="w-3 h-3" />
+        </button>
+      )}
+      {validHref && (
+        <a
+          href={validHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center justify-center p-1 rounded border border-slate-200 bg-slate-50 hover:bg-blue-50 text-blue-700 transition-colors shrink-0"
+          title="Buka Link Data RC pada tab baru"
+          aria-label="Buka Link Data RC"
+        >
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      )}
+    </div>
+  );
+};
+
 type SortKey = 'kode' | 'pagu' | 'rc' | 'kabupaten' | 'status';
 
 export const ProposalTable: React.FC<ProposalTableProps> = ({
@@ -243,6 +359,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
   onEditProposal,
   onUpdateSkorRc,
   onUpdateStatusManual,
+  onUpdateLinkDataRc,
   onDeleteProposals,
   onJumpToMap,
   onAddNew,
@@ -304,7 +421,8 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
         p.kabupatenKota.toLowerCase().includes(q) ||
         p.kecamatanKawasan.toLowerCase().includes(q) ||
         (p.templateDetails?.outputTambahan ?? '').toLowerCase().includes(q) ||
-        (p.templateDetails?.statusManual ?? '').toLowerCase().includes(q)
+        (p.templateDetails?.statusManual ?? '').toLowerCase().includes(q) ||
+        (p.templateDetails?.linkDataRc ?? '').toLowerCase().includes(q)
       );
     });
 
@@ -590,6 +708,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                     <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </th>
+                <th className="py-3 px-3 whitespace-nowrap">Link Data RC</th>
                 <th className="py-3 px-4 text-right whitespace-nowrap">Tindakan</th>
               </tr>
             </thead>
@@ -713,6 +832,39 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                           {p.templateDetails?.statusManual?.trim() || '—'}
                         </span>
                       )}
+                    </td>
+
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      {canEdit && !p.isLocked && onUpdateLinkDataRc ? (
+                        <ManualLinkCellInput
+                          value={p.templateDetails?.linkDataRc ?? ''}
+                          ariaLabel={`Link Data RC ${p.namaProgram}`}
+                          onCommit={(nextVal) => onUpdateLinkDataRc(p.id, nextVal)}
+                        />
+                      ) : (() => {
+                        const rawLink = p.templateDetails?.linkDataRc?.trim() ?? '';
+                        const href = normalizeExternalUrl(rawLink);
+                        if (href) {
+                          return (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline max-w-[160px] truncate"
+                              title={rawLink}
+                            >
+                              <span className="truncate">{rawLink}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
+                          );
+                        }
+                        return (
+                          <span className="text-xs text-slate-700">
+                            {rawLink || '—'}
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3 px-4 text-right whitespace-nowrap">

@@ -396,6 +396,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       deskripsiLokasi: details.deskripsiLokasi,
       lokasiGambarUrl: imageDraftUrl,
       statusManual: details.statusManual,
+      linkDataRc: details.linkDataRc,
       rcDetails: mergedRcDetails,
       ...overrideDetails,
     };

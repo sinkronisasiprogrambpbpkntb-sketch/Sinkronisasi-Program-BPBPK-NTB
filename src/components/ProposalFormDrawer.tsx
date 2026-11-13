@@ -133,6 +133,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
     StatusVerifikasi.MENUNGGU_KONREG
   );
   const [statusManual, setStatusManual] = useState<string>('');
+  const [linkDataRc, setLinkDataRc] = useState<string>('');
   const [skorRcInput, setSkorRcInput] = useState<string>('80');
   const [readiness, setReadiness] = useState<ReadinessCriteria>(DEFAULT_READINESS);
   const [rcTable, setRcTable] = useState<Record<RcDocKey, RcDocumentEntry>>(createEmptyRcTable);
@@ -219,6 +220,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
 
       setStatusVerifikasi(editingProposal.statusVerifikasi);
       setStatusManual(tpl.statusManual);
+      setLinkDataRc(tpl.linkDataRc);
       setSkorRcInput(
         String(getReadinessScore(editingProposal.readiness, editingProposal.skorRc).percentage)
       );
@@ -269,6 +271,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
 
       setStatusVerifikasi(StatusVerifikasi.MENUNGGU_KONREG);
       setStatusManual('');
+      setLinkDataRc('');
       setSkorRcInput('80');
       setReadiness(DEFAULT_READINESS);
       setRcTable(createEmptyRcTable());
@@ -393,6 +396,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       deskripsiLokasi: deskripsiLokasi.trim(),
       lokasiGambarUrl,
       statusManual: statusManual.trim(),
+      linkDataRc: linkDataRc.trim(),
       rcDetails: rcTable,
     };
 
@@ -479,6 +483,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
     skemaKontrak,
     statusVerifikasi,
     statusManual,
+    linkDataRc,
     prioritasNasional,
     serviceRadiusKm,
     corridorGroup,
@@ -1198,7 +1203,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Status Matriks (Manual)
@@ -1211,6 +1216,21 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                     markFieldEdited();
                   }}
                   placeholder="Isi status manual..."
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:border-blue-700"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Link Data RC
+                </label>
+                <input
+                  type="text"
+                  value={linkDataRc}
+                  onChange={(e) => {
+                    setLinkDataRc(e.target.value);
+                    markFieldEdited();
+                  }}
+                  placeholder="https://drive.google.com/..."
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:border-blue-700"
                 />
               </div>

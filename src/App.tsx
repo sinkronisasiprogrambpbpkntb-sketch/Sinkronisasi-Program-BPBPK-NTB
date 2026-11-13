@@ -6,11 +6,13 @@ import {
   CloudUpload,
   Edit3,
   Eye,
+  Lock,
   LogOut,
   Map as MapIcon,
   Menu,
   Plus,
   Save,
+  Share2,
   ShieldCheck,
   Table2,
   Trash2,
@@ -26,6 +28,7 @@ import { ProposalFormDrawer } from './components/ProposalFormDrawer';
 import { ProposalPreviewModal } from './components/ProposalPreviewModal';
 import { ProposalTable } from './components/ProposalTable';
 import { RcInfographicView } from './components/RcInfographicView';
+import { ShareReadOnlyLinkModal } from './components/ShareReadOnlyLinkModal';
 import { SpatialMapView } from './components/SpatialMapView';
 import {
   exportProposalsAsCsv,
@@ -126,8 +129,66 @@ function readInitialLocalProposals(): UsulanProgram[] {
   return INITIAL_PROPOSALS;
 }
 
-function getInitialAccessModeFromUrlOrSession(): AccessMode {
-  return 'account';
+interface InitialShareParams {
+  isReadOnlyUrl: boolean;
+  initialView: WorkspaceView;
+  initialYear: YearFilter;
+  initialSektor: SektorFilter;
+}
+
+const SEKTOR_CODE_TO_ENUM: Record<string, SektorCiptaKarya> = {
+  SPAM: SektorCiptaKarya.AIR_MINUM,
+  SAN: SektorCiptaKarya.SANITASI,
+  PKS: SektorCiptaKarya.KAWASAN_STRATEGIS,
+  BPB: SektorCiptaKarya.BINA_PENATAAN_BANGUNAN,
+};
+
+function readInitialShareParams(): InitialShareParams {
+  const defaults: InitialShareParams = {
+    isReadOnlyUrl: false,
+    initialView: WorkspaceView.MATRIX,
+    initialYear: 'ALL',
+    initialSektor: 'ALL',
+  };
+
+  if (typeof window === 'undefined') return defaults;
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const modeRaw = (params.get('mode') ?? params.get('akses') ?? '').trim().toLowerCase();
+    const isReadOnlyUrl =
+      modeRaw === 'lihat' || modeRaw === 'view' || modeRaw === 'readonly' || modeRaw === 'read-only';
+
+    const viewRaw = (params.get('view') ?? '').trim().toLowerCase();
+    let initialView = WorkspaceView.MATRIX;
+    if (viewRaw === WorkspaceView.SPATIAL) initialView = WorkspaceView.SPATIAL;
+    else if (viewRaw === WorkspaceView.RC_INFOGRAPHIC) initialView = WorkspaceView.RC_INFOGRAPHIC;
+    else if (viewRaw === WorkspaceView.BUDGET) initialView = WorkspaceView.BUDGET;
+
+    const taRaw = (params.get('ta') ?? '').trim().toUpperCase();
+    const initialYear: YearFilter =
+      taRaw === '2027' || taRaw === '2028' || taRaw === '2029' || taRaw === '2030'
+        ? taRaw
+        : 'ALL';
+
+    const sektorRaw = (params.get('sektor') ?? '').trim();
+    const sektorUpper = sektorRaw.toUpperCase();
+    let initialSektor: SektorFilter = 'ALL';
+    if (SEKTOR_CODE_TO_ENUM[sektorUpper]) {
+      initialSektor = SEKTOR_CODE_TO_ENUM[sektorUpper];
+    } else if (Object.values(SektorCiptaKarya).includes(sektorRaw as SektorCiptaKarya)) {
+      initialSektor = sektorRaw as SektorCiptaKarya;
+    }
+
+    return {
+      isReadOnlyUrl,
+      initialView,
+      initialYear,
+      initialSektor,
+    };
+  } catch {
+    return defaults;
+  }
 }
 
 function readInitialAccountProfile(): AccountSessionProfile {
@@ -174,6 +235,7 @@ const VIEW_LABELS: Record<WorkspaceView, string> = {
 };
 
 function DashboardWorkspace() {
+  const initialShareParams = useMemo(() => readInitialShareParams(), []);
   const [proposals, setProposals] = useState<UsulanProgram[]>(() => readInitialLocalProposals());
   const proposalsRef = useRef<UsulanProgram[]>(proposals);
   proposalsRef.current = proposals;
@@ -187,8 +249,9 @@ function DashboardWorkspace() {
   const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
 
   const [accessMode, setAccessMode] = useState<AccessMode>(() =>
-    getInitialAccessModeFromUrlOrSession()
+    initialShareParams.isReadOnlyUrl ? 'readonly' : 'account'
   );
+  const [isInAppReadOnlyPreview, setIsInAppReadOnlyPreview] = useState<boolean>(false);
   const [accountProfile, setAccountProfile] = useState<AccountSessionProfile>(() =>
     readInitialAccountProfile()
   );
@@ -204,21 +267,24 @@ function DashboardWorkspace() {
 
   const updateAccessMode = useCallback((nextMode: AccessMode) => {
     setAccessMode(nextMode);
-    try {
-      sessionStorage.setItem(SESSION_MODE_KEY, nextMode);
-    } catch {
-      // Ignore sessionStorage restrictions
+    if (nextMode !== 'readonly') {
+      try {
+        sessionStorage.setItem(SESSION_MODE_KEY, nextMode);
+      } catch {
+        // Ignore sessionStorage restrictions
+      }
     }
   }, []);
 
-  // Keep local proposal cache synchronized whenever proposals state changes
+  // Keep local proposal cache synchronized whenever proposals state changes in Editor mode
   useEffect(() => {
+    if (accessMode !== 'account') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(proposals));
     } catch {
       // Ignore localStorage quota/restriction errors
     }
-  }, [proposals]);
+  }, [proposals, accessMode]);
 
   // Apply any deferred Firestore snapshot once all queued mutations settle
   useEffect(() => {
@@ -233,34 +299,36 @@ function DashboardWorkspace() {
     });
   }, []);
 
-  // Real-time Firestore listener and automatic session initialization in Editor Mode ('account')
+  // Real-time Firestore listener (auto-initializes editor session only in 'account' mode; read-only stream in 'readonly' mode)
   useEffect(() => {
-    if (accessMode !== 'account') return;
+    if (accessMode !== 'account' && accessMode !== 'readonly') return;
 
     let cancelled = false;
     const localFallback = readInitialLocalProposals();
 
-    const initAndSubscribe = async () => {
-      try {
-        await ensureEditorSession();
-        const ready = await seedProposalsBatchIfEmpty(localFallback);
-        if (ready && !cancelled) {
-          markLocalBootstrapped();
-          if (getPendingMutationCount() === 0 && deferredSnapshotRef.current !== null) {
-            const latest = deferredSnapshotRef.current;
-            deferredSnapshotRef.current = null;
-            setProposals(sortProposalsStable(latest));
+    if (accessMode === 'account') {
+      const initAndSubscribe = async () => {
+        try {
+          await ensureEditorSession();
+          const ready = await seedProposalsBatchIfEmpty(localFallback);
+          if (ready && !cancelled) {
+            markLocalBootstrapped();
+            if (getPendingMutationCount() === 0 && deferredSnapshotRef.current !== null) {
+              const latest = deferredSnapshotRef.current;
+              deferredSnapshotRef.current = null;
+              setProposals(sortProposalsStable(latest));
+            }
+          }
+        } catch (err) {
+          const quota = extractQuotaNoticeFromError(err);
+          if (quota && !cancelled) {
+            setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
           }
         }
-      } catch (err) {
-        const quota = extractQuotaNoticeFromError(err);
-        if (quota && !cancelled) {
-          setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
-        }
-      }
-    };
+      };
 
-    void initAndSubscribe();
+      void initAndSubscribe();
+    }
 
     const q = query(collection(db, 'proposals'), where('isPublished', '==', true));
     const unsubscribe = onSnapshot(
@@ -326,11 +394,12 @@ function DashboardWorkspace() {
   }, [markLocalBootstrapped]);
 
   useEffect(() => {
-    if (accessMode === 'account') return;
+    if (accessMode !== 'portal') return;
     void refreshPortalProposals();
   }, [accessMode, refreshPortalProposals]);
 
   const canEdit = accessMode === 'account';
+  const isReadOnlyMode = accessMode === 'readonly';
 
   const canManageProposal = useCallback(
     (_proposal: UsulanProgram): boolean => {
@@ -342,15 +411,16 @@ function DashboardWorkspace() {
   const { resolvedPlaces, isResolving, resolverError, registerResolvedPlace } =
     useSpatialResolver(proposals);
 
-  const [activeView, setActiveView] = useState<WorkspaceView>(WorkspaceView.MATRIX);
-  const [yearFilter, setYearFilter] = useState<YearFilter>('ALL');
-  const [sektorFilter, setSektorFilter] = useState<SektorFilter>('ALL');
+  const [activeView, setActiveView] = useState<WorkspaceView>(initialShareParams.initialView);
+  const [yearFilter, setYearFilter] = useState<YearFilter>(initialShareParams.initialYear);
+  const [sektorFilter, setSektorFilter] = useState<SektorFilter>(initialShareParams.initialSektor);
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
   const [focusTrigger, setFocusTrigger] = useState<number>(0);
 
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [driveBackupOpen, setDriveBackupOpen] = useState<boolean>(false);
+  const [shareLinkOpen, setShareLinkOpen] = useState<boolean>(false);
   const [editingProposal, setEditingProposal] = useState<UsulanProgram | null>(null);
   const [previewProposalId, setPreviewProposalId] = useState<string | null>(null);
   const [showTemplateDemo, setShowTemplateDemo] = useState<boolean>(false);
@@ -648,6 +718,41 @@ function DashboardWorkspace() {
         const quota = extractQuotaNoticeFromError(err);
         if (quota) setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
         showNotice('Status manual tersimpan secara lokal (sinkronisasi Cloud tertunda).');
+      }
+    },
+    [canEdit, proposals, markLocalBootstrapped, showNotice]
+  );
+
+  const handleUpdateLinkDataRc = useCallback(
+    async (id: string, rawLink: string) => {
+      if (!canEdit) return;
+      const target = proposals.find((p) => p.id === id);
+      if (!target) return;
+
+      const cleanedLink = rawLink.trim();
+      const updatedProposal: UsulanProgram = {
+        ...target,
+        templateDetails: {
+          ...(target.templateDetails ?? {}),
+          linkDataRc: cleanedLink,
+        },
+        updatedAt: new Date().toISOString().slice(0, 10),
+      };
+
+      setProposals((prev) => prev.map((p) => (p.id === id ? updatedProposal : p)));
+      markLocalBootstrapped();
+
+      try {
+        await saveProposalToFirestore(updatedProposal);
+        showNotice(
+          cleanedLink
+            ? `Link Data RC usulan "${target.kodeUsulan}" tersimpan.`
+            : `Link Data RC usulan "${target.kodeUsulan}" diperbarui.`
+        );
+      } catch (err) {
+        const quota = extractQuotaNoticeFromError(err);
+        if (quota) setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
+        showNotice('Link Data RC tersimpan secara lokal (sinkronisasi Cloud tertunda).');
       }
     },
     [canEdit, proposals, markLocalBootstrapped, showNotice]
@@ -1038,15 +1143,35 @@ function DashboardWorkspace() {
         <div className="p-4 border-t border-slate-800 space-y-2.5">
           <div className="px-2 space-y-1">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-white truncate">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span className="truncate">{accountProfile.displayName}</span>
+              {isReadOnlyMode ? (
+                <Lock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              ) : (
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              )}
+              <span className="truncate">
+                {isReadOnlyMode ? 'Akses Pratinjau Publik' : accountProfile.displayName}
+              </span>
             </div>
             <div className="text-[11px] text-slate-400 truncate">
-              {accountProfile.unitKerja}
+              {isReadOnlyMode
+                ? 'SIMPRA BPBPK Nusa Tenggara Barat'
+                : accountProfile.unitKerja}
             </div>
-            <div className="text-[10px] text-emerald-400 font-medium truncate flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
-              <span className="truncate">Mode Pengelola & Edit Aktif (Tanpa PIN)</span>
+            <div
+              className={`text-[10px] font-medium truncate flex items-center gap-1.5 ${
+                isReadOnlyMode ? 'text-blue-300' : 'text-emerald-400'
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  isReadOnlyMode ? 'bg-blue-400' : 'bg-emerald-400'
+                }`}
+              ></span>
+              <span className="truncate">
+                {isReadOnlyMode
+                  ? 'Mode Lihat Saja (Read-Only)'
+                  : 'Mode Pengelola & Edit Aktif (Tanpa PIN)'}
+              </span>
             </div>
           </div>
 
@@ -1059,15 +1184,29 @@ function DashboardWorkspace() {
             <span>Preview Usulan / Template</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setDriveBackupOpen(true)}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-200 bg-blue-900/60 hover:bg-blue-900 border border-blue-700/50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
-            title="Simpan cadangan perubahan usulan ke Google Drive"
-          >
-            <CloudUpload className="w-3.5 h-3.5 text-blue-300" />
-            <span>Simpan ke Google Drive</span>
-          </button>
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShareLinkOpen(true)}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                title="Buat link web khusus lihat saja (read-only) untuk dibagikan"
+              >
+                <Share2 className="w-3.5 h-3.5 text-blue-400" />
+                <span>Generate Link Lihat Saja</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDriveBackupOpen(true)}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-200 bg-blue-900/60 hover:bg-blue-900 border border-blue-700/50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                title="Simpan cadangan perubahan usulan ke Google Drive"
+              >
+                <CloudUpload className="w-3.5 h-3.5 text-blue-300" />
+                <span>Simpan ke Google Drive</span>
+              </button>
+            </>
+          )}
         </div>
       </aside>
 
@@ -1099,7 +1238,7 @@ function DashboardWorkspace() {
 
           <div className="flex items-center gap-2.5 shrink-0">
             <span className="hidden xl:inline text-xs text-slate-500 truncate max-w-[200px]">
-              {accountProfile.displayName}
+              {isReadOnlyMode ? 'Tampilan Lihat Saja' : accountProfile.displayName}
             </span>
 
             <button
@@ -1112,54 +1251,102 @@ function DashboardWorkspace() {
               <span>Preview Usulan</span>
             </button>
 
-            <button
-              type="button"
-              disabled={isSavingManual}
-              onClick={() => void handleManualSaveAll()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              title="Simpan seluruh perubahan edit maupun penambahan usulan ke Cloud Database"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSavingManual ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
-            </button>
+            {canEdit ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShareLinkOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  title="Generate link web khusus lihat saja (read-only) untuk dibagikan"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Link Lihat Saja</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setDriveBackupOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              title="Simpan cadangan data usulan ke link folder Google Drive resmi"
-            >
-              <CloudUpload className="w-3.5 h-3.5" />
-              <span>Simpan ke Google Drive</span>
-            </button>
+                <button
+                  type="button"
+                  disabled={isSavingManual}
+                  onClick={() => void handleManualSaveAll()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  title="Simpan seluruh perubahan edit maupun penambahan usulan ke Cloud Database"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingManual ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setEditingProposal(null);
-                setDrawerOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah Usulan</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setDriveBackupOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  title="Simpan cadangan data usulan ke link folder Google Drive resmi"
+                >
+                  <CloudUpload className="w-3.5 h-3.5" />
+                  <span>Simpan ke Google Drive</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => void handleLogoutAccount()}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              title="Buka portal informasi akses"
-            >
-              <LogOut className="w-3.5 h-3.5 text-slate-500" />
-              <span>Portal Akses</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingProposal(null);
+                    setDrawerOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Usulan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void handleLogoutAccount()}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  title="Buka portal informasi akses"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Portal Akses</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-800 bg-blue-50 border border-blue-200 rounded-lg whitespace-nowrap shrink-0">
+                  <Lock className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Mode Lihat Saja</span>
+                </span>
+                {isInAppReadOnlyPreview && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsInAppReadOnlyPreview(false);
+                      updateAccessMode('account');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Kembali ke Mode Edit</span>
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </header>
 
+        {/* Read-Only Banner when opened via View-Only Shared Link */}
+        {isReadOnlyMode && (
+          <div className="bg-blue-50 border-b border-blue-200 text-blue-950 px-6 py-2 text-xs flex flex-wrap items-center justify-between gap-2 print:hidden">
+            <div className="flex items-center gap-2">
+              <Eye className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+              <span>
+                <strong>Mode Pratinjau (Lihat Saja)</strong> — Anda dapat melihat matriks usulan,
+                peta spasial, infografis skor RC, serta mengunduh laporan CSV/PDF. Pengeditan dan
+                penyimpanan data dinonaktifkan.
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Firestore Quota Notice if Triggered */}
         {dbQuotaAlert && (
-          <div className="bg-amber-50 border-b border-amber-200 text-amber-950 px-6 py-2.5 text-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="bg-amber-50 border-b border-amber-200 text-amber-950 px-6 py-2.5 text-xs flex flex-wrap items-center justify-between gap-3 print:hidden">
             <span>
               {dbQuotaAlert.message}{' '}
               {dbQuotaAlert.upgradeUrl && (
@@ -1185,7 +1372,7 @@ function DashboardWorkspace() {
 
         {/* Action Feedback Banner with Undo Support */}
         {toastMessage && (
-          <div className="bg-slate-900 text-white px-6 py-2.5 text-xs flex items-center justify-between gap-4">
+          <div className="bg-slate-900 text-white px-6 py-2.5 text-xs flex items-center justify-between gap-4 print:hidden">
             <span>{toastMessage}</span>
             <div className="flex items-center gap-3 shrink-0">
               {canEdit && lastDeletedItems.length > 0 && (
@@ -1213,9 +1400,19 @@ function DashboardWorkspace() {
         )}
 
         {/* Workspace Viewport */}
-        <main className="flex-1 p-6 max-w-[1600px] w-full mx-auto space-y-6">
+        <main
+          className={`flex-1 p-6 max-w-[1600px] w-full mx-auto space-y-6 ${
+            previewProposal || showTemplateDemo
+              ? 'print:hidden'
+              : 'print:p-0 print:max-w-none'
+          }`}
+        >
           {/* Context Header & Interactive Year / Sector Segmented Controls */}
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div
+            className={`flex flex-col xl:flex-row xl:items-center justify-between gap-4 ${
+              activeView === WorkspaceView.RC_INFOGRAPHIC ? 'print:hidden' : ''
+            }`}
+          >
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                 Dashboard Sinkronisasi Program Infrastruktur Cipta Karya Tahun Anggaran 2027–2030
@@ -1258,7 +1455,9 @@ function DashboardWorkspace() {
           {/* 4-Column Full-Width KPI Strip */}
           <section
             aria-label="Ringkasan Indikator Utama"
-            className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
+            className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 ${
+              activeView === WorkspaceView.RC_INFOGRAPHIC ? 'print:hidden' : ''
+            }`}
           >
             <div className="bg-white border border-slate-200 rounded-xl p-5">
               <div className="text-xs font-medium text-slate-500">Total Paket Usulan</div>
@@ -1333,6 +1532,7 @@ function DashboardWorkspace() {
                   }}
                   onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
                   onUpdateStatusManual={(id, val) => void handleUpdateStatusManual(id, val)}
+                  onUpdateLinkDataRc={(id, val) => void handleUpdateLinkDataRc(id, val)}
                   onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
                   onJumpToMap={handleFocusOnMap}
                   onAddNew={() => {
@@ -1544,6 +1744,9 @@ function DashboardWorkspace() {
                 setPreviewProposalId(id);
               }}
               onFocusOnMap={handleFocusOnMap}
+              onPdfExported={(fileName) =>
+                showNotice(`Infografis Skor RC berhasil dicetak ke berkas "${fileName}".`)
+              }
             />
           )}
 
@@ -1630,15 +1833,44 @@ function DashboardWorkspace() {
         />
       )}
 
-      {/* Google Drive Backup & Save Modal */}
-      <GoogleDriveBackupModal
-        isOpen={driveBackupOpen}
-        onClose={() => setDriveBackupOpen(false)}
-        proposals={proposals}
-        resolvedPlaces={resolvedPlaces}
-        operatorName={accountProfile.displayName}
-        onSuccessNotice={(msg) => showNotice(msg)}
-      />
+      {/* Google Drive Backup & Save Modal (Only active when canEdit is true) */}
+      {canEdit && (
+        <GoogleDriveBackupModal
+          isOpen={driveBackupOpen}
+          onClose={() => setDriveBackupOpen(false)}
+          proposals={proposals}
+          resolvedPlaces={resolvedPlaces}
+          operatorName={accountProfile.displayName}
+          onSuccessNotice={(msg) => showNotice(msg)}
+        />
+      )}
+
+      {/* Generate Shareable Read-Only Link Modal */}
+      {canEdit && (
+        <ShareReadOnlyLinkModal
+          isOpen={shareLinkOpen}
+          currentView={activeView}
+          currentYearFilter={yearFilter}
+          currentSektorFilter={sektorFilter}
+          totalProposalsCount={filteredProposals.length}
+          onClose={() => setShareLinkOpen(false)}
+          onPreviewReadOnly={({ view, year, sektor }) => {
+            setDrawerOpen(false);
+            setEditingProposal(null);
+            setPickingProposalId(null);
+            setPendingDeleteTargets([]);
+            setActiveView(view);
+            setYearFilter(year);
+            setSektorFilter(sektor);
+            setIsInAppReadOnlyPreview(true);
+            setAccessMode('readonly');
+            showNotice('Pratinjau Mode Lihat Saja aktif. Klik "Kembali ke Mode Edit" untuk keluar.');
+          }}
+          onCopiedNotice={() =>
+            showNotice('Link web Lihat Saja (Read-Only) berhasil disalin ke clipboard.')
+          }
+        />
+      )}
     </div>
   );
 }

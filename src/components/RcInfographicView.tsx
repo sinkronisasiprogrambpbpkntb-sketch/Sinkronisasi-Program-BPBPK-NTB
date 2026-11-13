@@ -5,6 +5,7 @@ import {
   Download,
   Eye,
   MapPin,
+  Printer,
   Search,
 } from 'lucide-react';
 import {
@@ -14,12 +15,14 @@ import {
   SEKTOR_SHORT_LABELS,
 } from '../data/initialProposals';
 import { SektorCiptaKarya, UsulanProgram } from '../types/ciptaKarya';
+import { exportRcInfographicPdf } from '../utils/exportRcInfographicPdf';
 
 interface RcInfographicViewProps {
   proposals: UsulanProgram[];
   yearFilterLabel: string;
   onPreviewProposal: (id: string) => void;
   onFocusOnMap?: (id: string) => void;
+  onPdfExported?: (fileName: string) => void;
 }
 
 type RcTierFilter = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW';
@@ -72,6 +75,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   yearFilterLabel,
   onPreviewProposal,
   onFocusOnMap,
+  onPdfExported,
 }) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [tierFilter, setTierFilter] = useState<RcTierFilter>('ALL');
@@ -315,6 +319,41 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const tierFilterLabel =
+    tierFilter === 'ALL'
+      ? 'Semua Tingkat Kesiapan'
+      : tierFilter === 'HIGH'
+        ? 'Siap (>=80%)'
+        : tierFilter === 'MEDIUM'
+          ? 'Proses (50-79%)'
+          : 'Kurang (<50%)';
+
+  const statusFilterLabel = useMemo(() => {
+    if (effectiveStatusFilter === 'ALL') return 'Semua Status Usulan';
+    if (effectiveStatusFilter === 'manual:__EMPTY__') return 'Belum Diisi Status';
+    if (effectiveStatusFilter.startsWith('manual:')) {
+      return effectiveStatusFilter.slice('manual:'.length);
+    }
+    return 'Semua Status Usulan';
+  }, [effectiveStatusFilter]);
+
+  const handleExportPdf = () => {
+    const fileName = exportRcInfographicPdf(
+      filteredRanked,
+      summaryStats,
+      sectorAverages,
+      regionalAverages,
+      {
+        yearFilterLabel,
+        sortOrder,
+        tierFilterLabel,
+        statusFilterLabel,
+        searchQuery,
+      }
+    );
+    onPdfExported?.(fileName);
+  };
+
   const highShare =
     summaryStats.totalCount > 0
       ? Math.round((summaryStats.highCount / summaryStats.totalCount) * 100)
@@ -329,9 +368,38 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-4">
+      {/* Print-only Institutional Header (Ctrl+P fallback) */}
+      <div className="hidden print:flex items-center justify-between border-b-2 border-slate-900 pb-3">
+        <div>
+          <div className="text-[10px] font-semibold tracking-wider text-blue-800 uppercase">
+            Kementerian Pekerjaan Umum · SIMPRA BPBPK Nusa Tenggara Barat
+          </div>
+          <h1 className="text-lg font-bold text-slate-900">
+            Infografis Peringkat Skor Readiness Criteria (RC)
+          </h1>
+          <p className="text-xs text-slate-600 mt-0.5">
+            {yearFilterLabel} · {tierFilterLabel} · {statusFilterLabel} ·{' '}
+            {filteredRanked.length} dari {statusScoped.length} Paket
+          </p>
+        </div>
+        <div className="text-right text-[11px] text-slate-500 font-mono">
+          <div>
+            {sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi'}
+          </div>
+          <div>
+            Dicetak:{' '}
+            {new Intl.DateTimeFormat('id-ID', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            }).format(new Date())}
+          </div>
+        </div>
+      </div>
+
       {/* Header & Controls Bar */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+      <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 print:hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
@@ -386,6 +454,17 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
             >
               <Download className="w-3.5 h-3.5 text-slate-600" />
               <span>Ekspor Peringkat CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              disabled={statusScoped.length === 0}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Unduh laporan Infografis Skor RC dalam format PDF"
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-300" />
+              <span>Cetak PDF</span>
             </button>
           </div>
         </div>
@@ -458,7 +537,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       {/* Summary Infographic Metrics Row */}
       <section
         aria-label="Ikhtisar Ekstrem Skor RC"
-        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"
+        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 print:grid-cols-4"
       >
         <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
           <div className="text-xs font-medium text-slate-500">Skor RC Tertinggi</div>
@@ -624,7 +703,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 return (
                   <div
                     key={p.id}
-                    className="py-4 first:pt-4 last:pb-1 hover:bg-slate-50/70 transition-colors rounded-lg px-2 -mx-2"
+                    className="py-4 first:pt-4 last:pb-1 hover:bg-slate-50/70 transition-colors rounded-lg px-2 -mx-2 break-inside-avoid"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -675,7 +754,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 pl-2 border-l border-slate-200">
+                        <div className="flex items-center gap-1 pl-2 border-l border-slate-200 print:hidden">
                           <button
                             type="button"
                             onClick={() => onPreviewProposal(p.id)}

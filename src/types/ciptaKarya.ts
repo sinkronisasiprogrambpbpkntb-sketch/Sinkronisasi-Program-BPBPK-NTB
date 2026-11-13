@@ -70,6 +70,7 @@ export interface ProposalTemplateDetails {
   deskripsiLokasi?: string;
   lokasiGambarUrl?: string;
   statusManual?: string;
+  linkDataRc?: string;
   rcDetails?: Partial<Record<LegacyRcDocKey, RcDocumentEntry>>;
 }
 
@@ -122,7 +123,7 @@ export interface UsulanProgram {
   isPublished?: boolean;
 }
 
-export type AccessMode = 'portal' | 'account';
+export type AccessMode = 'portal' | 'account' | 'readonly';
 
 export interface AccountSessionProfile {
   displayName: string;

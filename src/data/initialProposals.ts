@@ -1559,6 +1559,7 @@ export function resolveProposalTemplateDetails(proposal: UsulanProgram): Require
       `Lokasi kegiatan berada di ${proposal.kecamatanKawasan}, ${proposal.kabupatenKota} dengan radius cakupan layanan ${proposal.serviceRadiusKm} km.`,
     lokasiGambarUrl: d.lokasiGambarUrl,
     statusManual: d.statusManual?.trim() ?? '',
+    linkDataRc: d.linkDataRc?.trim() ?? '',
     rcDetails,
   };
 }
@@ -1892,6 +1893,7 @@ export function exportProposalsAsCsv(
     'Total Pagu 2027-2030 (Rp M)',
     'Kesiapan RC (%)',
     'Status',
+    'Link Data RC',
   ];
 
   const escapeCsv = (val: string | number) => {
@@ -1925,6 +1927,7 @@ export function exportProposalsAsCsv(
       getTotalPaguUsulan(p.pagu),
       getReadinessScore(p.readiness, p.skorRc).percentage,
       p.templateDetails?.statusManual ?? '',
+      p.templateDetails?.linkDataRc ?? '',
     ]
       .map(escapeCsv)
       .join(',');

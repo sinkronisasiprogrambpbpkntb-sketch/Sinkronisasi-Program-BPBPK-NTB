@@ -31,9 +31,15 @@
 }
 
 @media print {
+  html,
+  body {
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   aside,
   header,
-  main,
   footer {
     display: none !important;
   }
