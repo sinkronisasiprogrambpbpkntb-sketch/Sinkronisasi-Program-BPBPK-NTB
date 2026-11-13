@@ -1874,6 +1874,7 @@ export function exportProposalsAsCsv(
   resolvedMap: Record<string, ResolvedPlaceInfo>
 ): string {
   const headers = [
+    'No',
     'Kode Usulan',
     'Nama Program',
     'Sektor Cipta Karya',
@@ -1904,9 +1905,10 @@ export function exportProposalsAsCsv(
     return str;
   };
 
-  const rows = proposals.map((p) => {
+  const rows = proposals.map((p, idx) => {
     const pos = p.manualPosition ?? resolvedMap[p.locationQuery]?.position;
     return [
+      idx + 1,
       p.kodeUsulan,
       p.namaProgram,
       SEKTOR_SHORT_LABELS[p.sektor],

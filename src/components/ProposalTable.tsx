@@ -653,6 +653,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                     />
                   </th>
                 )}
+                <th className="py-3 px-2.5 text-center w-11 whitespace-nowrap">No</th>
                 <th className="py-3 px-3 whitespace-nowrap">
                   <button
                     type="button"
@@ -713,7 +714,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-xs">
-              {filteredAndSorted.map((p) => {
+              {filteredAndSorted.map((p, idx) => {
                 const total = getTotalPaguUsulan(p.pagu);
                 const rc = getReadinessScore(p.readiness, p.skorRc);
                 const pos = p.manualPosition ?? resolvedPlaces[p.locationQuery]?.position;
@@ -746,6 +747,10 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                         />
                       </td>
                     )}
+
+                    <td className="py-3 px-2.5 text-center font-mono tabular-nums text-slate-500 whitespace-nowrap">
+                      {idx + 1}
+                    </td>
 
                     <td className="py-3 px-3 max-w-xs">
                       <div className="text-[11px] text-slate-500 mb-0.5">

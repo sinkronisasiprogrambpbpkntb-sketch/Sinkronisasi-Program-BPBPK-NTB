@@ -1511,78 +1511,42 @@ function DashboardWorkspace() {
 
           {/* VIEW: MATRIKS USULAN & KESIAPAN RC */}
           {activeView === WorkspaceView.MATRIX && (
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-              <div className="xl:col-span-8">
-                <ProposalTable
-                  proposals={filteredProposals}
-                  resolvedPlaces={resolvedPlaces}
-                  selectedProposalId={selectedProposalId}
-                  canEdit={canEdit}
-                  isSavingAll={isSavingManual}
-                  canManageProposal={canManageProposal}
-                  onSelectProposal={(id) => setSelectedProposalId(id)}
-                  onPreviewProposal={(id) => {
-                    setShowTemplateDemo(false);
-                    setPreviewProposalId(id);
-                  }}
-                  onEditProposal={(p) => {
-                    if (!canManageProposal(p)) return;
-                    setEditingProposal(p);
-                    setDrawerOpen(true);
-                  }}
-                  onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
-                  onUpdateStatusManual={(id, val) => void handleUpdateStatusManual(id, val)}
-                  onUpdateLinkDataRc={(id, val) => void handleUpdateLinkDataRc(id, val)}
-                  onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
-                  onJumpToMap={handleFocusOnMap}
-                  onAddNew={() => {
-                    if (!canEdit) return;
-                    setEditingProposal(null);
-                    setDrawerOpen(true);
-                  }}
-                  onSaveAll={() => void handleManualSaveAll()}
-                  onExportCsv={handleExportCsv}
-                  onExportGeoJson={handleExportGeoJson}
-                  onOpenTemplateDemo={() => {
-                    setPreviewProposalId(null);
-                    setShowTemplateDemo(true);
-                  }}
-                />
-              </div>
-              <div className="xl:col-span-4">
-                <ProposalDetailPanel
-                  proposal={selectedProposal}
-                  resolvedInfo={
-                    selectedProposal ? resolvedPlaces[selectedProposal.locationQuery] : undefined
-                  }
-                  canEdit={canEdit}
-                  canManageSelected={selectedProposal ? canManageProposal(selectedProposal) : false}
-                  onPreview={(id) => {
-                    setShowTemplateDemo(false);
-                    setPreviewProposalId(id);
-                  }}
-                  onFocusOnMap={handleFocusOnMap}
-                  onStartPickCoordinate={handleStartPickCoordinate}
-                  onToggleReadiness={(id, key) => void handleToggleReadiness(id, key)}
-                  onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
-                  onSaveProposal={(p) => void handleSaveSingleFromPanel(p)}
-                  onEdit={(p) => {
-                    if (!canManageProposal(p)) return;
-                    setEditingProposal(p);
-                    setDrawerOpen(true);
-                  }}
-                  onDelete={handleRequestDeleteById}
-                  onAddNew={() => {
-                    if (!canEdit) return;
-                    setEditingProposal(null);
-                    setDrawerOpen(true);
-                  }}
-                  onOpenTemplateDemo={() => {
-                    setPreviewProposalId(null);
-                    setShowTemplateDemo(true);
-                  }}
-                />
-              </div>
+            <div>
+              <ProposalTable
+                proposals={filteredProposals}
+                resolvedPlaces={resolvedPlaces}
+                selectedProposalId={selectedProposalId}
+                canEdit={canEdit}
+                isSavingAll={isSavingManual}
+                canManageProposal={canManageProposal}
+                onSelectProposal={(id) => setSelectedProposalId(id)}
+                onPreviewProposal={(id) => {
+                  setShowTemplateDemo(false);
+                  setPreviewProposalId(id);
+                }}
+                onEditProposal={(p) => {
+                  if (!canManageProposal(p)) return;
+                  setEditingProposal(p);
+                  setDrawerOpen(true);
+                }}
+                onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
+                onUpdateStatusManual={(id, val) => void handleUpdateStatusManual(id, val)}
+                onUpdateLinkDataRc={(id, val) => void handleUpdateLinkDataRc(id, val)}
+                onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
+                onJumpToMap={handleFocusOnMap}
+                onAddNew={() => {
+                  if (!canEdit) return;
+                  setEditingProposal(null);
+                  setDrawerOpen(true);
+                }}
+                onSaveAll={() => void handleManualSaveAll()}
+                onExportCsv={handleExportCsv}
+                onExportGeoJson={handleExportGeoJson}
+                onOpenTemplateDemo={() => {
+                  setPreviewProposalId(null);
+                  setShowTemplateDemo(true);
+                }}
+              />
             </div>
           )}
 
