@@ -6,8 +6,6 @@ import {
   Edit3,
   Eye,
   LocateFixed,
-  AlertTriangle,
-  Clock,
   Plus,
   Save,
   Trash2,
@@ -23,7 +21,6 @@ import {
 import {
   ReadinessCriteria,
   ResolvedPlaceInfo,
-  StatusVerifikasi,
   UsulanProgram,
 } from '../types/ciptaKarya';
 
@@ -71,31 +68,6 @@ const RC_ITEMS: Array<{ key: keyof ReadinessCriteria; label: string; desc: strin
     desc: 'Komitmen Pemda / BUMD / UPTD pasca-konstruksi',
   },
 ];
-
-function renderVerificationStatus(status: StatusVerifikasi) {
-  if (status === StatusVerifikasi.TERVERIFIKASI) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium">
-        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-        <span>{status}</span>
-      </span>
-    );
-  }
-  if (status === StatusVerifikasi.REVISI_RC) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-amber-700 font-medium">
-        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        <span>{status}</span>
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 text-slate-600 font-medium">
-      <Clock className="w-3.5 h-3.5 shrink-0" />
-      <span>{status}</span>
-    </span>
-  );
-}
 
 export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
   proposal,
@@ -207,7 +179,11 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
             <span aria-hidden="true"> · </span>
             <span>{proposal.skemaKontrak}</span>
           </div>
-          {renderVerificationStatus(proposal.statusVerifikasi)}
+          {proposal.templateDetails?.statusManual?.trim() && (
+            <span className="font-medium text-slate-700">
+              {proposal.templateDetails.statusManual.trim()}
+            </span>
+          )}
         </div>
 
         <h3 className="text-base font-bold text-slate-900 leading-snug mb-2">

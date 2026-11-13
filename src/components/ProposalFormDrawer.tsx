@@ -1198,26 +1198,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Status Sinkronisasi Konreg
-                </label>
-                <select
-                  value={statusVerifikasi}
-                  onChange={(e) => {
-                    setStatusVerifikasi(e.target.value as StatusVerifikasi);
-                    markFieldEdited();
-                  }}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:border-blue-700"
-                >
-                  {Object.values(StatusVerifikasi).map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Status Matriks (Manual)
