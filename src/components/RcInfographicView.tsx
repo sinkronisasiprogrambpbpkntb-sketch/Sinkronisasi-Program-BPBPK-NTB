@@ -21,6 +21,7 @@ import {
   exportRcInfographicPdf,
   PdfExportContext,
   PdfSignatoriesConfig,
+  RcPdfLayoutMode,
 } from '../utils/exportRcInfographicPdf';
 import { loadPuLogoDataUrl, PU_LOGO_SRC } from '../utils/puLogoAsset';
 import { RcInfographicPreviewModal } from './RcInfographicPreviewModal';
@@ -432,14 +433,14 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     ]
   );
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (layoutMode: RcPdfLayoutMode = 'multi') => {
     const logoDataUrl = await loadPuLogoDataUrl();
     const fileName = exportRcInfographicPdf(
       filteredRanked,
       summaryStats,
       sectorAverages,
       regionalAverages,
-      { ...pdfContext, logoDataUrl }
+      { ...pdfContext, logoDataUrl, layoutMode }
     );
     onPdfExported?.(fileName);
   };
@@ -589,13 +590,24 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
 
             <button
               type="button"
-              onClick={() => void handleExportPdf()}
+              onClick={() => void handleExportPdf('multi')}
               disabled={statusScoped.length === 0}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#07165B] hover:bg-[#0A1D6E] disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              title="Unduh laporan Infografis Skor RC dalam format PDF"
+              title="Unduh laporan Infografis Skor RC dalam format PDF (multi halaman)"
             >
               <Printer className="w-3.5 h-3.5 text-amber-300" />
               <span>Cetak PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleExportPdf('single-sheet')}
+              disabled={statusScoped.length === 0}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#051044] bg-[#E89611] hover:bg-amber-400 disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Alternatif Cetak PDF: padatkan seluruh halaman/paket menjadi 1 kertas A4"
+            >
+              <Printer className="w-3.5 h-3.5 text-[#051044]" />
+              <span>Cetak PDF (1 Kertas)</span>
             </button>
           </div>
         </div>
@@ -1248,7 +1260,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       <RcInfographicPreviewModal
         isOpen={showPdfPreview}
         onClose={() => setShowPdfPreview(false)}
-        onDownloadPdf={() => void handleExportPdf()}
+        onDownloadPdf={(mode) => void handleExportPdf(mode)}
         onEditSignatories={() => {
           window.setTimeout(handleScrollToSignatories, 80);
         }}

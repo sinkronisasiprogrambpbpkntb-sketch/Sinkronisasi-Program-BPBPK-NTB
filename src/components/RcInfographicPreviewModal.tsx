@@ -17,6 +17,7 @@ import {
   PdfRegionalAverage,
   PdfSectorAverage,
   PdfSummaryStats,
+  RcPdfLayoutMode,
   RcPdfPreviewPayload,
 } from '../utils/exportRcInfographicPdf';
 import { loadPuLogoDataUrl, PU_LOGO_SRC } from '../utils/puLogoAsset';
@@ -24,13 +25,14 @@ import { loadPuLogoDataUrl, PU_LOGO_SRC } from '../utils/puLogoAsset';
 interface RcInfographicPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDownloadPdf: () => void;
+  onDownloadPdf: (layoutMode: RcPdfLayoutMode) => void;
   onEditSignatories: () => void;
   rankedItems: PdfRankedProposalItem[];
   summaryStats: PdfSummaryStats;
   sectorAverages: PdfSectorAverage[];
   regionalAverages: PdfRegionalAverage[];
   context: PdfExportContext;
+  initialLayoutMode?: RcPdfLayoutMode;
 }
 
 type PreviewMode = 'sheet' | 'pdf';
@@ -51,10 +53,18 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
   sectorAverages,
   regionalAverages,
   context,
+  initialLayoutMode = 'multi',
 }) => {
   const [mode, setMode] = useState<PreviewMode>('sheet');
+  const [layoutMode, setLayoutMode] = useState<RcPdfLayoutMode>(initialLayoutMode);
   const [zoomPct, setZoomPct] = useState<number>(100);
   const [pdfPayload, setPdfPayload] = useState<RcPdfPreviewPayload | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLayoutMode(initialLayoutMode);
+    }
+  }, [isOpen, initialLayoutMode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -69,7 +79,7 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
         summaryStats,
         sectorAverages,
         regionalAverages,
-        { ...context, logoDataUrl }
+        { ...context, logoDataUrl, layoutMode }
       );
       if (cancelled) {
         URL.revokeObjectURL(payload.blobUrl);
@@ -86,7 +96,7 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
       }
       setPdfPayload(null);
     };
-  }, [isOpen, rankedItems, summaryStats, sectorAverages, regionalAverages, context]);
+  }, [isOpen, rankedItems, summaryStats, sectorAverages, regionalAverages, context, layoutMode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -220,6 +230,38 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
             </div>
           )}
 
+          {/* Alternative Page Mode Switcher: Multi Halaman vs 1 Kertas */}
+          <div
+            className="inline-flex items-center p-1 bg-[#040E42] border border-white/15 rounded-lg"
+            role="group"
+            aria-label="Alternatif Susunan Kertas PDF"
+          >
+            <button
+              type="button"
+              onClick={() => setLayoutMode('multi')}
+              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                layoutMode === 'multi'
+                  ? 'bg-white text-[#051044] font-semibold'
+                  : 'text-indigo-100 hover:text-white'
+              }`}
+              title="Susunan standar berlanjut beberapa halaman bila paket banyak"
+            >
+              Multi Halaman
+            </button>
+            <button
+              type="button"
+              onClick={() => setLayoutMode('single-sheet')}
+              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                layoutMode === 'single-sheet'
+                  ? 'bg-[#E89611] text-[#051044] font-semibold'
+                  : 'text-indigo-100 hover:text-white'
+              }`}
+              title="Padatkan seluruh grafik dan pengesahan ke dalam 1 kertas A4"
+            >
+              1 Kertas (Ringkas)
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() => {
@@ -243,11 +285,11 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
 
           <button
             type="button"
-            onClick={onDownloadPdf}
+            onClick={() => onDownloadPdf(layoutMode)}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-[#051044] bg-[#E89611] hover:bg-amber-400 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Unduh PDF</span>
+            <span>{layoutMode === 'single-sheet' ? 'Unduh PDF (1 Kertas)' : 'Unduh PDF'}</span>
           </button>
 
           <button
@@ -501,6 +543,61 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                 {rankedItems.length === 0 ? (
                   <div className="py-8 text-center text-xs text-slate-400">
                     Tidak ada paket usulan yang sesuai filter.
+                  </div>
+                ) : layoutMode === 'single-sheet' ? (
+                  <div
+                    className={`p-3 grid gap-2 ${
+                      rankedItems.length <= 8
+                        ? 'grid-cols-1'
+                        : rankedItems.length <= 24
+                          ? 'grid-cols-1 sm:grid-cols-2'
+                          : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                    }`}
+                  >
+                    {rankedItems.map((item, idx) => {
+                      const tier = getTierHex(item.rcPercentage);
+                      return (
+                        <div
+                          key={item.proposal.id}
+                          className="border border-slate-200 rounded px-2.5 py-1.5 bg-white space-y-1"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono text-[10px] font-bold text-slate-500 tabular-nums shrink-0">
+                                #{String(idx + 1).padStart(2, '0')}
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-900 truncate">
+                                {item.proposal.namaProgram}
+                              </span>
+                            </div>
+                            <span
+                              className={`font-mono text-[11px] font-bold tabular-nums shrink-0 ${tier.textClass}`}
+                            >
+                              {item.rcPercentage}%
+                            </span>
+                          </div>
+                          <div className="text-[9.5px] text-slate-500 truncate pl-6">
+                            {item.proposal.kabupatenKota} · {SEKTOR_SHORT_LABELS[item.proposal.sektor]} ·{' '}
+                            {formatRpMiliar(item.totalPagu)}
+                          </div>
+                          <div className="pl-6">
+                            <div className="relative h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${Math.max(2, Math.min(100, item.rcPercentage))}%`,
+                                  backgroundColor: tier.bar,
+                                }}
+                              />
+                              <div
+                                className="absolute top-0 bottom-0 w-px bg-slate-700"
+                                style={{ left: '80%' }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-200">

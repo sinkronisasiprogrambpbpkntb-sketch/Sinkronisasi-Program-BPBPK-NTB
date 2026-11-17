@@ -833,6 +833,21 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => {
+                    void (async () => {
+                      const wordmarkDataUrl = await loadPuWordmarkDataUrl();
+                      exportProposalProfilePdf({ ...pdfPreviewInput, wordmarkDataUrl });
+                    })();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#07165B] hover:bg-[#0A1D6E] text-white cursor-pointer whitespace-nowrap border border-amber-400/50"
+                  title="Alternatif Cetak PDF langsung ke dalam 1 kertas A4 Landscape"
+                >
+                  <Printer className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Cetak PDF (1 Kertas)</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => window.print()}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 cursor-pointer whitespace-nowrap"
                 >
