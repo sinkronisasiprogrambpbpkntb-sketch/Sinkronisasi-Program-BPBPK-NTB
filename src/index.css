@@ -16,7 +16,7 @@
   html {
     font-family: var(--font-sans);
     color: #0f172a;
-    background-color: #f8fafc;
+    background-color: #f3f6fb;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -24,6 +24,44 @@
     font-family: var(--font-display);
     text-wrap: balance;
   }
+}
+
+.batik-pu-surface {
+  background-color: #061459;
+  background-image:
+    linear-gradient(
+      165deg,
+      rgba(5, 16, 68, 0.90) 0%,
+      rgba(8, 24, 96, 0.85) 50%,
+      rgba(5, 16, 68, 0.93) 100%
+    ),
+    url('/assets/aistudio/WhatsApp-Image-2019-11-27-at-8.49.19-AM.jpeg__1__eda5fd50.webp');
+  background-size: auto, 320px auto;
+  background-repeat: no-repeat, repeat;
+  background-position: center, top left;
+}
+
+.batik-pu-banner {
+  background-color: #061459;
+  background-image:
+    linear-gradient(
+      100deg,
+      rgba(5, 16, 68, 0.92) 0%,
+      rgba(8, 24, 96, 0.84) 55%,
+      rgba(10, 29, 110, 0.72) 100%
+    ),
+    url('/assets/aistudio/WhatsApp-Image-2019-11-27-at-8.49.19-AM.jpeg__1__eda5fd50.webp');
+  background-size: auto, 360px auto;
+  background-repeat: no-repeat, repeat;
+  background-position: center, right center;
+}
+
+.batik-pu-strip {
+  background-color: #061459;
+  background-image: url('/assets/aistudio/WhatsApp-Image-2019-11-27-at-8.49.19-AM.jpeg__1__eda5fd50.webp');
+  background-size: 260px auto;
+  background-repeat: repeat-x;
+  background-position: center;
 }
 
 .tabular-nums {
@@ -36,6 +74,14 @@
     background: #ffffff !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .batik-pu-surface,
+  .batik-pu-banner,
+  .batik-pu-strip {
+    background-image: none !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
   }
 
   aside,

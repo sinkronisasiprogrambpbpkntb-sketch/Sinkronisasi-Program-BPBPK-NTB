@@ -7,13 +7,16 @@ import {
   ChevronRight,
   Download,
   Edit3,
+  Eye,
   FileCheck2,
   ImagePlus,
   ListChecks,
   LocateFixed,
   MapPin,
+  PenLine,
   PieChart,
   Printer,
+  RotateCcw,
   Save,
   Square,
   Target,
@@ -21,6 +24,12 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
+import {
+  exportProposalProfilePdf,
+  ProposalProfilePdfInput,
+} from '../utils/exportProposalProfilePdf';
+import { PdfSignatoriesConfig } from '../utils/exportRcInfographicPdf';
+import { ProposalPdfPreviewOverlay } from './ProposalPdfPreviewOverlay';
 import {
   buildSpatialGeoJsonLayers,
   deriveReadinessFromRcTable,
@@ -245,6 +254,51 @@ export interface ProposalPreviewModalProps {
   onFocusMainMap?: (id: string) => void;
 }
 
+const PROFIL_PDF_SIGNATORIES_STORAGE_KEY = 'simpra_ntb_profil_pdf_signatories_v1';
+
+function getDefaultProfilTempatTanggal(): string {
+  const formatted = new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date());
+  return `Mataram, ${formatted}`;
+}
+
+function createEmptyProfilSignatories(): PdfSignatoriesConfig {
+  return {
+    tempatTanggal: getDefaultProfilTempatTanggal(),
+    mengesahkan: { jabatan: '', nama: '' },
+    menyetujui: { jabatan: '', nama: '' },
+  };
+}
+
+function loadInitialProfilSignatories(): PdfSignatoriesConfig {
+  const fallback = createEmptyProfilSignatories();
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(PROFIL_PDF_SIGNATORIES_STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Partial<PdfSignatoriesConfig>;
+    return {
+      tempatTanggal:
+        typeof parsed.tempatTanggal === 'string'
+          ? parsed.tempatTanggal
+          : fallback.tempatTanggal,
+      mengesahkan: {
+        jabatan: parsed.mengesahkan?.jabatan ?? '',
+        nama: parsed.mengesahkan?.nama ?? '',
+      },
+      menyetujui: {
+        jabatan: parsed.menyetujui?.jabatan ?? '',
+        nama: parsed.menyetujui?.nama ?? '',
+      },
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 function formatNumberMiliar(val: number): string {
   return val.toLocaleString('id-ID', {
     minimumFractionDigits: val % 1 === 0 ? 0 : 1,
@@ -301,7 +355,22 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   );
   const [imageDraftUrl, setImageDraftUrl] = useState<string | undefined>(undefined);
   const [uploadAlert, setUploadAlert] = useState<string | null>(null);
+  const [showPdfPreview, setShowPdfPreview] = useState<boolean>(false);
+  const [signatories, setSignatories] = useState<PdfSignatoriesConfig>(
+    loadInitialProfilSignatories
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        PROFIL_PDF_SIGNATORIES_STORAGE_KEY,
+        JSON.stringify(signatories)
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [signatories]);
 
   const currentRcVal = proposal
     ? getReadinessScore(proposal.readiness, proposal.skorRc).percentage
@@ -315,6 +384,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     setImageDraftUrl(resolved.lokasiGambarUrl);
     setLocationMediaTab(resolved.lokasiGambarUrl ? 'image' : 'map');
     setUploadAlert(null);
+    setShowPdfPreview(false);
   }, [proposal?.id, proposal]);
 
   const currentIndex = useMemo(() => {
@@ -329,14 +399,20 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     if (!proposal) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (showPdfPreview) {
+          setShowPdfPreview(false);
+        } else {
+          onClose();
+        }
       } else if (
+        !showPdfPreview &&
         e.key === 'ArrowLeft' &&
         hasPrev &&
         !(document.activeElement instanceof HTMLInputElement)
       ) {
         onSelectProposal(proposalsList[currentIndex - 1].id);
       } else if (
+        !showPdfPreview &&
         e.key === 'ArrowRight' &&
         hasNext &&
         !(document.activeElement instanceof HTMLInputElement)
@@ -346,9 +422,44 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [proposal, hasPrev, hasNext, currentIndex, proposalsList, onClose, onSelectProposal]);
+  }, [
+    proposal,
+    showPdfPreview,
+    hasPrev,
+    hasNext,
+    currentIndex,
+    proposalsList,
+    onClose,
+    onSelectProposal,
+  ]);
 
-  if (!proposal) return null;
+  const pdfPreviewInput = useMemo<ProposalProfilePdfInput | null>(() => {
+    if (!proposal) return null;
+    const resolvedDetails = resolveProposalTemplateDetails(proposal);
+    const parsedRc = tryParseNumberFlexible(rcDraft);
+    const activeRcPercentage =
+      parsedRc !== null
+        ? Math.min(100, Math.max(0, Number(parsedRc.toFixed(1))))
+        : currentRcVal;
+    const resolvedInfo = resolvedPlaces[proposal.locationQuery];
+    const activePos = proposal.manualPosition ?? resolvedInfo?.position ?? {
+      lat: -8.62,
+      lng: 117.35,
+    };
+
+    return {
+      proposal,
+      details: resolvedDetails,
+      totalPagu: getTotalPaguUsulan(proposal.pagu),
+      rcPercentage: activeRcPercentage,
+      rcTable: rcTableDraft,
+      position: activePos,
+      imageDataUrl: imageDraftUrl,
+      signatories,
+    };
+  }, [proposal, rcDraft, currentRcVal, resolvedPlaces, rcTableDraft, imageDraftUrl, signatories]);
+
+  if (!proposal || !pdfPreviewInput) return null;
 
   const details = resolveProposalTemplateDetails(proposal);
   const totalPagu = getTotalPaguUsulan(proposal.pagu);
@@ -697,6 +808,29 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Unduh HTML</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('profil-pdf-signatory-panel');
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 cursor-pointer whitespace-nowrap"
+                  title="Isi data Mengesahkan & Menyetujui untuk Cetak PDF"
+                >
+                  <PenLine className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Pengesahan PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPdfPreview(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-400 text-[#051044] cursor-pointer whitespace-nowrap"
+                  title="Lihat pratinjau hasil Cetak PDF Profil Usulan"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Preview PDF</span>
                 </button>
 
                 <button
@@ -1235,8 +1369,208 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               )}
             </div>
           </div>
+
+          {/* Data Pengesahan & Persetujuan Cetak PDF (Mengesahkan Kiri & Menyetujui Kanan) */}
+          {!isTemplateDemo && (
+            <section
+              id="profil-pdf-signatory-panel"
+              aria-label="Data Pengesahan Cetak PDF Profil Usulan"
+              className="bg-white border border-slate-300 rounded-2xl p-4 sm:p-5 space-y-4 break-inside-avoid print:border-slate-200 print:rounded-xl"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200 print:hidden">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Data Pengesahan &amp; Persetujuan (Cetak PDF)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Ditampilkan di bagian bawah halaman Profil Usulan saat Preview atau Cetak PDF
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSignatories(createEmptyProfilSignatories())}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  title="Kosongkan nama dan jabatan pengesah"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Kolom</span>
+                </button>
+              </div>
+
+              <div className="print:hidden space-y-4">
+                <div className="max-w-xs">
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Tempat &amp; Tanggal (Sebelah Kanan)
+                  </label>
+                  <input
+                    type="text"
+                    value={signatories.tempatTanggal}
+                    onChange={(e) =>
+                      setSignatories((prev) => ({
+                        ...prev,
+                        tempatTanggal: e.target.value,
+                      }))
+                    }
+                    placeholder="Contoh: Mataram, 17 November 2026"
+                    className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+                  {/* Sebelah Kiri: Mengesahkan */}
+                  <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+                    <div className="text-xs font-bold text-slate-900">
+                      Mengesahkan (Sebelah Kiri)
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Jabatan
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.mengesahkan.jabatan}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            mengesahkan: {
+                              ...prev.mengesahkan,
+                              jabatan: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Contoh: Kepala BPBPK Provinsi NTB"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Nama Lengkap &amp; Gelar
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.mengesahkan.nama}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            mengesahkan: {
+                              ...prev.mengesahkan,
+                              nama: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Nama pejabat yang mengesahkan"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sebelah Kanan: Menyetujui */}
+                  <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+                    <div className="text-xs font-bold text-slate-900">
+                      Menyetujui (Sebelah Kanan)
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Jabatan
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.menyetujui.jabatan}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            menyetujui: {
+                              ...prev.menyetujui,
+                              jabatan: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Contoh: Ketua Tim Sinkronisasi Program"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Nama Lengkap &amp; Gelar
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.menyetujui.nama}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            menyetujui: {
+                              ...prev.menyetujui,
+                              nama: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Nama pejabat yang menyetujui"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Print-only Formal Signature Block */}
+              <div className="hidden print:grid print:grid-cols-2 gap-8 py-2 text-center text-xs text-slate-900">
+                <div className="flex flex-col items-center justify-between min-h-[110px]">
+                  <div>
+                    <div className="h-4" />
+                    <div className="font-bold">Mengesahkan,</div>
+                    {signatories.mengesahkan.jabatan.trim() && (
+                      <div className="text-[11px] text-slate-700 mt-0.5 max-w-xs">
+                        {signatories.mengesahkan.jabatan.trim()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="pt-10">
+                    <div className="font-bold underline underline-offset-4">
+                      {signatories.mengesahkan.nama.trim() ||
+                        '( ........................................ )'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-between min-h-[110px]">
+                  <div>
+                    <div className="text-[11px] text-slate-700 h-4">
+                      {signatories.tempatTanggal.trim()}
+                    </div>
+                    <div className="font-bold">Menyetujui,</div>
+                    {signatories.menyetujui.jabatan.trim() && (
+                      <div className="text-[11px] text-slate-700 mt-0.5 max-w-xs">
+                        {signatories.menyetujui.jabatan.trim()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="pt-10">
+                    <div className="font-bold underline underline-offset-4">
+                      {signatories.menyetujui.nama.trim() ||
+                        '( ........................................ )'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       </div>
+
+      <ProposalPdfPreviewOverlay
+        isOpen={showPdfPreview}
+        onClose={() => setShowPdfPreview(false)}
+        onDownloadPdf={() => exportProposalProfilePdf(pdfPreviewInput)}
+        onPrintDirect={() => window.print()}
+        onEditSignatories={() => {
+          window.setTimeout(() => {
+            const el = document.getElementById('profil-pdf-signatory-panel');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 80);
+        }}
+        pdfInput={pdfPreviewInput}
+      />
     </div>
   );
 };

@@ -41,12 +41,24 @@ export interface PdfRegionalAverage {
   totalPagu: number;
 }
 
+export interface PdfSignatoryParty {
+  jabatan: string;
+  nama: string;
+}
+
+export interface PdfSignatoriesConfig {
+  tempatTanggal: string;
+  mengesahkan: PdfSignatoryParty;
+  menyetujui: PdfSignatoryParty;
+}
+
 export interface PdfExportContext {
   yearFilterLabel: string;
   sortOrder: 'desc' | 'asc';
   tierFilterLabel: string;
   statusFilterLabel: string;
   searchQuery: string;
+  signatories?: PdfSignatoriesConfig;
 }
 
 type RgbTuple = [number, number, number];
@@ -115,13 +127,19 @@ function truncateTextToWidth(doc: jsPDF, text: string, maxWidth: number): string
   return `${result.trimEnd()}...`;
 }
 
-export function exportRcInfographicPdf(
+export interface RcPdfPreviewPayload {
+  blobUrl: string;
+  fileName: string;
+  pageCount: number;
+}
+
+function buildRcInfographicPdfDoc(
   rankedItems: PdfRankedProposalItem[],
   summaryStats: PdfSummaryStats,
   sectorAverages: PdfSectorAverage[],
   regionalAverages: PdfRegionalAverage[],
   context: PdfExportContext
-): string {
+): { doc: jsPDF; fileName: string } {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -145,7 +163,7 @@ export function exportRcInfographicPdf(
   }).format(new Date());
 
   const drawTopInstitutionalBanner = (isContinuation: boolean) => {
-    const bannerHeight = isContinuation ? 13 : 21;
+    const bannerHeight = isContinuation ? 13 : 24;
     doc.setFillColor(...COLOR_SLATE_900);
     doc.rect(marginX, 10, contentWidth, bannerHeight, 'F');
     doc.setFillColor(...COLOR_BLUE_700);
@@ -178,7 +196,7 @@ export function exportRcInfographicPdf(
     doc.text(
       'KEMENTERIAN PEKERJAAN UMUM · SIMPRA BPBPK NUSA TENGGARA BARAT',
       marginX + 6,
-      15.5
+      15.2
     );
 
     doc.setFont('helvetica', 'bold');
@@ -187,7 +205,16 @@ export function exportRcInfographicPdf(
     doc.text(
       'INFOGRAFIS PERINGKAT SKOR READINESS CRITERIA (RC)',
       marginX + 6,
-      22.5
+      21.5
+    );
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(253, 230, 138);
+    doc.text(
+      'Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat',
+      marginX + 6,
+      27.5
     );
 
     doc.setFont('helvetica', 'normal');
@@ -243,10 +270,10 @@ export function exportRcInfographicPdf(
 
   let cursorY = drawTopInstitutionalBanner(false);
 
-  // 4-Column KPI Summary Row
-  const kpiGap = 3.5;
-  const kpiWidth = (contentWidth - kpiGap * 3) / 4;
-  const kpiHeight = 25;
+  // 3-Column KPI Summary Row
+  const kpiGap = 4;
+  const kpiWidth = (contentWidth - kpiGap * 2) / 3;
+  const kpiHeight = 29;
 
   const drawKpiCardFrame = (colIdx: number, title: string) => {
     const x = marginX + colIdx * (kpiWidth + kpiGap);
@@ -266,7 +293,7 @@ export function exportRcInfographicPdf(
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
     doc.setTextColor(...COLOR_EMERALD_700);
-    doc.text(`${summaryStats.highest.rcPercentage}%`, kpi1X + 3.5, cursorY + 12.2);
+    doc.text(`${summaryStats.highest.rcPercentage}%`, kpi1X + 3.5, cursorY + 13);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
@@ -274,7 +301,7 @@ export function exportRcInfographicPdf(
     doc.text(
       sanitizePdfText(summaryStats.highest.proposal.kodeUsulan),
       kpi1X + kpiWidth - 3.5,
-      cursorY + 12.2,
+      cursorY + 13,
       { align: 'right' }
     );
 
@@ -284,7 +311,7 @@ export function exportRcInfographicPdf(
     doc.text(
       truncateTextToWidth(doc, summaryStats.highest.proposal.namaProgram, kpiWidth - 7),
       kpi1X + 3.5,
-      cursorY + 17.5
+      cursorY + 19.2
     );
 
     doc.setFont('helvetica', 'normal');
@@ -297,13 +324,13 @@ export function exportRcInfographicPdf(
         kpiWidth - 7
       ),
       kpi1X + 3.5,
-      cursorY + 22
+      cursorY + 24.2
     );
   } else {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...COLOR_SLATE_400);
-    doc.text('Belum ada paket usulan', kpi1X + 3.5, cursorY + 14);
+    doc.text('Belum ada paket usulan', kpi1X + 3.5, cursorY + 15);
   }
 
   // KPI 2: Lowest
@@ -312,7 +339,7 @@ export function exportRcInfographicPdf(
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
     doc.setTextColor(...COLOR_AMBER_700);
-    doc.text(`${summaryStats.lowest.rcPercentage}%`, kpi2X + 3.5, cursorY + 12.2);
+    doc.text(`${summaryStats.lowest.rcPercentage}%`, kpi2X + 3.5, cursorY + 13);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
@@ -320,7 +347,7 @@ export function exportRcInfographicPdf(
     doc.text(
       sanitizePdfText(summaryStats.lowest.proposal.kodeUsulan),
       kpi2X + kpiWidth - 3.5,
-      cursorY + 12.2,
+      cursorY + 13,
       { align: 'right' }
     );
 
@@ -330,7 +357,7 @@ export function exportRcInfographicPdf(
     doc.text(
       truncateTextToWidth(doc, summaryStats.lowest.proposal.namaProgram, kpiWidth - 7),
       kpi2X + 3.5,
-      cursorY + 17.5
+      cursorY + 19.2
     );
 
     doc.setFont('helvetica', 'normal');
@@ -343,44 +370,24 @@ export function exportRcInfographicPdf(
         kpiWidth - 7
       ),
       kpi2X + 3.5,
-      cursorY + 22
+      cursorY + 24.2
     );
   } else {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...COLOR_SLATE_400);
-    doc.text('Belum ada paket usulan', kpi2X + 3.5, cursorY + 14);
+    doc.text('Belum ada paket usulan', kpi2X + 3.5, cursorY + 15);
   }
 
-  // KPI 3: Average
-  const kpi3X = drawKpiCardFrame(2, 'Rata-Rata Skor RC');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.setTextColor(...COLOR_SLATE_900);
-  doc.text(`${summaryStats.averagePct}%`, kpi3X + 3.5, cursorY + 12.5);
-
-  const avgBarW = kpiWidth - 7;
-  doc.setFillColor(...COLOR_SLATE_100);
-  doc.roundedRect(kpi3X + 3.5, cursorY + 15.2, avgBarW, 2.5, 1, 1, 'F');
-  if (summaryStats.averagePct > 0) {
-    doc.setFillColor(...COLOR_BLUE_700);
-    doc.roundedRect(
-      kpi3X + 3.5,
-      cursorY + 15.2,
-      Math.max(2, (avgBarW * Math.min(100, summaryStats.averagePct)) / 100),
-      2.5,
-      1,
-      1,
-      'F'
-    );
-  }
+  // KPI 3: Infographic Counts by Readiness Tier (Siap, Proses, Kurang)
+  const kpi3X = drawKpiCardFrame(2, 'Jumlah Usulan per Kesiapan');
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(...COLOR_SLATE_500);
-  doc.text('Ambang siap lelang optimal: >= 80%', kpi3X + 3.5, cursorY + 22);
+  doc.text(`${summaryStats.totalCount} Paket`, kpi3X + kpiWidth - 3.5, cursorY + 5, {
+    align: 'right',
+  });
 
-  // KPI 4: Readiness Distribution
-  const kpi4X = drawKpiCardFrame(3, 'Sebaran Tingkat Kesiapan');
   const totalDist = Math.max(1, summaryStats.totalCount);
   const highShare =
     summaryStats.totalCount > 0
@@ -393,60 +400,63 @@ export function exportRcInfographicPdf(
   const lowShare =
     summaryStats.totalCount > 0 ? Math.max(0, 100 - highShare - mediumShare) : 0;
 
-  const distBarW = kpiWidth - 7;
-  const distBarY = cursorY + 9.5;
-  doc.setFillColor(...COLOR_SLATE_100);
-  doc.rect(kpi4X + 3.5, distBarY, distBarW, 3.2, 'F');
-
-  let segX = kpi4X + 3.5;
-  if (summaryStats.totalCount > 0) {
-    const highW = (distBarW * highShare) / 100;
-    const medW = (distBarW * mediumShare) / 100;
-    const lowW = Math.max(0, distBarW - highW - medW);
-    if (highW > 0) {
-      doc.setFillColor(...COLOR_EMERALD_600);
-      doc.rect(segX, distBarY, highW, 3.2, 'F');
-      segX += highW;
-    }
-    if (medW > 0) {
-      doc.setFillColor(...COLOR_BLUE_600);
-      doc.rect(segX, distBarY, medW, 3.2, 'F');
-      segX += medW;
-    }
-    if (lowW > 0 && summaryStats.lowCount > 0) {
-      doc.setFillColor(...COLOR_AMBER_500);
-      doc.rect(segX, distBarY, lowW, 3.2, 'F');
-    }
-  }
-
-  const colW3 = distBarW / 3;
-  const distStats: Array<{ val: string; label: string; color: RgbTuple }> = [
+  const kpi3BarW = kpiWidth - 7;
+  const kpi3Rows: Array<{
+    label: string;
+    count: number;
+    share: number;
+    textColor: RgbTuple;
+    barColor: RgbTuple;
+    y: number;
+  }> = [
     {
-      val: `${summaryStats.highCount} (${highShare}%)`,
-      label: 'Siap >=80%',
-      color: COLOR_EMERALD_700,
+      label: 'Usulan yang Siap (>=80%)',
+      count: summaryStats.highCount,
+      share: highShare,
+      textColor: COLOR_EMERALD_700,
+      barColor: COLOR_EMERALD_600,
+      y: cursorY + 10.2,
     },
     {
-      val: `${summaryStats.mediumCount} (${mediumShare}%)`,
-      label: 'Proses 50-79%',
-      color: COLOR_BLUE_700,
+      label: 'Jumlah yang Proses (50-79%)',
+      count: summaryStats.mediumCount,
+      share: mediumShare,
+      textColor: COLOR_BLUE_700,
+      barColor: COLOR_BLUE_600,
+      y: cursorY + 16.7,
     },
     {
-      val: `${summaryStats.lowCount} (${lowShare}%)`,
-      label: 'Kurang <50%',
-      color: COLOR_AMBER_700,
+      label: 'Jumlah yang Kurang (<50%)',
+      count: summaryStats.lowCount,
+      share: lowShare,
+      textColor: COLOR_AMBER_700,
+      barColor: COLOR_AMBER_500,
+      y: cursorY + 23.2,
     },
   ];
-  distStats.forEach((ds, idx) => {
-    const dx = kpi4X + 3.5 + idx * colW3;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...ds.color);
-    doc.text(ds.val, dx, cursorY + 17.5);
+
+  kpi3Rows.forEach((r) => {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
-    doc.setTextColor(...COLOR_SLATE_500);
-    doc.text(ds.label, dx, cursorY + 21.8);
+    doc.setFontSize(6.8);
+    doc.setTextColor(...COLOR_SLATE_700);
+    doc.text(r.label, kpi3X + 3.5, r.y);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...r.textColor);
+    doc.text(`${r.count} Paket (${r.share}%)`, kpi3X + kpiWidth - 3.5, r.y, {
+      align: 'right',
+    });
+
+    const trackY = r.y + 1.2;
+    doc.setFillColor(...COLOR_SLATE_100);
+    doc.roundedRect(kpi3X + 3.5, trackY, kpi3BarW, 1.7, 0.7, 0.7, 'F');
+
+    if (r.count > 0) {
+      const fillW = Math.max(2, (kpi3BarW * Math.max(4, r.share)) / 100);
+      doc.setFillColor(...r.barColor);
+      doc.roundedRect(kpi3X + 3.5, trackY, fillW, 1.7, 0.7, 0.7, 'F');
+    }
   });
 
   cursorY += kpiHeight + 5;
@@ -590,6 +600,95 @@ export function exportRcInfographicPdf(
       cursorY += rowHeight;
     });
   }
+
+  // Signature Block directly below Grafik Peringkat Skor RC per Paket Usulan
+  const sigBoxHeight = 41;
+  if (cursorY + sigBoxHeight + 2 > maxContentY) {
+    doc.addPage();
+    cursorY = drawTopInstitutionalBanner(true);
+  } else {
+    cursorY += 4;
+  }
+
+  doc.setFillColor(...COLOR_WHITE);
+  doc.setDrawColor(...COLOR_SLATE_200);
+  doc.roundedRect(marginX, cursorY, contentWidth, sigBoxHeight, 1.5, 1.5, 'FD');
+
+  const leftCenterX = marginX + contentWidth * 0.25;
+  const rightCenterX = marginX + contentWidth * 0.75;
+  const sigColMaxW = contentWidth * 0.42;
+
+  const sigConfig: PdfSignatoriesConfig = context.signatories ?? {
+    tempatTanggal: '',
+    mengesahkan: { jabatan: '', nama: '' },
+    menyetujui: { jabatan: '', nama: '' },
+  };
+
+  const renderSignatureColumn = (
+    centerX: number,
+    headingLabel: string,
+    topMeta: string,
+    party: PdfSignatoryParty
+  ) => {
+    const cleanTop = sanitizePdfText(topMeta);
+    if (cleanTop) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...COLOR_SLATE_700);
+      doc.text(truncateTextToWidth(doc, cleanTop, sigColMaxW), centerX, cursorY + 6.2, {
+        align: 'center',
+      });
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...COLOR_SLATE_900);
+    doc.text(headingLabel, centerX, cursorY + 10.8, { align: 'center' });
+
+    const cleanJabatan = sanitizePdfText(party.jabatan);
+    if (cleanJabatan) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.8);
+      doc.setTextColor(...COLOR_SLATE_700);
+      const jabLines = doc.splitTextToSize(cleanJabatan, sigColMaxW).slice(0, 2) as string[];
+      jabLines.forEach((line, lIdx) => {
+        doc.text(line, centerX, cursorY + 15 + lIdx * 3.6, { align: 'center' });
+      });
+    }
+
+    const cleanNama = sanitizePdfText(party.nama);
+    const nameY = cursorY + 35.5;
+    if (cleanNama) {
+      const displayNama = truncateTextToWidth(doc, cleanNama, sigColMaxW);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...COLOR_SLATE_900);
+      doc.text(displayNama, centerX, nameY, { align: 'center' });
+
+      const namaWidth = doc.getTextWidth(displayNama);
+      doc.setDrawColor(...COLOR_SLATE_900);
+      doc.setLineWidth(0.25);
+      doc.line(centerX - namaWidth / 2, nameY + 0.9, centerX + namaWidth / 2, nameY + 0.9);
+      doc.setLineWidth(0.2);
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...COLOR_SLATE_400);
+      doc.text('( ........................................ )', centerX, nameY, {
+        align: 'center',
+      });
+    }
+  };
+
+  renderSignatureColumn(leftCenterX, 'Mengesahkan,', '', sigConfig.mengesahkan);
+  renderSignatureColumn(
+    rightCenterX,
+    'Menyetujui,',
+    sigConfig.tempatTanggal,
+    sigConfig.menyetujui
+  );
+
+  cursorY += sigBoxHeight + 3;
 
   // Section 2: Sector & Regional Summary Panels (side-by-side)
   const sectorPanelHeight = 16 + sectorAverages.length * 10.5;
@@ -803,6 +902,46 @@ export function exportRcInfographicPdf(
 
   const slugDate = new Date().toISOString().slice(0, 10);
   const fileName = `infografis-skor-rc-${context.sortOrder}-${slugDate}.pdf`;
+  return { doc, fileName };
+}
+
+export function createRcInfographicPdfPreview(
+  rankedItems: PdfRankedProposalItem[],
+  summaryStats: PdfSummaryStats,
+  sectorAverages: PdfSectorAverage[],
+  regionalAverages: PdfRegionalAverage[],
+  context: PdfExportContext
+): RcPdfPreviewPayload {
+  const { doc, fileName } = buildRcInfographicPdfDoc(
+    rankedItems,
+    summaryStats,
+    sectorAverages,
+    regionalAverages,
+    context
+  );
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  return {
+    blobUrl,
+    fileName,
+    pageCount: doc.getNumberOfPages(),
+  };
+}
+
+export function exportRcInfographicPdf(
+  rankedItems: PdfRankedProposalItem[],
+  summaryStats: PdfSummaryStats,
+  sectorAverages: PdfSectorAverage[],
+  regionalAverages: PdfRegionalAverage[],
+  context: PdfExportContext
+): string {
+  const { doc, fileName } = buildRcInfographicPdfDoc(
+    rankedItems,
+    summaryStats,
+    sectorAverages,
+    regionalAverages,
+    context
+  );
   doc.save(fileName);
   return fileName;
 }

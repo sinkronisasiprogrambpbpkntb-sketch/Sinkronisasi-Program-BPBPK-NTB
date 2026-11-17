@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
   Download,
   Eye,
   MapPin,
+  PenLine,
   Printer,
+  RotateCcw,
   Search,
 } from 'lucide-react';
 import {
@@ -15,7 +17,12 @@ import {
   SEKTOR_SHORT_LABELS,
 } from '../data/initialProposals';
 import { SektorCiptaKarya, UsulanProgram } from '../types/ciptaKarya';
-import { exportRcInfographicPdf } from '../utils/exportRcInfographicPdf';
+import {
+  exportRcInfographicPdf,
+  PdfExportContext,
+  PdfSignatoriesConfig,
+} from '../utils/exportRcInfographicPdf';
+import { RcInfographicPreviewModal } from './RcInfographicPreviewModal';
 
 interface RcInfographicViewProps {
   proposals: UsulanProgram[];
@@ -70,6 +77,51 @@ function getTierMeta(pct: number): {
   };
 }
 
+const PDF_SIGNATORIES_STORAGE_KEY = 'simpra_ntb_rc_pdf_signatories_v1';
+
+function getDefaultTempatTanggal(): string {
+  const formatted = new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date());
+  return `Mataram, ${formatted}`;
+}
+
+function createEmptySignatories(): PdfSignatoriesConfig {
+  return {
+    tempatTanggal: getDefaultTempatTanggal(),
+    mengesahkan: { jabatan: '', nama: '' },
+    menyetujui: { jabatan: '', nama: '' },
+  };
+}
+
+function loadInitialSignatories(): PdfSignatoriesConfig {
+  const fallback = createEmptySignatories();
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(PDF_SIGNATORIES_STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Partial<PdfSignatoriesConfig>;
+    return {
+      tempatTanggal:
+        typeof parsed.tempatTanggal === 'string'
+          ? parsed.tempatTanggal
+          : fallback.tempatTanggal,
+      mengesahkan: {
+        jabatan: parsed.mengesahkan?.jabatan ?? '',
+        nama: parsed.mengesahkan?.nama ?? '',
+      },
+      menyetujui: {
+        jabatan: parsed.menyetujui?.jabatan ?? '',
+        nama: parsed.menyetujui?.nama ?? '',
+      },
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   proposals,
   yearFilterLabel,
@@ -81,6 +133,21 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   const [tierFilter, setTierFilter] = useState<RcTierFilter>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [signatories, setSignatories] = useState<PdfSignatoriesConfig>(
+    loadInitialSignatories
+  );
+  const [showPdfPreview, setShowPdfPreview] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        PDF_SIGNATORIES_STORAGE_KEY,
+        JSON.stringify(signatories)
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [signatories]);
 
   const allRanked = useMemo<RankedProposalItem[]>(() => {
     const items = proposals.map((p) => {
@@ -337,21 +404,41 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     return 'Semua Status Usulan';
   }, [effectiveStatusFilter]);
 
+  const pdfContext = useMemo<PdfExportContext>(
+    () => ({
+      yearFilterLabel,
+      sortOrder,
+      tierFilterLabel,
+      statusFilterLabel,
+      searchQuery,
+      signatories,
+    }),
+    [
+      yearFilterLabel,
+      sortOrder,
+      tierFilterLabel,
+      statusFilterLabel,
+      searchQuery,
+      signatories,
+    ]
+  );
+
   const handleExportPdf = () => {
     const fileName = exportRcInfographicPdf(
       filteredRanked,
       summaryStats,
       sectorAverages,
       regionalAverages,
-      {
-        yearFilterLabel,
-        sortOrder,
-        tierFilterLabel,
-        statusFilterLabel,
-        searchQuery,
-      }
+      pdfContext
     );
     onPdfExported?.(fileName);
+  };
+
+  const handleScrollToSignatories = () => {
+    const el = document.getElementById('rc-pdf-signatory-panel');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   };
 
   const highShare =
@@ -378,6 +465,9 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
           <h1 className="text-lg font-bold text-slate-900">
             Infografis Peringkat Skor Readiness Criteria (RC)
           </h1>
+          <p className="text-xs font-semibold text-[#0A1D6E] mt-0.5">
+            Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
+          </p>
           <p className="text-xs text-slate-600 mt-0.5">
             {yearFilterLabel} · {tierFilterLabel} · {statusFilterLabel} ·{' '}
             {filteredRanked.length} dari {statusScoped.length} Paket
@@ -399,13 +489,16 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       </div>
 
       {/* Header & Controls Bar */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 print:hidden">
+      <section className="bg-white border border-[#D7E0F0] rounded-xl p-5 space-y-4 print:hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            <h2 className="text-base sm:text-lg font-bold text-[#061459] tracking-tight">
               Infografis Peringkat Skor Readiness Criteria (RC)
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm font-medium text-[#0A1D6E] mt-0.5">
+              Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
               Pemeringkatan kesiapan teknis paket usulan dari skor tertinggi hingga terendah
               <span aria-hidden="true"> · </span>
               <span>{yearFilterLabel}</span>
@@ -416,7 +509,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <div
-              className="inline-flex items-center p-1 bg-slate-100 rounded-lg"
+              className="inline-flex items-center p-1 bg-[#EEF2FA] rounded-lg"
               role="group"
               aria-label="Urutan Skor RC"
             >
@@ -425,11 +518,11 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 onClick={() => setSortOrder('desc')}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   sortOrder === 'desc'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#061459] shadow-xs'
+                    : 'text-slate-600 hover:text-[#061459]'
                 }`}
               >
-                <ArrowDownWideNarrow className="w-3.5 h-3.5 text-blue-700" />
+                <ArrowDownWideNarrow className="w-3.5 h-3.5 text-[#0A1D6E]" />
                 <span>Tertinggi ke Terendah</span>
               </button>
               <button
@@ -437,11 +530,11 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 onClick={() => setSortOrder('asc')}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   sortOrder === 'asc'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#061459] shadow-xs'
+                    : 'text-slate-600 hover:text-[#061459]'
                 }`}
               >
-                <ArrowUpWideNarrow className="w-3.5 h-3.5 text-amber-600" />
+                <ArrowUpWideNarrow className="w-3.5 h-3.5 text-[#E89611]" />
                 <span>Terendah ke Tertinggi</span>
               </button>
             </div>
@@ -450,29 +543,50 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
               type="button"
               onClick={handleExportRankingCsv}
               disabled={filteredRanked.length === 0}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#061459] bg-white border border-[#C7D3E8] hover:bg-[#F3F6FB] disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Download className="w-3.5 h-3.5 text-slate-600" />
+              <Download className="w-3.5 h-3.5 text-[#0A1D6E]" />
               <span>Ekspor Peringkat CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleScrollToSignatories}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#061459] bg-white border border-[#C7D3E8] hover:bg-[#F3F6FB] rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Isi data Mengesahkan & Menyetujui untuk Cetak PDF"
+            >
+              <PenLine className="w-3.5 h-3.5 text-[#0A1D6E]" />
+              <span>Pengesahan PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowPdfPreview(true)}
+              disabled={statusScoped.length === 0}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#061459] bg-white border border-[#C7D3E8] hover:bg-[#F3F6FB] disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Lihat pratinjau hasil Cetak PDF sebelum mengunduh"
+            >
+              <Eye className="w-3.5 h-3.5 text-[#0A1D6E]" />
+              <span>Preview PDF</span>
             </button>
 
             <button
               type="button"
               onClick={handleExportPdf}
               disabled={statusScoped.length === 0}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#07165B] hover:bg-[#0A1D6E] disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
               title="Unduh laporan Infografis Skor RC dalam format PDF"
             >
-              <Printer className="w-3.5 h-3.5 text-blue-300" />
+              <Printer className="w-3.5 h-3.5 text-amber-300" />
               <span>Cetak PDF</span>
             </button>
           </div>
         </div>
 
         {/* Filter Bar: Tier, Status Usulan & Search */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-[#E5ECF7]">
           <div
-            className="inline-flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-lg"
+            className="inline-flex flex-wrap items-center gap-1 p-1 bg-[#EEF2FA] rounded-lg"
             role="group"
             aria-label="Filter Tingkat Kesiapan RC"
           >
@@ -490,8 +604,8 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 onClick={() => setTierFilter(opt.id)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   tierFilter === opt.id
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#061459] shadow-xs'
+                    : 'text-slate-600 hover:text-[#061459]'
                 }`}
               >
                 {opt.label}
@@ -504,7 +618,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
               value={effectiveStatusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               aria-label="Filter Status Usulan"
-              className="h-9 px-3 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 w-full sm:w-64"
+              className="h-9 px-3 text-xs border border-[#C7D3E8] rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0A1D6E]/20 focus:border-[#0A1D6E] w-full sm:w-64"
             >
               <option value="ALL">Semua Status Usulan ({allRanked.length})</option>
               {statusOptions.manualOptions.map((opt) => (
@@ -527,7 +641,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari paket, kode, kabupaten, status..."
                 aria-label="Cari paket pada infografis skor RC"
-                className="w-full h-9 pl-8 pr-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                className="w-full h-9 pl-8 pr-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A1D6E]/20 focus:border-[#0A1D6E]"
               />
             </div>
           </div>
@@ -537,7 +651,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       {/* Summary Infographic Metrics Row */}
       <section
         aria-label="Ikhtisar Ekstrem Skor RC"
-        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 print:grid-cols-4"
+        className="grid grid-cols-1 md:grid-cols-3 gap-4 print:grid-cols-3"
       >
         <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
           <div className="text-xs font-medium text-slate-500">Skor RC Tertinggi</div>
@@ -592,224 +706,421 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
-          <div className="text-xs font-medium text-slate-500">Rata-Rata Skor RC</div>
-          <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">
-            {summaryStats.averagePct}%
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs font-medium text-slate-500">
+              Jumlah Usulan per Kesiapan
+            </span>
+            <span className="font-mono text-[11px] font-semibold tabular-nums text-slate-500">
+              {summaryStats.totalCount} Paket
+            </span>
           </div>
-          <div className="mt-2 w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-700 transition-all"
-              style={{ width: `${Math.min(100, Math.max(0, summaryStats.averagePct))}%` }}
-            />
-          </div>
-          <div className="mt-1.5 text-[11px] text-slate-500">
-            Ambang siap lelang optimal: <span className="font-mono tabular-nums">≥ 80%</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
-          <div className="text-xs font-medium text-slate-500">
-            Sebaran Tingkat Kesiapan
-          </div>
-          <div className="mt-3 w-full h-3 bg-slate-100 rounded-full overflow-hidden flex">
-            {highShare > 0 && (
-              <div
-                className="h-full bg-emerald-600"
-                style={{ width: `${highShare}%` }}
-                title={`Siap (≥80%): ${summaryStats.highCount} paket (${highShare}%)`}
-              />
-            )}
-            {mediumShare > 0 && (
-              <div
-                className="h-full bg-blue-600"
-                style={{ width: `${mediumShare}%` }}
-                title={`Proses (50–79%): ${summaryStats.mediumCount} paket (${mediumShare}%)`}
-              />
-            )}
-            {lowShare > 0 && (
-              <div
-                className="h-full bg-amber-500"
-                style={{ width: `${lowShare}%` }}
-                title={`Kurang (<50%): ${summaryStats.lowCount} paket (${lowShare}%)`}
-              />
-            )}
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-600">
-            <div>
-              <div className="font-mono font-bold tabular-nums text-emerald-700">
-                {summaryStats.highCount} ({highShare}%)
-              </div>
-              <div className="text-slate-500 truncate">Siap ≥80%</div>
-            </div>
-            <div>
-              <div className="font-mono font-bold tabular-nums text-blue-700">
-                {summaryStats.mediumCount} ({mediumShare}%)
-              </div>
-              <div className="text-slate-500 truncate">Proses 50–79%</div>
-            </div>
-            <div>
-              <div className="font-mono font-bold tabular-nums text-amber-700">
-                {summaryStats.lowCount} ({lowShare}%)
-              </div>
-              <div className="text-slate-500 truncate">Kurang &lt;50%</div>
-            </div>
+          <div className="mt-3 space-y-2.5">
+            {(
+              [
+                {
+                  tier: 'HIGH' as const,
+                  label: 'Usulan yang Siap (≥80%)',
+                  count: summaryStats.highCount,
+                  share: highShare,
+                  barClass: 'bg-emerald-600',
+                  textClass: 'text-emerald-700',
+                },
+                {
+                  tier: 'MEDIUM' as const,
+                  label: 'Jumlah yang Proses (50–79%)',
+                  count: summaryStats.mediumCount,
+                  share: mediumShare,
+                  barClass: 'bg-blue-600',
+                  textClass: 'text-blue-700',
+                },
+                {
+                  tier: 'LOW' as const,
+                  label: 'Jumlah yang Kurang (<50%)',
+                  count: summaryStats.lowCount,
+                  share: lowShare,
+                  barClass: 'bg-amber-500',
+                  textClass: 'text-amber-700',
+                },
+              ] as const
+            ).map((row) => {
+              const isSelected = tierFilter === row.tier;
+              return (
+                <button
+                  key={row.tier}
+                  type="button"
+                  onClick={() =>
+                    setTierFilter((prev) => (prev === row.tier ? 'ALL' : row.tier))
+                  }
+                  aria-pressed={isSelected}
+                  title={`Filter peringkat: ${row.label}`}
+                  className={`w-full text-left block rounded-md px-1.5 py-1 -mx-1.5 transition-colors cursor-pointer ${
+                    isSelected ? 'bg-slate-100' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-baseline justify-between gap-2 text-[11px]">
+                    <span className="text-slate-700 font-medium truncate">
+                      {row.label}
+                    </span>
+                    <span
+                      className={`font-mono font-bold tabular-nums shrink-0 ${row.textClass}`}
+                    >
+                      {row.count} Paket · {row.share}%
+                    </span>
+                  </div>
+                  <div className="mt-1 w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${row.barClass}`}
+                      style={{
+                        width: `${row.count > 0 ? Math.max(4, row.share) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* Main Infographic Body */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Ranked Bar Chart List */}
-        <section className="lg:col-span-8 bg-white border border-slate-200 rounded-xl p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 pb-4 border-b border-slate-200">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                Grafik Peringkat Skor RC per Paket Usulan (
-                {sortOrder === 'desc' ? 'Tertinggi – Terendah' : 'Terendah – Tertinggi'})
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Menampilkan <span className="font-mono tabular-nums">{filteredRanked.length}</span>{' '}
-                dari <span className="font-mono tabular-nums">{statusScoped.length}</span> paket
-                beserta perbandingan ambang kesiapan 80%
-              </p>
+        {/* Ranked Bar Chart List + PDF Signatories Panel */}
+        <div className="lg:col-span-8 space-y-6">
+          <section className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 pb-4 border-b border-slate-200">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Grafik Peringkat Skor RC per Paket Usulan (
+                  {sortOrder === 'desc' ? 'Tertinggi – Terendah' : 'Terendah – Tertinggi'})
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Menampilkan <span className="font-mono tabular-nums">{filteredRanked.length}</span>{' '}
+                  dari <span className="font-mono tabular-nums">{statusScoped.length}</span> paket
+                  beserta perbandingan ambang kesiapan 80%
+                </p>
+              </div>
             </div>
-          </div>
 
-          {filteredRanked.length === 0 ? (
-            <div className="py-12 text-center space-y-3">
-              <p className="text-xs text-slate-500">
-                Tidak ada paket usulan yang cocok dengan filter status, kesiapan, atau pencarian saat ini.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setTierFilter('ALL');
-                  setStatusFilter('ALL');
-                  setSearchQuery('');
-                }}
-                className="px-3.5 py-2 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
-              >
-                Reset Filter Infografis
-              </button>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {filteredRanked.map((item, idx) => {
-                const p = item.proposal;
-                const tierMeta = getTierMeta(item.rcPercentage);
-                const rankNumber = String(idx + 1).padStart(2, '0');
-                const barWidth = Math.max(2, Math.min(100, item.rcPercentage));
+            {filteredRanked.length === 0 ? (
+              <div className="py-12 text-center space-y-3">
+                <p className="text-xs text-slate-500">
+                  Tidak ada paket usulan yang cocok dengan filter status, kesiapan, atau pencarian saat ini.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTierFilter('ALL');
+                    setStatusFilter('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="px-3.5 py-2 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  Reset Filter Infografis
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {filteredRanked.map((item, idx) => {
+                  const p = item.proposal;
+                  const tierMeta = getTierMeta(item.rcPercentage);
+                  const rankNumber = String(idx + 1).padStart(2, '0');
+                  const barWidth = Math.max(2, Math.min(100, item.rcPercentage));
 
-                return (
-                  <div
-                    key={p.id}
-                    className="py-4 first:pt-4 last:pb-1 hover:bg-slate-50/70 transition-colors rounded-lg px-2 -mx-2 break-inside-avoid"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <span
-                          className={`font-mono text-sm font-bold tabular-nums w-7 shrink-0 pt-0.5 ${
-                            idx < 3 && sortOrder === 'desc'
-                              ? 'text-blue-700'
-                              : 'text-slate-400'
-                          }`}
-                        >
-                          #{rankNumber}
-                        </span>
-
-                        <div className="min-w-0 flex-1">
-                          <button
-                            type="button"
-                            onClick={() => onPreviewProposal(p.id)}
-                            className="text-left text-xs sm:text-sm font-semibold text-slate-900 hover:text-blue-700 transition-colors cursor-pointer line-clamp-2"
+                  return (
+                    <div
+                      key={p.id}
+                      className="py-4 first:pt-4 last:pb-1 hover:bg-slate-50/70 transition-colors rounded-lg px-2 -mx-2 break-inside-avoid"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <span
+                            className={`font-mono text-sm font-bold tabular-nums w-7 shrink-0 pt-0.5 ${
+                              idx < 3 && sortOrder === 'desc'
+                                ? 'text-blue-700'
+                                : 'text-slate-400'
+                            }`}
                           >
-                            {p.namaProgram}
-                          </button>
+                            #{rankNumber}
+                          </span>
 
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                            <span className="font-mono text-slate-600">{p.kodeUsulan}</span>
-                            <span aria-hidden="true">·</span>
-                            <span>{SEKTOR_SHORT_LABELS[p.sektor]}</span>
-                            <span aria-hidden="true">·</span>
-                            <span>{p.kabupatenKota}</span>
-                            <span aria-hidden="true">·</span>
-                            <span className="font-mono tabular-nums text-slate-700">
-                              {formatRpMiliar(item.totalPagu)}
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span>{item.statusDisplay}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="text-right">
-                          <div
-                            className={`font-mono text-base font-bold tabular-nums ${tierMeta.textColor}`}
-                          >
-                            {item.rcPercentage}%
-                          </div>
-                          <div className="text-[11px] text-slate-500 whitespace-nowrap">
-                            {tierMeta.tierLabel}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 pl-2 border-l border-slate-200 print:hidden">
-                          <button
-                            type="button"
-                            onClick={() => onPreviewProposal(p.id)}
-                            className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-white rounded-md transition-colors cursor-pointer"
-                            title="Pratinjau lembar usulan"
-                            aria-label={`Pratinjau ${p.namaProgram}`}
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          {onFocusOnMap && (
+                          <div className="min-w-0 flex-1">
                             <button
                               type="button"
-                              onClick={() => onFocusOnMap(p.id)}
-                              className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-white rounded-md transition-colors cursor-pointer"
-                              title="Fokus pada peta spasial"
-                              aria-label={`Lokasi peta ${p.namaProgram}`}
+                              onClick={() => onPreviewProposal(p.id)}
+                              className="text-left text-xs sm:text-sm font-semibold text-slate-900 hover:text-blue-700 transition-colors cursor-pointer line-clamp-2"
                             >
-                              <MapPin className="w-3.5 h-3.5" />
+                              {p.namaProgram}
                             </button>
-                          )}
+
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                              <span className="font-mono text-slate-600">{p.kodeUsulan}</span>
+                              <span aria-hidden="true">·</span>
+                              <span>{SEKTOR_SHORT_LABELS[p.sektor]}</span>
+                              <span aria-hidden="true">·</span>
+                              <span>{p.kabupatenKota}</span>
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono tabular-nums text-slate-700">
+                                {formatRpMiliar(item.totalPagu)}
+                              </span>
+                              <span aria-hidden="true">·</span>
+                              <span>{item.statusDisplay}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <div
+                              className={`font-mono text-base font-bold tabular-nums ${tierMeta.textColor}`}
+                            >
+                              {item.rcPercentage}%
+                            </div>
+                            <div className="text-[11px] text-slate-500 whitespace-nowrap">
+                              {tierMeta.tierLabel}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 pl-2 border-l border-slate-200 print:hidden">
+                            <button
+                              type="button"
+                              onClick={() => onPreviewProposal(p.id)}
+                              className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-white rounded-md transition-colors cursor-pointer"
+                              title="Pratinjau lembar usulan"
+                              aria-label={`Pratinjau ${p.namaProgram}`}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            {onFocusOnMap && (
+                              <button
+                                type="button"
+                                onClick={() => onFocusOnMap(p.id)}
+                                className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-white rounded-md transition-colors cursor-pointer"
+                                title="Fokus pada peta spasial"
+                                aria-label={`Lokasi peta ${p.namaProgram}`}
+                              >
+                                <MapPin className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Visual Horizontal Progress Bar with 80% Readiness Benchmark */}
+                      <div className="mt-2.5 pl-10">
+                        <div className="relative h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${barWidth}%`,
+                              backgroundColor: tierMeta.barColor,
+                            }}
+                          />
+                          <div
+                            className="absolute top-0 bottom-0 w-px bg-slate-400/80"
+                            style={{ left: '80%' }}
+                            title="Ambang Kesiapan 80%"
+                          />
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono tabular-nums">
+                          <span>
+                            {item.isManualScore
+                              ? 'Skor RC manual'
+                              : `Terpenuhi ${item.rcCompleted}/${item.rcTotal} kriteria`}
+                          </span>
+                          <span>Ambang 80%</span>
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
 
-                    {/* Visual Horizontal Progress Bar with 80% Readiness Benchmark */}
-                    <div className="mt-2.5 pl-10">
-                      <div className="relative h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${barWidth}%`,
-                            backgroundColor: tierMeta.barColor,
-                          }}
-                        />
-                        <div
-                          className="absolute top-0 bottom-0 w-px bg-slate-400/80"
-                          style={{ left: '80%' }}
-                          title="Ambang Kesiapan 80%"
-                        />
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono tabular-nums">
-                        <span>
-                          {item.isManualScore
-                            ? 'Skor RC manual'
-                            : `Terpenuhi ${item.rcCompleted}/${item.rcTotal} kriteria`}
-                        </span>
-                        <span>Ambang 80%</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Data Pengesahan & Persetujuan Cetak PDF (Mengesahkan Kiri & Menyetujui Kanan) */}
+          <section
+            id="rc-pdf-signatory-panel"
+            aria-label="Data Pengesahan Cetak PDF"
+            className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 break-inside-avoid"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200 print:hidden">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Data Pengesahan &amp; Persetujuan (Cetak PDF)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Ditampilkan di bagian bawah setelah Grafik Peringkat Skor RC per Paket Usulan saat Cetak PDF
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSignatories(createEmptySignatories())}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                title="Kosongkan nama dan jabatan pengesah"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Kolom</span>
+              </button>
             </div>
-          )}
-        </section>
+
+            <div className="print:hidden space-y-4">
+              <div className="max-w-xs">
+                <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                  Tempat &amp; Tanggal (Sebelah Kanan)
+                </label>
+                <input
+                  type="text"
+                  value={signatories.tempatTanggal}
+                  onChange={(e) =>
+                    setSignatories((prev) => ({
+                      ...prev,
+                      tempatTanggal: e.target.value,
+                    }))
+                  }
+                  placeholder="Contoh: Mataram, 17 November 2026"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+                {/* Sebelah Kiri: Mengesahkan */}
+                <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                  <div className="text-xs font-bold text-slate-900">
+                    Mengesahkan (Sebelah Kiri)
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Jabatan
+                    </label>
+                    <input
+                      type="text"
+                      value={signatories.mengesahkan.jabatan}
+                      onChange={(e) =>
+                        setSignatories((prev) => ({
+                          ...prev,
+                          mengesahkan: {
+                            ...prev.mengesahkan,
+                            jabatan: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Contoh: Kepala BPBPK Provinsi NTB"
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Nama Lengkap &amp; Gelar
+                    </label>
+                    <input
+                      type="text"
+                      value={signatories.mengesahkan.nama}
+                      onChange={(e) =>
+                        setSignatories((prev) => ({
+                          ...prev,
+                          mengesahkan: {
+                            ...prev.mengesahkan,
+                            nama: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Nama pejabat yang mengesahkan"
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Sebelah Kanan: Menyetujui */}
+                <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                  <div className="text-xs font-bold text-slate-900">
+                    Menyetujui (Sebelah Kanan)
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Jabatan
+                    </label>
+                    <input
+                      type="text"
+                      value={signatories.menyetujui.jabatan}
+                      onChange={(e) =>
+                        setSignatories((prev) => ({
+                          ...prev,
+                          menyetujui: {
+                            ...prev.menyetujui,
+                            jabatan: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Contoh: Ketua Tim Sinkronisasi Program"
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Nama Lengkap &amp; Gelar
+                    </label>
+                    <input
+                      type="text"
+                      value={signatories.menyetujui.nama}
+                      onChange={(e) =>
+                        setSignatories((prev) => ({
+                          ...prev,
+                          menyetujui: {
+                            ...prev.menyetujui,
+                            nama: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Nama pejabat yang menyetujui"
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Print-only Formal Signature Block */}
+            <div className="hidden print:grid print:grid-cols-2 gap-8 py-2 text-center text-xs text-slate-900">
+              <div className="flex flex-col items-center justify-between min-h-[120px]">
+                <div>
+                  <div className="h-4" />
+                  <div className="font-bold">Mengesahkan,</div>
+                  {signatories.mengesahkan.jabatan.trim() && (
+                    <div className="text-[11px] text-slate-700 mt-0.5 max-w-xs">
+                      {signatories.mengesahkan.jabatan.trim()}
+                    </div>
+                  )}
+                </div>
+                <div className="pt-12">
+                  <div className="font-bold underline underline-offset-4">
+                    {signatories.mengesahkan.nama.trim() ||
+                      '( ........................................ )'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center justify-between min-h-[120px]">
+                <div>
+                  <div className="text-[11px] text-slate-700 h-4">
+                    {signatories.tempatTanggal.trim()}
+                  </div>
+                  <div className="font-bold">Menyetujui,</div>
+                  {signatories.menyetujui.jabatan.trim() && (
+                    <div className="text-[11px] text-slate-700 mt-0.5 max-w-xs">
+                      {signatories.menyetujui.jabatan.trim()}
+                    </div>
+                  )}
+                </div>
+                <div className="pt-12">
+                  <div className="font-bold underline underline-offset-4">
+                    {signatories.menyetujui.nama.trim() ||
+                      '( ........................................ )'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
 
         {/* Right Sidebars: Sector & Kabupaten/Kota RC Comparison */}
         <aside className="lg:col-span-4 space-y-6">
@@ -916,6 +1227,20 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
           </section>
         </aside>
       </div>
+
+      <RcInfographicPreviewModal
+        isOpen={showPdfPreview}
+        onClose={() => setShowPdfPreview(false)}
+        onDownloadPdf={handleExportPdf}
+        onEditSignatories={() => {
+          window.setTimeout(handleScrollToSignatories, 80);
+        }}
+        rankedItems={filteredRanked}
+        summaryStats={summaryStats}
+        sectorAverages={sectorAverages}
+        regionalAverages={regionalAverages}
+        context={pdfContext}
+      />
     </div>
   );
 };

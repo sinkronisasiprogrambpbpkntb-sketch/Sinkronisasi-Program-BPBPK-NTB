@@ -20,10 +20,10 @@ const SEKTOR_LIST = [
 ];
 
 const SEKTOR_SVG_FILL: Record<SektorCiptaKarya, string> = {
-  [SektorCiptaKarya.AIR_MINUM]: '#1d4ed8',
-  [SektorCiptaKarya.SANITASI]: '#0f766e',
-  [SektorCiptaKarya.KAWASAN_STRATEGIS]: '#d97706',
-  [SektorCiptaKarya.BINA_PENATAAN_BANGUNAN]: '#334155',
+  [SektorCiptaKarya.AIR_MINUM]: '#0A1D6E',
+  [SektorCiptaKarya.SANITASI]: '#0E9F6E',
+  [SektorCiptaKarya.KAWASAN_STRATEGIS]: '#E89611',
+  [SektorCiptaKarya.BINA_PENATAAN_BANGUNAN]: '#B91C1C',
 };
 
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ proposals, compact = false }) => {

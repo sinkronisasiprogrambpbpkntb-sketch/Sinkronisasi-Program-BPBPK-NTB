@@ -35,7 +35,6 @@ import {
   exportProposalsAsGeoJson,
   formatRpMiliar,
   getPaguForYearFilter,
-  getReadinessScore,
   INITIAL_PROPOSALS,
   isActiveInYear,
   resolveProposalTemplateDetails,
@@ -74,7 +73,6 @@ import {
   ReadinessCriteria,
   ResolvedPlaceInfo,
   SektorCiptaKarya,
-  StatusVerifikasi,
   UsulanProgram,
   WorkspaceView,
 } from './types/ciptaKarya';
@@ -512,18 +510,6 @@ function DashboardWorkspace() {
       (sum, p) => sum + p.penerimaManfaatJiwa,
       0
     );
-    const verifiedCount = filteredProposals.filter(
-      (p) => p.statusVerifikasi === StatusVerifikasi.TERVERIFIKASI
-    ).length;
-    const avgReadiness =
-      count > 0
-        ? Math.round(
-            filteredProposals.reduce(
-              (sum, p) => sum + getReadinessScore(p.readiness, p.skorRc).percentage,
-              0
-            ) / count
-          )
-        : 0;
     const mycCount = filteredProposals.filter((p) => p.skemaKontrak === 'MYC').length;
 
     return {
@@ -531,8 +517,6 @@ function DashboardWorkspace() {
       mycCount,
       totalPagu: Number(totalPagu.toFixed(1)),
       totalBeneficiaries,
-      verifiedCount,
-      avgReadiness,
     };
   }, [filteredProposals, yearFilter]);
 
@@ -1078,30 +1062,36 @@ function DashboardWorkspace() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex">
+    <div className="min-h-screen bg-[#F3F6FB] text-slate-900 flex">
       {/* Mobile Sidebar Backdrop */}
       {mobileNavOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-[#051044]/60 lg:hidden"
           onClick={() => setMobileNavOpen(false)}
         />
       )}
 
       {/* Left Workspace Sidebar (256px) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-200 flex flex-col justify-between transition-transform duration-150 lg:static lg:translate-x-0 shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 batik-pu-surface text-indigo-50 border-r border-[#0C2278] flex flex-col justify-between transition-transform duration-150 lg:static lg:translate-x-0 shrink-0 ${
           mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div>
-          <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800">
-            <span className="font-display text-base font-bold tracking-tight text-white whitespace-nowrap">
-              SIMPRA BPBPK NTB
-            </span>
+          <div className="h-16 px-6 flex items-center justify-between border-b border-white/15">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span
+                className="w-2.5 h-6 rounded-xs bg-[#E89611] shrink-0"
+                aria-hidden="true"
+              />
+              <span className="font-display text-base font-bold tracking-tight text-white whitespace-nowrap truncate">
+                SIMPRA BPBPK NTB
+              </span>
+            </div>
             <button
               type="button"
               onClick={() => setMobileNavOpen(false)}
-              className="lg:hidden p-1 text-slate-400 hover:text-white cursor-pointer"
+              className="lg:hidden p-1 text-indigo-200 hover:text-white cursor-pointer"
               aria-label="Tutup navigasi"
             >
               <X className="w-5 h-5" />
@@ -1121,10 +1111,10 @@ function DashboardWorkspace() {
                       setActiveView(item.id);
                       setMobileNavOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap ${
                       active
-                        ? 'bg-blue-700 text-white'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        ? 'bg-[#E89611] text-[#051044] font-semibold shadow-xs'
+                        : 'text-indigo-100/90 font-medium hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
@@ -1135,8 +1125,8 @@ function DashboardWorkspace() {
             </nav>
 
             {/* Quick Sector Filter in Sidebar */}
-            <div className="mt-8 pt-6 border-t border-slate-800">
-              <div className="px-3 text-[11px] font-medium text-slate-400 mb-2">
+            <div className="mt-8 pt-6 border-t border-white/15">
+              <div className="px-3 text-[11px] font-semibold text-amber-300/90 mb-2">
                 Cakupan Sektor Teknis
               </div>
               <div className="space-y-1">
@@ -1145,8 +1135,8 @@ function DashboardWorkspace() {
                   onClick={() => setSektorFilter('ALL')}
                   className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                     sektorFilter === 'ALL'
-                      ? 'bg-slate-800 text-white font-medium'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-white/15 text-white border border-amber-400/40 font-medium'
+                      : 'text-indigo-200/85 hover:bg-white/8 hover:text-white'
                   }`}
                 >
                   <span>Semua Sektor</span>
@@ -1161,8 +1151,8 @@ function DashboardWorkspace() {
                       onClick={() => setSektorFilter(sek)}
                       className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         sektorFilter === sek
-                          ? 'bg-slate-800 text-white font-medium'
-                          : 'text-slate-400 hover:text-slate-200'
+                          ? 'bg-white/15 text-white border border-amber-400/40 font-medium'
+                          : 'text-indigo-200/85 hover:bg-white/8 hover:text-white'
                       }`}
                     >
                       <span className="truncate pr-2">{SEKTOR_SHORT_LABELS[sek]}</span>
@@ -1176,47 +1166,40 @@ function DashboardWorkspace() {
         </div>
 
         {/* Sidebar Footer: Active Mode & Controls */}
-        <div className="p-4 border-t border-slate-800 space-y-2.5">
+        <div className="p-4 border-t border-white/15 space-y-2.5 bg-[#040E42]/50">
           <div className="px-2 space-y-1">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-white truncate">
               {isReadOnlyMode ? (
-                <Lock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               ) : (
-                <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               )}
               <span className="truncate">
                 {isReadOnlyMode ? 'Akses Pratinjau Publik' : accountProfile.displayName}
               </span>
             </div>
-            <div className="text-[11px] text-slate-400 truncate">
+            <div className="text-[11px] text-indigo-200/80 truncate">
               {isReadOnlyMode
                 ? 'SIMPRA BPBPK Nusa Tenggara Barat'
                 : accountProfile.unitKerja}
             </div>
             <div
-              className={`text-[10px] font-medium truncate flex items-center gap-1.5 ${
-                isReadOnlyMode ? 'text-blue-300' : 'text-emerald-400'
+              className={`text-[10px] font-medium truncate ${
+                isReadOnlyMode ? 'text-amber-300' : 'text-emerald-300'
               }`}
             >
-              <span
-                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  isReadOnlyMode ? 'bg-blue-400' : 'bg-emerald-400'
-                }`}
-              ></span>
-              <span className="truncate">
-                {isReadOnlyMode
-                  ? 'Mode Lihat Saja (Read-Only)'
-                  : 'Mode Pengelola & Edit Aktif (Tanpa PIN)'}
-              </span>
+              {isReadOnlyMode
+                ? 'Mode Lihat Saja (Read-Only)'
+                : 'Mode Pengelola & Edit Aktif (Tanpa PIN)'}
             </div>
           </div>
 
           <button
             type="button"
             onClick={handleOpenPreviewOrTemplate}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-200 bg-slate-800/80 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
           >
-            <Eye className="w-3.5 h-3.5 text-blue-400" />
+            <Eye className="w-3.5 h-3.5 text-amber-300" />
             <span>Preview Usulan / Template</span>
           </button>
 
@@ -1225,20 +1208,20 @@ function DashboardWorkspace() {
               <button
                 type="button"
                 onClick={() => setShareLinkOpen(true)}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-100 bg-white/10 hover:bg-white/15 border border-amber-400/35 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
                 title="Buat link web khusus lihat saja (read-only) untuk dibagikan"
               >
-                <Share2 className="w-3.5 h-3.5 text-blue-400" />
+                <Share2 className="w-3.5 h-3.5 text-amber-300" />
                 <span>Generate Link Lihat Saja</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setDriveBackupOpen(true)}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-200 bg-blue-900/60 hover:bg-blue-900 border border-blue-700/50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0E9F6E]/90 hover:bg-[#0E9F6E] border border-emerald-300/30 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
                 title="Simpan cadangan perubahan usulan ke Google Drive"
               >
-                <CloudUpload className="w-3.5 h-3.5 text-blue-300" />
+                <CloudUpload className="w-3.5 h-3.5 text-emerald-100" />
                 <span>Simpan ke Google Drive</span>
               </button>
             </>
@@ -1248,13 +1231,16 @@ function DashboardWorkspace() {
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 flex flex-col">
+        {/* Top Batik PU Accent Ribbon */}
+        <div className="h-1.5 w-full batik-pu-strip shrink-0 print:hidden" aria-hidden="true" />
+
         {/* Top Bar Contract: Breadcrumb Trail Left — Account & Primary Actions Right */}
-        <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between gap-4 sticky top-0 z-30">
+        <header className="h-16 bg-white border-b border-[#D7E0F0] px-6 flex items-center justify-between gap-4 sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
-              className="lg:hidden p-2 -ml-2 text-slate-600 hover:text-slate-900 cursor-pointer"
+              className="lg:hidden p-2 -ml-2 text-[#061459] hover:text-[#0A1D6E] cursor-pointer"
               aria-label="Buka navigasi"
             >
               <Menu className="w-5 h-5" />
@@ -1263,10 +1249,10 @@ function DashboardWorkspace() {
               <span className="text-slate-500 hidden md:inline whitespace-nowrap">
                 SIMPRA BPBPK Nusa Tenggara Barat TA. 2027–2030
               </span>
-              <span className="text-slate-300 hidden md:inline" aria-hidden="true">
+              <span className="text-amber-500 hidden md:inline font-semibold" aria-hidden="true">
                 /
               </span>
-              <span className="font-display font-semibold text-slate-900 truncate">
+              <span className="font-display font-semibold text-[#061459] truncate">
                 {VIEW_LABELS[activeView]}
               </span>
             </div>
@@ -1280,10 +1266,10 @@ function DashboardWorkspace() {
             <button
               type="button"
               onClick={handleOpenPreviewOrTemplate}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#061459] bg-white border border-[#C7D3E8] hover:bg-[#F3F6FB] rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
               title="Buka tampilan Preview Usulan (Template KEMENPU)"
             >
-              <Eye className="w-3.5 h-3.5 text-blue-700" />
+              <Eye className="w-3.5 h-3.5 text-[#0A1D6E]" />
               <span>Preview Usulan</span>
             </button>
 
@@ -1292,10 +1278,10 @@ function DashboardWorkspace() {
                 <button
                   type="button"
                   onClick={() => setShareLinkOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#061459] bg-white border border-[#C7D3E8] hover:bg-[#F3F6FB] rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
                   title="Generate link web khusus lihat saja (read-only) untuk dibagikan"
                 >
-                  <Share2 className="w-3.5 h-3.5 text-blue-700" />
+                  <Share2 className="w-3.5 h-3.5 text-[#0A1D6E]" />
                   <span>Link Lihat Saja</span>
                 </button>
 
@@ -1303,7 +1289,7 @@ function DashboardWorkspace() {
                   type="button"
                   disabled={isSavingManual}
                   onClick={() => void handleManualSaveAll()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#059669] hover:bg-[#047857] disabled:opacity-60 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
                   title="Simpan seluruh perubahan edit maupun penambahan usulan ke Cloud Database"
                 >
                   <Save className="w-3.5 h-3.5" />
@@ -1313,10 +1299,10 @@ function DashboardWorkspace() {
                 <button
                   type="button"
                   onClick={() => setDriveBackupOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#0A1D6E] hover:bg-[#061459] rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
                   title="Simpan cadangan data usulan ke link folder Google Drive resmi"
                 >
-                  <CloudUpload className="w-3.5 h-3.5" />
+                  <CloudUpload className="w-3.5 h-3.5 text-amber-300" />
                   <span>Simpan ke Google Drive</span>
                 </button>
 
@@ -1326,7 +1312,7 @@ function DashboardWorkspace() {
                     setEditingProposal(null);
                     setDrawerOpen(true);
                   }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-[#051044] bg-[#E89611] hover:bg-[#D4840A] rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Tambah Usulan</span>
@@ -1335,7 +1321,7 @@ function DashboardWorkspace() {
                 <button
                   type="button"
                   onClick={() => void handleLogoutAccount()}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-[#C7D3E8] hover:bg-[#F3F6FB] rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
                   title="Buka portal informasi akses"
                 >
                   <LogOut className="w-3.5 h-3.5 text-slate-500" />
@@ -1443,22 +1429,25 @@ function DashboardWorkspace() {
               : 'print:p-0 print:max-w-none'
           }`}
         >
-          {/* Context Header & Interactive Year / Sector Segmented Controls */}
+          {/* Context Header & Interactive Year / Sector Segmented Controls (Batik PU Institutional Banner) */}
           <div
-            className={`flex flex-col xl:flex-row xl:items-center justify-between gap-4 ${
+            className={`batik-pu-banner rounded-xl p-5 sm:p-6 border border-[#0C2278] border-b-2 border-b-[#E89611] flex flex-col xl:flex-row xl:items-center justify-between gap-4 ${
               activeView === WorkspaceView.RC_INFOGRAPHIC ? 'print:hidden' : ''
             }`}
           >
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                 Dashboard Sinkronisasi Program Infrastruktur Cipta Karya Tahun Anggaran 2027–2030
               </h1>
+              <p className="text-sm text-amber-200/95 mt-1 font-medium">
+                Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
+              </p>
             </div>
 
             {/* Interactive Year Filter Controls */}
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <div
-                className="inline-flex items-center p-1 bg-slate-200/75 rounded-lg"
+                className="inline-flex items-center p-1 bg-[#040E42]/80 border border-white/15 rounded-lg"
                 role="group"
                 aria-label="Filter Tahun Anggaran"
               >
@@ -1477,8 +1466,8 @@ function DashboardWorkspace() {
                     onClick={() => setYearFilter(yr.id)}
                     className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                       yearFilter === yr.id
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-[#E89611] text-[#051044] font-semibold shadow-xs'
+                        : 'text-indigo-100 hover:text-white hover:bg-white/10'
                     }`}
                   >
                     {yr.label}
@@ -1488,16 +1477,16 @@ function DashboardWorkspace() {
             </div>
           </div>
 
-          {/* 4-Column Full-Width KPI Strip */}
+          {/* 3-Column Full-Width KPI Strip */}
           <section
             aria-label="Ringkasan Indikator Utama"
-            className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 ${
+            className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${
               activeView === WorkspaceView.RC_INFOGRAPHIC ? 'print:hidden' : ''
             }`}
           >
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="bg-white border border-[#D7E0F0] rounded-xl p-5">
               <div className="text-xs font-medium text-slate-500">Total Paket Usulan</div>
-              <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">
+              <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-[#061459]">
                 {kpis.count} Paket
               </div>
               <div className="mt-1 text-xs text-slate-500">
@@ -1507,11 +1496,11 @@ function DashboardWorkspace() {
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="bg-white border border-[#D7E0F0] rounded-xl p-5">
               <div className="text-xs font-medium text-slate-500">
                 Kebutuhan Pagu ({yearFilter === 'ALL' ? 'TA 2027–2030' : `TA ${yearFilter}`})
               </div>
-              <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-blue-700">
+              <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-[#0A1D6E]">
                 {formatRpMiliar(kpis.totalPagu)}
               </div>
               <div className="mt-1 text-xs text-slate-500">
@@ -1519,24 +1508,11 @@ function DashboardWorkspace() {
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <div className="text-xs font-medium text-slate-500">
-                Kesiapan Teknis (Readiness Criteria)
-              </div>
-              <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">
-                {kpis.avgReadiness}%
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                <span className="font-mono tabular-nums">{kpis.verifiedCount}</span> dari{' '}
-                <span className="font-mono tabular-nums">{kpis.count}</span> paket terverifikasi
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="bg-white border border-[#D7E0F0] rounded-xl p-5">
               <div className="text-xs font-medium text-slate-500">
                 Estimasi Cakupan Penerima Manfaat
               </div>
-              <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">
+              <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-[#061459]">
                 {kpis.totalBeneficiaries.toLocaleString('id-ID')} Jiwa
               </div>
               <div className="mt-1 text-xs text-slate-500">
@@ -1756,11 +1732,11 @@ function DashboardWorkspace() {
         </main>
 
         {/* Quiet Institutional Footer */}
-        <footer className="px-6 py-4 border-t border-slate-200 bg-white text-xs text-slate-500 flex flex-wrap items-center justify-between gap-2">
+        <footer className="px-6 py-4 border-t border-[#D7E0F0] bg-white text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2">
           <span>
             SIMPRA BPBPK Nusa Tenggara Barat TA. 2027–2030 · Sinkronisasi Program Infrastruktur Cipta Karya
           </span>
-          <span>Layanan Peta & Geospasial Terbuka · OpenStreetMap</span>
+          <span className="text-[#0A1D6E] font-medium">Layanan Peta & Geospasial Terbuka · OpenStreetMap</span>
         </footer>
       </div>
 
