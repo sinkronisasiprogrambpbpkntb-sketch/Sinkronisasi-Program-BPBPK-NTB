@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { formatRpMiliar, SEKTOR_SHORT_LABELS } from '../data/initialProposals';
 import { SektorCiptaKarya, UsulanProgram } from '../types/ciptaKarya';
+import { getCachedPuLogoDataUrl } from './puLogoAsset';
 
 export interface PdfRankedProposalItem {
   proposal: UsulanProgram;
@@ -54,11 +55,13 @@ export interface PdfSignatoriesConfig {
 
 export interface PdfExportContext {
   yearFilterLabel: string;
+  sectorFilterLabel?: string;
   sortOrder: 'desc' | 'asc';
   tierFilterLabel: string;
   statusFilterLabel: string;
   searchQuery: string;
   signatories?: PdfSignatoriesConfig;
+  logoDataUrl?: string | null;
 }
 
 type RgbTuple = [number, number, number];
@@ -162,6 +165,8 @@ function buildRcInfographicPdfDoc(
     minute: '2-digit',
   }).format(new Date());
 
+  const puLogoDataUrl = context.logoDataUrl ?? getCachedPuLogoDataUrl();
+
   const drawTopInstitutionalBanner = (isContinuation: boolean) => {
     const bannerHeight = isContinuation ? 13 : 24;
     doc.setFillColor(...COLOR_SLATE_900);
@@ -169,20 +174,50 @@ function buildRcInfographicPdfDoc(
     doc.setFillColor(...COLOR_BLUE_700);
     doc.rect(marginX, 10, 2.5, bannerHeight, 'F');
 
+    let hasLogoRendered = false;
+    if (puLogoDataUrl && puLogoDataUrl.startsWith('data:image/')) {
+      try {
+        if (isContinuation) {
+          doc.setDrawColor(232, 150, 17);
+          doc.setLineWidth(0.3);
+          doc.rect(marginX + 4.3, 11.3, 10.4, 10.4, 'S');
+          doc.addImage(puLogoDataUrl, 'PNG', marginX + 4.5, 11.5, 10, 10, undefined, 'FAST');
+        } else {
+          doc.setDrawColor(232, 150, 17);
+          doc.setLineWidth(0.35);
+          doc.rect(marginX + 4.3, 12.8, 18.4, 18.4, 'S');
+          doc.addImage(puLogoDataUrl, 'PNG', marginX + 4.5, 13, 18, 18, undefined, 'FAST');
+        }
+        hasLogoRendered = true;
+      } catch {
+        hasLogoRendered = false;
+      } finally {
+        doc.setLineWidth(0.2);
+      }
+    }
+
+    const leftTextX = hasLogoRendered
+      ? isContinuation
+        ? marginX + 17.5
+        : marginX + 26.5
+      : marginX + 6;
+
     doc.setTextColor(...COLOR_WHITE);
     if (isContinuation) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9.5);
       doc.text(
         'INFOGRAFIS PERINGKAT SKOR READINESS CRITERIA (RC) - LANJUTAN',
-        marginX + 6,
+        leftTextX,
         18
       );
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(203, 213, 225);
       doc.text(
-        sanitizePdfText(`SIMPRA BPBPK NTB · ${context.yearFilterLabel} · Dicetak: ${printTimestamp}`),
+        sanitizePdfText(
+          `SIMPRA BPBPK NTB · ${context.yearFilterLabel} · ${context.sectorFilterLabel || 'Semua Sektor Teknis'} · Dicetak: ${printTimestamp}`
+        ),
         pageWidth - marginX - 4,
         18,
         { align: 'right' }
@@ -195,7 +230,7 @@ function buildRcInfographicPdfDoc(
     doc.setTextColor(147, 197, 253);
     doc.text(
       'KEMENTERIAN PEKERJAAN UMUM · SIMPRA BPBPK NUSA TENGGARA BARAT',
-      marginX + 6,
+      leftTextX,
       15.2
     );
 
@@ -204,7 +239,7 @@ function buildRcInfographicPdfDoc(
     doc.setTextColor(...COLOR_WHITE);
     doc.text(
       'INFOGRAFIS PERINGKAT SKOR READINESS CRITERIA (RC)',
-      marginX + 6,
+      leftTextX,
       21.5
     );
 
@@ -213,7 +248,7 @@ function buildRcInfographicPdfDoc(
     doc.setTextColor(253, 230, 138);
     doc.text(
       'Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat',
-      marginX + 6,
+      leftTextX,
       27.5
     );
 
@@ -248,6 +283,7 @@ function buildRcInfographicPdfDoc(
     const sortText =
       context.sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi';
     const metaParts = [
+      `Sektor Teknis: ${context.sectorFilterLabel || 'Semua Sektor Teknis'}`,
       `Urutan: ${sortText}`,
       `Kesiapan: ${context.tierFilterLabel}`,
       `Status Usulan: ${context.statusFilterLabel}`,

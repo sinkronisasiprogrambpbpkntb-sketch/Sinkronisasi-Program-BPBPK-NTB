@@ -12,6 +12,7 @@ import {
   UsulanProgram,
 } from '../types/ciptaKarya';
 import { PdfSignatoriesConfig, PdfSignatoryParty } from './exportRcInfographicPdf';
+import { getCachedPuWordmarkDataUrl } from './puLogoAsset';
 
 export interface ProposalProfilePdfInput {
   proposal: UsulanProgram;
@@ -22,6 +23,7 @@ export interface ProposalProfilePdfInput {
   position: LatLngPoint;
   imageDataUrl?: string;
   signatories?: PdfSignatoriesConfig;
+  wordmarkDataUrl?: string | null;
 }
 
 export interface ProposalProfilePdfPreviewPayload {
@@ -175,20 +177,19 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     subY
   );
 
-  // Right KEMENPU lockup
-  const brandX = pageWidth - marginX;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13.5);
-  const puWidth = doc.getTextWidth('PU');
-  doc.setTextColor(...NAVY_DARK);
-  doc.text('PU', brandX, headerY + 6.0, { align: 'right' });
-  doc.setTextColor(...GOLD_ACCENT);
-  doc.text('KEMEN', brandX - puWidth, headerY + 6.0, { align: 'right' });
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(...NAVY_DARK);
-  doc.text('SIGAP MEMBANGUN NEGERI UNTUK RAKYAT', brandX, headerY + 9.6, { align: 'right' });
+  // Right Official Kementerian Pekerjaan Umum Logo (replaces KEMENPU tagline lockup)
+  const wordmarkDataUrl = input.wordmarkDataUrl ?? getCachedPuWordmarkDataUrl();
+  if (wordmarkDataUrl && wordmarkDataUrl.startsWith('data:image/')) {
+    try {
+      const logoH = 11.5;
+      const logoW = logoH * (262 / 64); // ~47.08mm matching 262x64 aspect ratio
+      const logoX = pageWidth - marginX - logoW;
+      const logoY = headerY + 0.75;
+      doc.addImage(wordmarkDataUrl, 'PNG', logoX, logoY, logoW, logoH, undefined, 'FAST');
+    } catch {
+      // Fallback if canvas image load failed
+    }
+  }
 
   // ROW 1: Gambaran Umum (41%) | Urgensi Strategis (33%) | Lingkup Pekerjaan (26%)
   const gap = 3.5;

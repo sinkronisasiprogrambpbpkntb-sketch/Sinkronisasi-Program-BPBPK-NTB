@@ -29,6 +29,11 @@ import {
   ProposalProfilePdfInput,
 } from '../utils/exportProposalProfilePdf';
 import { PdfSignatoriesConfig } from '../utils/exportRcInfographicPdf';
+import {
+  getCachedPuWordmarkDataUrl,
+  loadPuWordmarkDataUrl,
+  PU_WORDMARK_SRC,
+} from '../utils/puLogoAsset';
 import { ProposalPdfPreviewOverlay } from './ProposalPdfPreviewOverlay';
 import {
   buildSpatialGeoJsonLayers,
@@ -217,23 +222,12 @@ const PreviewMiniMap: React.FC<PreviewMiniMapProps> = ({
 };
 
 const KemenpuBrandLockup: React.FC = () => (
-  <div className="flex flex-col items-end select-none shrink-0">
-    <div className="flex items-center gap-1.5">
-      {/* Geometric PU Mark */}
-      <div className="w-7 h-7 rounded-[4px] bg-[#f5a800] relative overflow-hidden flex items-end justify-start p-0.5 shrink-0">
-        <svg viewBox="0 0 24 24" className="w-full h-full" aria-hidden="true">
-          <path d="M2 22V8h7a5 5 0 0 1 0 10H6v4H2Z" fill="#0b3c7c" />
-          <path d="M13 11h4v6a3 3 0 0 0 6 0v-6h1v7a5 5 0 0 1-11 0v-7Z" fill="#0b3c7c" />
-        </svg>
-      </div>
-      <div className="font-display text-2xl sm:text-[26px] font-black tracking-tight leading-none">
-        <span className="text-[#f5a800]">KEMEN</span>
-        <span className="text-[#0b3c7c]">PU</span>
-      </div>
-    </div>
-    <div className="mt-1 text-[8px] sm:text-[8.5px] font-bold tracking-[0.06em] text-[#0b3c7c] uppercase whitespace-nowrap">
-      SIGAP MEMBANGUN NEGERI UNTUK RAKYAT
-    </div>
+  <div className="flex items-center justify-end select-none shrink-0">
+    <img
+      src={PU_WORDMARK_SRC}
+      alt="Kementerian Pekerjaan Umum"
+      className="h-12 sm:h-14 w-auto object-contain"
+    />
   </div>
 );
 
@@ -360,6 +354,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     loadInitialProfilSignatories
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    void loadPuWordmarkDataUrl();
+  }, []);
 
   useEffect(() => {
     try {
@@ -600,11 +598,13 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       .map((item) => `<li style="margin-bottom:4px;">&#9744; ${item}</li>`)
       .join('');
 
+    const htmlWordmarkSrc =
+      getCachedPuWordmarkDataUrl() || `${window.location.origin}${PU_WORDMARK_SRC}`;
     const htmlDoc = `<!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8" />
-<title>Paparan Usulan ${proposal.kodeUsulan} - KEMENPU</title>
+<title>Paparan Usulan ${proposal.kodeUsulan} - Kementerian Pekerjaan Umum</title>
 <style>
   body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; background:#f8fafc; color:#1e293b; margin:0; padding:24px; }
   .slide { max-width:1240px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:28px 32px; }
@@ -615,9 +615,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   .bar-gold { width:7px; background:#f5a800; }
   h1 { margin:0; font-size:24px; font-weight:800; text-transform:uppercase; color:#1e293b; }
   .subtitle { margin-top:4px; font-size:15px; color:#5b7fa6; text-transform:uppercase; font-weight:500; }
-  .brand { text-align:right; }
-  .brand-name { font-size:26px; font-weight:900; letter-spacing:-0.02em; }
-  .brand-tag { font-size:8.5px; font-weight:700; color:#0b3c7c; letter-spacing:0.06em; }
+  .brand { display:flex; align-items:center; justify-content:flex-end; flex-shrink:0; }
+  .brand-logo { height:48px; width:auto; object-fit:contain; }
   .row3 { display:grid; grid-template-columns: 5fr 4fr 3fr; gap:14px; margin-bottom:14px; }
   .row2 { display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:14px; }
   .row-bottom { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
@@ -639,8 +638,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         </div>
       </div>
       <div class="brand">
-        <div class="brand-name"><span style="color:#f5a800;">KEMEN</span><span style="color:#0b3c7c;">PU</span></div>
-        <div class="brand-tag">SIGAP MEMBANGUN NEGERI UNTUK RAKYAT</div>
+        <img src="${htmlWordmarkSrc}" alt="Kementerian Pekerjaan Umum" class="brand-logo" />
       </div>
     </div>
     <div class="row3">
@@ -1561,7 +1559,12 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       <ProposalPdfPreviewOverlay
         isOpen={showPdfPreview}
         onClose={() => setShowPdfPreview(false)}
-        onDownloadPdf={() => exportProposalProfilePdf(pdfPreviewInput)}
+        onDownloadPdf={() => {
+          void (async () => {
+            const wordmarkDataUrl = await loadPuWordmarkDataUrl();
+            exportProposalProfilePdf({ ...pdfPreviewInput, wordmarkDataUrl });
+          })();
+        }}
         onPrintDirect={() => window.print()}
         onEditSignatories={() => {
           window.setTimeout(() => {

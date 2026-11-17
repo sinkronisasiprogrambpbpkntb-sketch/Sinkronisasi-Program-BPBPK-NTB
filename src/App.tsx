@@ -1715,6 +1715,9 @@ function DashboardWorkspace() {
             <RcInfographicView
               proposals={filteredProposals}
               yearFilterLabel={yearFilter === 'ALL' ? 'TA 2027–2030' : `TA ${yearFilter}`}
+              sectorFilterLabel={
+                sektorFilter === 'ALL' ? 'Semua Sektor Teknis (4 Bidang)' : sektorFilter
+              }
               onPreviewProposal={(id) => {
                 setSelectedProposalId(id);
                 setShowTemplateDemo(false);

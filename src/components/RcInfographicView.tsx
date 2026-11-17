@@ -22,11 +22,13 @@ import {
   PdfExportContext,
   PdfSignatoriesConfig,
 } from '../utils/exportRcInfographicPdf';
+import { loadPuLogoDataUrl, PU_LOGO_SRC } from '../utils/puLogoAsset';
 import { RcInfographicPreviewModal } from './RcInfographicPreviewModal';
 
 interface RcInfographicViewProps {
   proposals: UsulanProgram[];
   yearFilterLabel: string;
+  sectorFilterLabel?: string;
   onPreviewProposal: (id: string) => void;
   onFocusOnMap?: (id: string) => void;
   onPdfExported?: (fileName: string) => void;
@@ -125,6 +127,7 @@ function loadInitialSignatories(): PdfSignatoriesConfig {
 export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   proposals,
   yearFilterLabel,
+  sectorFilterLabel = 'Semua Sektor Teknis',
   onPreviewProposal,
   onFocusOnMap,
   onPdfExported,
@@ -137,6 +140,10 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     loadInitialSignatories
   );
   const [showPdfPreview, setShowPdfPreview] = useState<boolean>(false);
+
+  useEffect(() => {
+    void loadPuLogoDataUrl();
+  }, []);
 
   useEffect(() => {
     try {
@@ -407,6 +414,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   const pdfContext = useMemo<PdfExportContext>(
     () => ({
       yearFilterLabel,
+      sectorFilterLabel,
       sortOrder,
       tierFilterLabel,
       statusFilterLabel,
@@ -415,6 +423,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     }),
     [
       yearFilterLabel,
+      sectorFilterLabel,
       sortOrder,
       tierFilterLabel,
       statusFilterLabel,
@@ -423,13 +432,14 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     ]
   );
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
+    const logoDataUrl = await loadPuLogoDataUrl();
     const fileName = exportRcInfographicPdf(
       filteredRanked,
       summaryStats,
       sectorAverages,
       regionalAverages,
-      pdfContext
+      { ...pdfContext, logoDataUrl }
     );
     onPdfExported?.(fileName);
   };
@@ -457,23 +467,30 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   return (
     <div className="space-y-6 print:space-y-4">
       {/* Print-only Institutional Header (Ctrl+P fallback) */}
-      <div className="hidden print:flex items-center justify-between border-b-2 border-slate-900 pb-3">
-        <div>
-          <div className="text-[10px] font-semibold tracking-wider text-blue-800 uppercase">
-            Kementerian Pekerjaan Umum · SIMPRA BPBPK Nusa Tenggara Barat
+      <div className="hidden print:flex items-center justify-between gap-4 border-b-2 border-slate-900 pb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <img
+            src={PU_LOGO_SRC}
+            alt="Logo Kementerian Pekerjaan Umum"
+            className="w-14 h-14 object-contain rounded border border-amber-500/70 shrink-0"
+          />
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold tracking-wider text-blue-800 uppercase">
+              Kementerian Pekerjaan Umum · SIMPRA BPBPK Nusa Tenggara Barat
+            </div>
+            <h1 className="text-lg font-bold text-slate-900">
+              Infografis Peringkat Skor Readiness Criteria (RC)
+            </h1>
+            <p className="text-xs font-semibold text-[#0A1D6E] mt-0.5">
+              Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
+            </p>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Sektor Teknis: {sectorFilterLabel} · {yearFilterLabel} · {tierFilterLabel} ·{' '}
+              {statusFilterLabel} · {filteredRanked.length} dari {statusScoped.length} Paket
+            </p>
           </div>
-          <h1 className="text-lg font-bold text-slate-900">
-            Infografis Peringkat Skor Readiness Criteria (RC)
-          </h1>
-          <p className="text-xs font-semibold text-[#0A1D6E] mt-0.5">
-            Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
-          </p>
-          <p className="text-xs text-slate-600 mt-0.5">
-            {yearFilterLabel} · {tierFilterLabel} · {statusFilterLabel} ·{' '}
-            {filteredRanked.length} dari {statusScoped.length} Paket
-          </p>
         </div>
-        <div className="text-right text-[11px] text-slate-500 font-mono">
+        <div className="text-right text-[11px] text-slate-500 font-mono shrink-0">
           <div>
             {sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi'}
           </div>
@@ -499,7 +516,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
               Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Pemeringkatan kesiapan teknis paket usulan dari skor tertinggi hingga terendah
+              Sektor Teknis: <span className="font-medium text-slate-700">{sectorFilterLabel}</span>
               <span aria-hidden="true"> · </span>
               <span>{yearFilterLabel}</span>
               <span aria-hidden="true"> · </span>
@@ -572,7 +589,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
 
             <button
               type="button"
-              onClick={handleExportPdf}
+              onClick={() => void handleExportPdf()}
               disabled={statusScoped.length === 0}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-[#07165B] hover:bg-[#0A1D6E] disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
               title="Unduh laporan Infografis Skor RC dalam format PDF"
@@ -1231,7 +1248,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       <RcInfographicPreviewModal
         isOpen={showPdfPreview}
         onClose={() => setShowPdfPreview(false)}
-        onDownloadPdf={handleExportPdf}
+        onDownloadPdf={() => void handleExportPdf()}
         onEditSignatories={() => {
           window.setTimeout(handleScrollToSignatories, 80);
         }}

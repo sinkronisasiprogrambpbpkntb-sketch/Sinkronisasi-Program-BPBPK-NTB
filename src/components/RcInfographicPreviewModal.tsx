@@ -19,6 +19,7 @@ import {
   PdfSummaryStats,
   RcPdfPreviewPayload,
 } from '../utils/exportRcInfographicPdf';
+import { loadPuLogoDataUrl, PU_LOGO_SRC } from '../utils/puLogoAsset';
 
 interface RcInfographicPreviewModalProps {
   isOpen: boolean;
@@ -57,17 +58,32 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
 
   useEffect(() => {
     if (!isOpen) return;
-    const payload = createRcInfographicPdfPreview(
-      rankedItems,
-      summaryStats,
-      sectorAverages,
-      regionalAverages,
-      context
-    );
-    setPdfPayload(payload);
+    let cancelled = false;
+    let generatedUrl: string | null = null;
+
+    void (async () => {
+      const logoDataUrl = context.logoDataUrl ?? (await loadPuLogoDataUrl());
+      if (cancelled) return;
+      const payload = createRcInfographicPdfPreview(
+        rankedItems,
+        summaryStats,
+        sectorAverages,
+        regionalAverages,
+        { ...context, logoDataUrl }
+      );
+      if (cancelled) {
+        URL.revokeObjectURL(payload.blobUrl);
+        return;
+      }
+      generatedUrl = payload.blobUrl;
+      setPdfPayload(payload);
+    })();
 
     return () => {
-      URL.revokeObjectURL(payload.blobUrl);
+      cancelled = true;
+      if (generatedUrl) {
+        URL.revokeObjectURL(generatedUrl);
+      }
       setPdfPayload(null);
     };
   }, [isOpen, rankedItems, summaryStats, sectorAverages, regionalAverages, context]);
@@ -286,15 +302,22 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
             >
               {/* Institutional Banner matching PDF */}
               <div className="bg-slate-900 text-white px-5 py-4 border-l-4 border-blue-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="text-[10px] font-medium tracking-wider text-blue-300 uppercase">
-                    KEMENTERIAN PEKERJAAN UMUM · SIMPRA BPBPK NUSA TENGGARA BARAT
-                  </div>
-                  <h3 className="text-base sm:text-lg font-bold tracking-tight mt-0.5">
-                    INFOGRAFIS PERINGKAT SKOR READINESS CRITERIA (RC)
-                  </h3>
-                  <div className="text-xs text-amber-200 mt-0.5 font-medium">
-                    Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <img
+                    src={PU_LOGO_SRC}
+                    alt="Logo Kementerian Pekerjaan Umum"
+                    className="w-14 h-14 object-contain rounded border border-amber-400/70 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-medium tracking-wider text-blue-300 uppercase">
+                      KEMENTERIAN PEKERJAAN UMUM · SIMPRA BPBPK NUSA TENGGARA BARAT
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold tracking-tight mt-0.5">
+                      INFOGRAFIS PERINGKAT SKOR READINESS CRITERIA (RC)
+                    </h3>
+                    <div className="text-xs text-amber-200 mt-0.5 font-medium">
+                      Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
+                    </div>
                   </div>
                 </div>
                 <div className="text-left sm:text-right text-[11px] text-slate-300 font-mono space-y-0.5 shrink-0">
@@ -308,6 +331,10 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
 
               {/* Filter Context Strip */}
               <div className="bg-slate-100 border border-slate-200 rounded px-3.5 py-2 text-[11px] text-slate-700 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span>
+                  <strong>Sektor Teknis:</strong>{' '}
+                  {context.sectorFilterLabel || 'Semua Sektor Teknis'}
+                </span>
                 <span>
                   <strong>Urutan:</strong> {sortLabel}
                 </span>

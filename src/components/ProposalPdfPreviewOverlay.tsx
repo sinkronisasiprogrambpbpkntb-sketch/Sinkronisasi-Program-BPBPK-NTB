@@ -27,6 +27,7 @@ import {
   ProposalProfilePdfInput,
   ProposalProfilePdfPreviewPayload,
 } from '../utils/exportProposalProfilePdf';
+import { loadPuWordmarkDataUrl, PU_WORDMARK_SRC } from '../utils/puLogoAsset';
 
 interface ProposalPdfPreviewOverlayProps {
   isOpen: boolean;
@@ -60,11 +61,30 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
 
   useEffect(() => {
     if (!isOpen) return;
-    const payload = createProposalProfilePdfPreview(pdfInput);
-    setPdfPayload(payload);
+    let cancelled = false;
+    let generatedUrl: string | null = null;
+
+    void (async () => {
+      const wordmarkDataUrl =
+        pdfInput.wordmarkDataUrl ?? (await loadPuWordmarkDataUrl());
+      if (cancelled) return;
+      const payload = createProposalProfilePdfPreview({
+        ...pdfInput,
+        wordmarkDataUrl,
+      });
+      if (cancelled) {
+        URL.revokeObjectURL(payload.blobUrl);
+        return;
+      }
+      generatedUrl = payload.blobUrl;
+      setPdfPayload(payload);
+    })();
 
     return () => {
-      URL.revokeObjectURL(payload.blobUrl);
+      cancelled = true;
+      if (generatedUrl) {
+        URL.revokeObjectURL(generatedUrl);
+      }
       setPdfPayload(null);
     };
   }, [isOpen, pdfInput]);
@@ -279,20 +299,19 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                       {proposal.namaProgram}
                     </h3>
                     <div className="mt-0.5 text-xs sm:text-sm font-semibold text-[#5b7fa6] uppercase tracking-wide">
-                      {proposal.kabupatenKota} · {details.provinsi ?? 'Nusa Tenggara Barat'} ({proposal.kodeUsulan} ·{' '}
+                      {proposal.kabupatenKota} ·{' '}
+                      {details.provinsi ?? 'Nusa Tenggara Barat'} ({proposal.kodeUsulan} ·{' '}
                       {formatActiveYears(proposal.pagu)})
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end shrink-0 select-none">
-                  <div className="text-2xl font-black tracking-tight leading-none">
-                    <span className="text-[#f5a800]">KEMEN</span>
-                    <span className="text-[#0b3c7c]">PU</span>
-                  </div>
-                  <div className="text-[8px] font-bold tracking-[0.06em] text-[#0b3c7c] mt-1">
-                    SIGAP MEMBANGUN NEGERI UNTUK RAKYAT
-                  </div>
+                <div className="flex items-center justify-end shrink-0 select-none">
+                  <img
+                    src={PU_WORDMARK_SRC}
+                    alt="Kementerian Pekerjaan Umum"
+                    className="h-11 sm:h-12 w-auto object-contain"
+                  />
                 </div>
               </div>
 
