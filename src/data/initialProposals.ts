@@ -1560,6 +1560,10 @@ export function resolveProposalTemplateDetails(proposal: UsulanProgram): Require
     lokasiGambarUrl: d.lokasiGambarUrl,
     statusManual: d.statusManual?.trim() ?? '',
     linkDataRc: d.linkDataRc?.trim() ?? '',
+    jumlahPembahasanBpbpk:
+      typeof d.jumlahPembahasanBpbpk === 'number' && Number.isFinite(d.jumlahPembahasanBpbpk)
+        ? Math.max(0, Math.round(d.jumlahPembahasanBpbpk))
+        : 0,
     rcDetails,
   };
 }
@@ -1894,6 +1898,7 @@ export function exportProposalsAsCsv(
     'Total Pagu 2027-2030 (Rp M)',
     'Kesiapan RC (%)',
     'Status',
+    'Pembahasan BPBPK NTB (Kali)',
     'Link Data RC',
   ];
 
@@ -1929,6 +1934,7 @@ export function exportProposalsAsCsv(
       getTotalPaguUsulan(p.pagu),
       getReadinessScore(p.readiness, p.skorRc).percentage,
       p.templateDetails?.statusManual ?? '',
+      p.templateDetails?.jumlahPembahasanBpbpk ?? 0,
       p.templateDetails?.linkDataRc ?? '',
     ]
       .map(escapeCsv)

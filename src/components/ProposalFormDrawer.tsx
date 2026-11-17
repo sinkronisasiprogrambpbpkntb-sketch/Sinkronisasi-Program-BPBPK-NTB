@@ -134,6 +134,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
   );
   const [statusManual, setStatusManual] = useState<string>('');
   const [linkDataRc, setLinkDataRc] = useState<string>('');
+  const [jumlahPembahasanBpbpk, setJumlahPembahasanBpbpk] = useState<string>('0');
   const [skorRcInput, setSkorRcInput] = useState<string>('80');
   const [readiness, setReadiness] = useState<ReadinessCriteria>(DEFAULT_READINESS);
   const [rcTable, setRcTable] = useState<Record<RcDocKey, RcDocumentEntry>>(createEmptyRcTable);
@@ -221,6 +222,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       setStatusVerifikasi(editingProposal.statusVerifikasi);
       setStatusManual(tpl.statusManual);
       setLinkDataRc(tpl.linkDataRc);
+      setJumlahPembahasanBpbpk(String(tpl.jumlahPembahasanBpbpk ?? 0));
       setSkorRcInput(
         String(getReadinessScore(editingProposal.readiness, editingProposal.skorRc).percentage)
       );
@@ -272,6 +274,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       setStatusVerifikasi(StatusVerifikasi.MENUNGGU_KONREG);
       setStatusManual('');
       setLinkDataRc('');
+      setJumlahPembahasanBpbpk('0');
       setSkorRcInput('80');
       setReadiness(DEFAULT_READINESS);
       setRcTable(createEmptyRcTable());
@@ -397,6 +400,10 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       lokasiGambarUrl,
       statusManual: statusManual.trim(),
       linkDataRc: linkDataRc.trim(),
+      jumlahPembahasanBpbpk: Math.max(
+        0,
+        Math.round(parseNumberFlexible(jumlahPembahasanBpbpk) || 0)
+      ),
       rcDetails: rcTable,
     };
 
@@ -484,6 +491,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
     statusVerifikasi,
     statusManual,
     linkDataRc,
+    jumlahPembahasanBpbpk,
     prioritasNasional,
     serviceRadiusKm,
     corridorGroup,
@@ -1203,7 +1211,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Status Matriks (Manual)
@@ -1218,6 +1226,25 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                   placeholder="Isi status manual..."
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:border-blue-700"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Pembahasan BPBPK NTB
+                </label>
+                <div className="flex items-center bg-white border border-slate-300 rounded-lg px-3 py-2 focus-within:border-blue-700">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={jumlahPembahasanBpbpk}
+                    onChange={(e) => {
+                      setJumlahPembahasanBpbpk(e.target.value);
+                      markFieldEdited();
+                    }}
+                    placeholder="0"
+                    className="w-full font-mono text-xs tabular-nums text-slate-900 bg-transparent focus:outline-none"
+                  />
+                  <span className="text-[11px] text-slate-500 ml-1.5 select-none">Kali</span>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">

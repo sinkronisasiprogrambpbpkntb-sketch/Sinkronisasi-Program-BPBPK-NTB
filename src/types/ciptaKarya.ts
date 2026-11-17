@@ -71,6 +71,7 @@ export interface ProposalTemplateDetails {
   lokasiGambarUrl?: string;
   statusManual?: string;
   linkDataRc?: string;
+  jumlahPembahasanBpbpk?: number;
   rcDetails?: Partial<Record<LegacyRcDocKey, RcDocumentEntry>>;
 }
 

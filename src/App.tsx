@@ -758,6 +758,42 @@ function DashboardWorkspace() {
     [canEdit, proposals, markLocalBootstrapped, showNotice]
   );
 
+  const handleUpdateJumlahPembahasan = useCallback(
+    async (id: string, rawCount: number) => {
+      if (!canEdit) return;
+      const target = proposals.find((p) => p.id === id);
+      if (!target) return;
+
+      const cleanedCount = Number.isFinite(rawCount)
+        ? Math.min(999, Math.max(0, Math.round(rawCount)))
+        : 0;
+
+      const updatedProposal: UsulanProgram = {
+        ...target,
+        templateDetails: {
+          ...(target.templateDetails ?? {}),
+          jumlahPembahasanBpbpk: cleanedCount,
+        },
+        updatedAt: new Date().toISOString().slice(0, 10),
+      };
+
+      setProposals((prev) => prev.map((p) => (p.id === id ? updatedProposal : p)));
+      markLocalBootstrapped();
+
+      try {
+        await saveProposalToFirestore(updatedProposal);
+        showNotice(
+          `Jumlah pembahasan BPBPK NTB usulan "${target.kodeUsulan}" (${cleanedCount} Kali) tersimpan.`
+        );
+      } catch (err) {
+        const quota = extractQuotaNoticeFromError(err);
+        if (quota) setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
+        showNotice('Jumlah pembahasan tersimpan secara lokal (sinkronisasi Cloud tertunda).');
+      }
+    },
+    [canEdit, proposals, markLocalBootstrapped, showNotice]
+  );
+
   const handleAutoSaveProposal = useCallback(
     async (saved: UsulanProgram, resolvedFromSearch?: ResolvedPlaceInfo) => {
       if (!canEdit) return;
@@ -1531,6 +1567,7 @@ function DashboardWorkspace() {
                 }}
                 onUpdateSkorRc={(id, val) => void handleUpdateSkorRc(id, val)}
                 onUpdateStatusManual={(id, val) => void handleUpdateStatusManual(id, val)}
+                onUpdateJumlahPembahasan={(id, val) => void handleUpdateJumlahPembahasan(id, val)}
                 onUpdateLinkDataRc={(id, val) => void handleUpdateLinkDataRc(id, val)}
                 onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
                 onJumpToMap={handleFocusOnMap}
