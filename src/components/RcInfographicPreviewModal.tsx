@@ -566,54 +566,6 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                 </div>
               </div>
 
-              {/* Section 2: Regional Summary Panel */}
-              <div className="border border-slate-200 rounded-lg p-3.5 bg-white space-y-2.5">
-                <div className="bg-slate-100 border border-slate-200 rounded px-3 py-2">
-                  <div className="text-xs font-bold text-slate-900">
-                    Peringkat Skor RC per Kabupaten/Kota
-                  </div>
-                  <div className="text-[10px] text-slate-500">
-                    Rata-rata skor kesiapan wilayah pengusul di NTB
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {regionalAverages.map((reg, idx) => {
-                    const tier = getTierHex(reg.avgPct);
-                    return (
-                      <div
-                        key={reg.kabupaten}
-                        className="border border-slate-200 rounded p-2 space-y-1"
-                      >
-                        <div className="flex items-baseline justify-between gap-2 text-xs">
-                          <span className="font-bold text-slate-900 truncate">
-                            {String(idx + 1).padStart(2, '0')}. {reg.kabupaten}
-                          </span>
-                          <div className="flex items-baseline gap-2 shrink-0">
-                            <span className="text-[10px] text-slate-500 font-mono">
-                              {reg.count} paket · {formatRpMiliar(reg.totalPagu)}
-                            </span>
-                            <span
-                              className={`font-mono font-bold tabular-nums ${tier.textClass}`}
-                            >
-                              {reg.avgPct}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${Math.max(3, reg.avgPct)}%`,
-                              backgroundColor: tier.bar,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* Footer matching PDF */}
               <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
                 <span>

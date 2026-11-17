@@ -783,9 +783,9 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       </section>
 
       {/* Main Infographic Body */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 print:block gap-6 items-start">
         {/* Ranked Bar Chart List + PDF Signatories Panel */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-8 print:col-span-12 space-y-6">
           <section className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2 pb-4 border-b border-slate-200">
               <div>
@@ -1122,8 +1122,8 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
           </section>
         </div>
 
-        {/* Right Sidebars: Sector & Kabupaten/Kota RC Comparison */}
-        <aside className="lg:col-span-4 space-y-6">
+        {/* Right Sidebars: Sector & Kabupaten/Kota RC Comparison (hidden on print) */}
+        <aside className="lg:col-span-4 space-y-6 print:hidden">
           {/* Rata-rata RC per Sektor */}
           <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 print:hidden">
             <div>
@@ -1174,7 +1174,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
           </section>
 
           {/* Rata-rata RC per Kabupaten/Kota */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+          <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 print:hidden">
             <div>
               <h3 className="text-sm font-bold text-slate-900">
                 Peringkat Skor RC per Kabupaten/Kota

@@ -137,7 +137,7 @@ function buildRcInfographicPdfDoc(
   rankedItems: PdfRankedProposalItem[],
   summaryStats: PdfSummaryStats,
   _sectorAverages: PdfSectorAverage[],
-  regionalAverages: PdfRegionalAverage[],
+  _regionalAverages: PdfRegionalAverage[],
   context: PdfExportContext
 ): { doc: jsPDF; fileName: string } {
   const doc = new jsPDF({
@@ -689,110 +689,6 @@ function buildRcInfographicPdfDoc(
   );
 
   cursorY += sigBoxHeight + 3;
-
-  // Section 2: Regional Summary Panel (Peringkat Skor RC per Kabupaten/Kota, 2-column grid)
-  const regRowCount = Math.ceil(Math.max(1, regionalAverages.length) / 2);
-  const regSectionHeight = 16 + regRowCount * 9.7;
-
-  if (cursorY + 8 > maxContentY || cursorY + Math.min(48, regSectionHeight) > maxContentY) {
-    doc.addPage();
-    cursorY = drawTopInstitutionalBanner(true);
-  } else {
-    cursorY += 3;
-  }
-
-  const drawFullWidthPanelHeader = (py: number, title: string, subtitle: string) => {
-    doc.setFillColor(...COLOR_SLATE_100);
-    doc.setDrawColor(...COLOR_SLATE_200);
-    doc.roundedRect(marginX, py, contentWidth, 12, 1.5, 1.5, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
-    doc.setTextColor(...COLOR_SLATE_900);
-    doc.text(sanitizePdfText(title), marginX + 3.5, py + 5.2);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(...COLOR_SLATE_500);
-    doc.text(sanitizePdfText(subtitle), marginX + 3.5, py + 9.5);
-    return py + 14;
-  };
-
-  cursorY = drawFullWidthPanelHeader(
-    cursorY,
-    'Peringkat Skor RC per Kabupaten/Kota',
-    'Rata-rata skor kesiapan wilayah pengusul di NTB'
-  );
-
-  const colGap = 5;
-  const regColWidth = (contentWidth - colGap) / 2;
-
-  if (regionalAverages.length === 0) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(...COLOR_SLATE_400);
-    doc.text('Belum ada data wilayah pengusul.', marginX + 3.5, cursorY + 6);
-  } else {
-    for (let idx = 0; idx < regionalAverages.length; idx += 2) {
-      if (cursorY + 9.5 > maxContentY) {
-        doc.addPage();
-        cursorY = drawTopInstitutionalBanner(true);
-        cursorY = drawFullWidthPanelHeader(
-          cursorY,
-          'Peringkat Skor RC per Kabupaten/Kota (Lanjutan)',
-          'Rata-rata skor kesiapan wilayah pengusul di NTB'
-        );
-      }
-
-      const pair = [regionalAverages[idx], regionalAverages[idx + 1]];
-      pair.forEach((reg, colIdx) => {
-        if (!reg) return;
-        const rankNum = idx + colIdx + 1;
-        const boxX = marginX + colIdx * (regColWidth + colGap);
-        const meta = getTierColors(reg.avgPct);
-        const innerW = regColWidth - 7;
-
-        doc.setFillColor(...COLOR_WHITE);
-        doc.setDrawColor(...COLOR_SLATE_200);
-        doc.roundedRect(boxX, cursorY, regColWidth, 8.8, 1.2, 1.2, 'FD');
-
-        const kabTitle = `${String(rankNum).padStart(2, '0')}. ${reg.kabupaten}`;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(...COLOR_SLATE_900);
-        doc.text(truncateTextToWidth(doc, kabTitle, innerW - 42), boxX + 3.5, cursorY + 3.8);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.6);
-        doc.setTextColor(...COLOR_SLATE_500);
-        doc.text(
-          sanitizePdfText(`${reg.count} paket · ${formatRpMiliar(reg.totalPagu)}`),
-          boxX + regColWidth - 16,
-          cursorY + 3.8,
-          { align: 'right' }
-        );
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.6);
-        doc.setTextColor(...meta.text);
-        doc.text(`${reg.avgPct}%`, boxX + regColWidth - 3.5, cursorY + 3.8, { align: 'right' });
-
-        // Bar
-        doc.setFillColor(...COLOR_SLATE_100);
-        doc.roundedRect(boxX + 3.5, cursorY + 5.2, innerW, 1.6, 0.7, 0.7, 'F');
-        doc.setFillColor(...meta.bar);
-        doc.roundedRect(
-          boxX + 3.5,
-          cursorY + 5.2,
-          Math.max(2, (innerW * Math.max(3, reg.avgPct)) / 100),
-          1.6,
-          0.7,
-          0.7,
-          'F'
-        );
-      });
-
-      cursorY += 9.7;
-    }
-  }
 
   // Add running footers across all pages
   const totalPages = doc.getNumberOfPages();
