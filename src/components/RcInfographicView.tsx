@@ -1125,7 +1125,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
         {/* Right Sidebars: Sector & Kabupaten/Kota RC Comparison */}
         <aside className="lg:col-span-4 space-y-6">
           {/* Rata-rata RC per Sektor */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+          <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 print:hidden">
             <div>
               <h3 className="text-sm font-bold text-slate-900">
                 Rata-Rata Skor RC per Sektor

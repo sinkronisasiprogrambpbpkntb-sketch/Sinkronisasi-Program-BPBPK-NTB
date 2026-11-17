@@ -566,105 +566,51 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                 </div>
               </div>
 
-              {/* Section 2: Sector & Regional Summary Panels */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-slate-200 rounded-lg p-3.5 bg-white space-y-2.5">
-                  <div className="bg-slate-100 border border-slate-200 rounded px-3 py-2">
-                    <div className="text-xs font-bold text-slate-900">
-                      Rata-Rata Skor RC per Sektor
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      Perbandingan tingkat kesiapan teknis antar bidang Cipta Karya
-                    </div>
+              {/* Section 2: Regional Summary Panel */}
+              <div className="border border-slate-200 rounded-lg p-3.5 bg-white space-y-2.5">
+                <div className="bg-slate-100 border border-slate-200 rounded px-3 py-2">
+                  <div className="text-xs font-bold text-slate-900">
+                    Peringkat Skor RC per Kabupaten/Kota
                   </div>
-                  <div className="space-y-2">
-                    {sectorAverages.map((sec) => {
-                      const tier = getTierHex(sec.avgPct);
-                      return (
-                        <div
-                          key={sec.sektor}
-                          className="border border-slate-200 rounded p-2.5 space-y-1"
-                        >
-                          <div className="flex items-baseline justify-between gap-2 text-xs">
-                            <span className="font-bold text-slate-900 truncate">
-                              {sec.shortLabel}
+                  <div className="text-[10px] text-slate-500">
+                    Rata-rata skor kesiapan wilayah pengusul di NTB
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {regionalAverages.map((reg, idx) => {
+                    const tier = getTierHex(reg.avgPct);
+                    return (
+                      <div
+                        key={reg.kabupaten}
+                        className="border border-slate-200 rounded p-2 space-y-1"
+                      >
+                        <div className="flex items-baseline justify-between gap-2 text-xs">
+                          <span className="font-bold text-slate-900 truncate">
+                            {String(idx + 1).padStart(2, '0')}. {reg.kabupaten}
+                          </span>
+                          <div className="flex items-baseline gap-2 shrink-0">
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              {reg.count} paket · {formatRpMiliar(reg.totalPagu)}
                             </span>
                             <span
                               className={`font-mono font-bold tabular-nums ${tier.textClass}`}
                             >
-                              {sec.avgPct}%
+                              {reg.avgPct}%
                             </span>
-                          </div>
-                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${Math.max(sec.count > 0 ? 3 : 0, sec.avgPct)}%`,
-                                backgroundColor: tier.bar,
-                              }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                            <span>
-                              {sec.count} paket · {formatRpMiliar(sec.totalPagu)}
-                            </span>
-                            {sec.count > 0 && (
-                              <span>
-                                Rentang: {sec.minPct}%-{sec.maxPct}%
-                              </span>
-                            )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="border border-slate-200 rounded-lg p-3.5 bg-white space-y-2.5">
-                  <div className="bg-slate-100 border border-slate-200 rounded px-3 py-2">
-                    <div className="text-xs font-bold text-slate-900">
-                      Peringkat Skor RC per Kabupaten/Kota
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      Rata-rata skor kesiapan wilayah pengusul di NTB
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    {regionalAverages.map((reg, idx) => {
-                      const tier = getTierHex(reg.avgPct);
-                      return (
-                        <div
-                          key={reg.kabupaten}
-                          className="border border-slate-200 rounded p-2 space-y-1"
-                        >
-                          <div className="flex items-baseline justify-between gap-2 text-xs">
-                            <span className="font-bold text-slate-900 truncate">
-                              {String(idx + 1).padStart(2, '0')}. {reg.kabupaten}
-                            </span>
-                            <div className="flex items-baseline gap-2 shrink-0">
-                              <span className="text-[10px] text-slate-500 font-mono">
-                                {reg.count} paket · {formatRpMiliar(reg.totalPagu)}
-                              </span>
-                              <span
-                                className={`font-mono font-bold tabular-nums ${tier.textClass}`}
-                              >
-                                {reg.avgPct}%
-                              </span>
-                            </div>
-                          </div>
-                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${Math.max(3, reg.avgPct)}%`,
-                                backgroundColor: tier.bar,
-                              }}
-                            />
-                          </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${Math.max(3, reg.avgPct)}%`,
+                              backgroundColor: tier.bar,
+                            }}
+                          />
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

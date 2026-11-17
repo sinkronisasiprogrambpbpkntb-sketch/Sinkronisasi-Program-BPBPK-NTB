@@ -136,7 +136,7 @@ export interface RcPdfPreviewPayload {
 function buildRcInfographicPdfDoc(
   rankedItems: PdfRankedProposalItem[],
   summaryStats: PdfSummaryStats,
-  sectorAverages: PdfSectorAverage[],
+  _sectorAverages: PdfSectorAverage[],
   regionalAverages: PdfRegionalAverage[],
   context: PdfExportContext
 ): { doc: jsPDF; fileName: string } {
@@ -690,191 +690,108 @@ function buildRcInfographicPdfDoc(
 
   cursorY += sigBoxHeight + 3;
 
-  // Section 2: Sector & Regional Summary Panels (side-by-side)
-  const sectorPanelHeight = 16 + sectorAverages.length * 10.5;
-  const regPanelHeight = 16 + Math.max(1, regionalAverages.length) * 9.5;
-  const summarySectionHeight = Math.max(sectorPanelHeight, regPanelHeight);
+  // Section 2: Regional Summary Panel (Peringkat Skor RC per Kabupaten/Kota, 2-column grid)
+  const regRowCount = Math.ceil(Math.max(1, regionalAverages.length) / 2);
+  const regSectionHeight = 16 + regRowCount * 9.7;
 
-  if (cursorY + 8 > maxContentY || cursorY + Math.min(48, summarySectionHeight) > maxContentY) {
+  if (cursorY + 8 > maxContentY || cursorY + Math.min(48, regSectionHeight) > maxContentY) {
     doc.addPage();
     cursorY = drawTopInstitutionalBanner(true);
   } else {
     cursorY += 3;
   }
 
-  const colGap = 5;
-  const panelWidth = (contentWidth - colGap) / 2;
-  const leftPanelX = marginX;
-  const rightPanelX = marginX + panelWidth + colGap;
-
-  // Draw Left Panel Header: Rata-Rata Skor RC per Sektor
-  const drawPanelBoxHeader = (px: number, py: number, title: string, subtitle: string) => {
+  const drawFullWidthPanelHeader = (py: number, title: string, subtitle: string) => {
     doc.setFillColor(...COLOR_SLATE_100);
     doc.setDrawColor(...COLOR_SLATE_200);
-    doc.roundedRect(px, py, panelWidth, 12, 1.5, 1.5, 'FD');
+    doc.roundedRect(marginX, py, contentWidth, 12, 1.5, 1.5, 'FD');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.8);
     doc.setTextColor(...COLOR_SLATE_900);
-    doc.text(sanitizePdfText(title), px + 3.5, py + 5.2);
+    doc.text(sanitizePdfText(title), marginX + 3.5, py + 5.2);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(...COLOR_SLATE_500);
-    doc.text(sanitizePdfText(subtitle), px + 3.5, py + 9.5);
+    doc.text(sanitizePdfText(subtitle), marginX + 3.5, py + 9.5);
     return py + 14;
   };
 
-  // Since regional list can be up to 10 Kabupaten/Kota, paginate cleanly if needed
-  let leftY = drawPanelBoxHeader(
-    leftPanelX,
-    cursorY,
-    'Rata-Rata Skor RC per Sektor',
-    'Perbandingan tingkat kesiapan teknis antar bidang Cipta Karya'
-  );
-  let rightY = drawPanelBoxHeader(
-    rightPanelX,
+  cursorY = drawFullWidthPanelHeader(
     cursorY,
     'Peringkat Skor RC per Kabupaten/Kota',
     'Rata-rata skor kesiapan wilayah pengusul di NTB'
   );
 
-  const sectorStartPage = doc.getCurrentPageInfo().pageNumber;
-
-  sectorAverages.forEach((sec) => {
-    if (leftY + 10 > maxContentY) {
-      doc.addPage();
-      leftY = drawTopInstitutionalBanner(true);
-      leftY = drawPanelBoxHeader(
-        leftPanelX,
-        leftY,
-        'Rata-Rata Skor RC per Sektor (Lanjutan)',
-        'Perbandingan tingkat kesiapan teknis antar bidang Cipta Karya'
-      );
-    }
-
-    const meta = getTierColors(sec.avgPct);
-    const innerW = panelWidth - 7;
-
-    doc.setFillColor(...COLOR_WHITE);
-    doc.setDrawColor(...COLOR_SLATE_200);
-    doc.roundedRect(leftPanelX, leftY, panelWidth, 9.5, 1.2, 1.2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.6);
-    doc.setTextColor(...COLOR_SLATE_900);
-    doc.text(truncateTextToWidth(doc, sec.shortLabel, innerW - 22), leftPanelX + 3.5, leftY + 4);
-
-    doc.setTextColor(...meta.text);
-    doc.text(`${sec.avgPct}%`, leftPanelX + panelWidth - 3.5, leftY + 4, { align: 'right' });
-
-    // Bar
-    doc.setFillColor(...COLOR_SLATE_100);
-    doc.roundedRect(leftPanelX + 3.5, leftY + 5.2, innerW, 1.6, 0.7, 0.7, 'F');
-    if (sec.count > 0) {
-      doc.setFillColor(...meta.bar);
-      doc.roundedRect(
-        leftPanelX + 3.5,
-        leftY + 5.2,
-        Math.max(2, (innerW * Math.max(3, sec.avgPct)) / 100),
-        1.6,
-        0.7,
-        0.7,
-        'F'
-      );
-    }
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
-    doc.setTextColor(...COLOR_SLATE_500);
-    doc.text(
-      sanitizePdfText(`${sec.count} paket · ${formatRpMiliar(sec.totalPagu)}`),
-      leftPanelX + 3.5,
-      leftY + 8.6
-    );
-    if (sec.count > 0) {
-      doc.text(
-        sanitizePdfText(`${sec.minPct}%-${sec.maxPct}%`),
-        leftPanelX + panelWidth - 3.5,
-        leftY + 8.6,
-        { align: 'right' }
-      );
-    }
-
-    leftY += 10.5;
-  });
-
-  // Return to sectorStartPage for right column so both columns align side-by-side
-  doc.setPage(sectorStartPage);
-  let rightPage = sectorStartPage;
+  const colGap = 5;
+  const regColWidth = (contentWidth - colGap) / 2;
 
   if (regionalAverages.length === 0) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...COLOR_SLATE_400);
-    doc.text('Belum ada data wilayah pengusul.', rightPanelX + 3.5, rightY + 6);
+    doc.text('Belum ada data wilayah pengusul.', marginX + 3.5, cursorY + 6);
   } else {
-    regionalAverages.forEach((reg, idx) => {
-      if (rightY + 9.5 > maxContentY) {
-        const nextPageNum = rightPage + 1;
-        if (nextPageNum <= doc.getNumberOfPages()) {
-          doc.setPage(nextPageNum);
-          rightY = 27;
-        } else {
-          doc.addPage();
-          rightY = drawTopInstitutionalBanner(true);
-        }
-        rightPage = doc.getCurrentPageInfo().pageNumber;
-        rightY = drawPanelBoxHeader(
-          rightPanelX,
-          rightY,
+    for (let idx = 0; idx < regionalAverages.length; idx += 2) {
+      if (cursorY + 9.5 > maxContentY) {
+        doc.addPage();
+        cursorY = drawTopInstitutionalBanner(true);
+        cursorY = drawFullWidthPanelHeader(
+          cursorY,
           'Peringkat Skor RC per Kabupaten/Kota (Lanjutan)',
           'Rata-rata skor kesiapan wilayah pengusul di NTB'
         );
       }
 
-      const meta = getTierColors(reg.avgPct);
-      const innerW = panelWidth - 7;
+      const pair = [regionalAverages[idx], regionalAverages[idx + 1]];
+      pair.forEach((reg, colIdx) => {
+        if (!reg) return;
+        const rankNum = idx + colIdx + 1;
+        const boxX = marginX + colIdx * (regColWidth + colGap);
+        const meta = getTierColors(reg.avgPct);
+        const innerW = regColWidth - 7;
 
-      doc.setFillColor(...COLOR_WHITE);
-      doc.setDrawColor(...COLOR_SLATE_200);
-      doc.roundedRect(rightPanelX, rightY, panelWidth, 8.8, 1.2, 1.2, 'FD');
+        doc.setFillColor(...COLOR_WHITE);
+        doc.setDrawColor(...COLOR_SLATE_200);
+        doc.roundedRect(boxX, cursorY, regColWidth, 8.8, 1.2, 1.2, 'FD');
 
-      const kabTitle = `${String(idx + 1).padStart(2, '0')}. ${reg.kabupaten}`;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...COLOR_SLATE_900);
-      doc.text(truncateTextToWidth(doc, kabTitle, innerW - 42), rightPanelX + 3.5, rightY + 3.8);
+        const kabTitle = `${String(rankNum).padStart(2, '0')}. ${reg.kabupaten}`;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...COLOR_SLATE_900);
+        doc.text(truncateTextToWidth(doc, kabTitle, innerW - 42), boxX + 3.5, cursorY + 3.8);
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.6);
-      doc.setTextColor(...COLOR_SLATE_500);
-      doc.text(
-        sanitizePdfText(`${reg.count} paket · ${formatRpMiliar(reg.totalPagu)}`),
-        rightPanelX + panelWidth - 16,
-        rightY + 3.8,
-        { align: 'right' }
-      );
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.6);
+        doc.setTextColor(...COLOR_SLATE_500);
+        doc.text(
+          sanitizePdfText(`${reg.count} paket · ${formatRpMiliar(reg.totalPagu)}`),
+          boxX + regColWidth - 16,
+          cursorY + 3.8,
+          { align: 'right' }
+        );
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.6);
-      doc.setTextColor(...meta.text);
-      doc.text(`${reg.avgPct}%`, rightPanelX + panelWidth - 3.5, rightY + 3.8, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.6);
+        doc.setTextColor(...meta.text);
+        doc.text(`${reg.avgPct}%`, boxX + regColWidth - 3.5, cursorY + 3.8, { align: 'right' });
 
-      // Bar
-      doc.setFillColor(...COLOR_SLATE_100);
-      doc.roundedRect(rightPanelX + 3.5, rightY + 5.2, innerW, 1.6, 0.7, 0.7, 'F');
-      doc.setFillColor(...meta.bar);
-      doc.roundedRect(
-        rightPanelX + 3.5,
-        rightY + 5.2,
-        Math.max(2, (innerW * Math.max(3, reg.avgPct)) / 100),
-        1.6,
-        0.7,
-        0.7,
-        'F'
-      );
+        // Bar
+        doc.setFillColor(...COLOR_SLATE_100);
+        doc.roundedRect(boxX + 3.5, cursorY + 5.2, innerW, 1.6, 0.7, 0.7, 'F');
+        doc.setFillColor(...meta.bar);
+        doc.roundedRect(
+          boxX + 3.5,
+          cursorY + 5.2,
+          Math.max(2, (innerW * Math.max(3, reg.avgPct)) / 100),
+          1.6,
+          0.7,
+          0.7,
+          'F'
+        );
+      });
 
-      rightY += 9.7;
-    });
+      cursorY += 9.7;
+    }
   }
 
   // Add running footers across all pages
