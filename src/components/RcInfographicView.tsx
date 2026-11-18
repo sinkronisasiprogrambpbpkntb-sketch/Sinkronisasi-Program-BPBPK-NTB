@@ -23,7 +23,11 @@ import {
   PdfSignatoriesConfig,
   RcPdfLayoutMode,
 } from '../utils/exportRcInfographicPdf';
-import { loadPuLogoDataUrl, PU_LOGO_SRC } from '../utils/puLogoAsset';
+import {
+  loadPuBatikAssets,
+  loadPuLogoDataUrl,
+  PU_LOGO_SRC,
+} from '../utils/puLogoAsset';
 import { RcInfographicPreviewModal } from './RcInfographicPreviewModal';
 
 interface RcInfographicViewProps {
@@ -95,6 +99,8 @@ function createEmptySignatories(): PdfSignatoriesConfig {
   return {
     tempatTanggal: getDefaultTempatTanggal(),
     mengesahkan: { jabatan: '', nama: '' },
+    mengesahkan2: { jabatan: '', nama: '' },
+    mengesahkan3: { jabatan: '', nama: '' },
     menyetujui: { jabatan: '', nama: '' },
   };
 }
@@ -114,6 +120,14 @@ function loadInitialSignatories(): PdfSignatoriesConfig {
       mengesahkan: {
         jabatan: parsed.mengesahkan?.jabatan ?? '',
         nama: parsed.mengesahkan?.nama ?? '',
+      },
+      mengesahkan2: {
+        jabatan: parsed.mengesahkan2?.jabatan ?? '',
+        nama: parsed.mengesahkan2?.nama ?? '',
+      },
+      mengesahkan3: {
+        jabatan: parsed.mengesahkan3?.jabatan ?? '',
+        nama: parsed.mengesahkan3?.nama ?? '',
       },
       menyetujui: {
         jabatan: parsed.menyetujui?.jabatan ?? '',
@@ -434,13 +448,16 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   );
 
   const handleExportPdf = async (layoutMode: RcPdfLayoutMode = 'multi') => {
-    const logoDataUrl = await loadPuLogoDataUrl();
+    const [logoDataUrl, batikAssets] = await Promise.all([
+      loadPuLogoDataUrl(),
+      loadPuBatikAssets(),
+    ]);
     const fileName = exportRcInfographicPdf(
       filteredRanked,
       summaryStats,
       sectorAverages,
       regionalAverages,
-      { ...pdfContext, logoDataUrl, layoutMode }
+      { ...pdfContext, logoDataUrl, batikAssets, layoutMode }
     );
     onPdfExported?.(fileName);
   };
@@ -467,41 +484,44 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
 
   return (
     <div className="space-y-6 print:space-y-4">
-      {/* Print-only Institutional Header (Ctrl+P fallback) */}
-      <div className="hidden print:flex items-center justify-between gap-4 border-b-2 border-slate-900 pb-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <img
-            src={PU_LOGO_SRC}
-            alt="Logo Kementerian Pekerjaan Umum"
-            className="w-14 h-14 object-contain rounded border border-amber-500/70 shrink-0"
-          />
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold tracking-wider text-blue-800 uppercase">
-              Kementerian Pekerjaan Umum · SIMPRA BPBPK Nusa Tenggara Barat
+      {/* Print-only Batik PU Institutional Header (Ctrl+P fallback) */}
+      <div className="hidden print:block space-y-2">
+        <div className="h-2.5 w-full batik-pu-strip border-b-2 border-[#E89611]" />
+        <div className="batik-pu-banner text-white px-4 py-3 border-l-4 border-[#E89611] border-b-2 border-b-[#E89611] flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src={PU_LOGO_SRC}
+              alt="Logo Kementerian Pekerjaan Umum"
+              className="w-14 h-14 object-contain rounded bg-white p-0.5 border border-[#E89611] shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold tracking-wider text-amber-200 uppercase">
+                Kementerian Pekerjaan Umum · SIMPRA BPBPK Nusa Tenggara Barat
+              </div>
+              <h1 className="text-lg font-bold text-white">
+                Infografis Peringkat Skor Readiness Criteria (RC)
+              </h1>
+              <p className="text-xs font-medium text-indigo-100 mt-0.5">
+                Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
+              </p>
+              <p className="text-[11px] text-amber-100 mt-0.5">
+                Sektor Teknis: {sectorFilterLabel} · {yearFilterLabel} · {tierFilterLabel} ·{' '}
+                {statusFilterLabel} · {filteredRanked.length} dari {statusScoped.length} Paket
+              </p>
             </div>
-            <h1 className="text-lg font-bold text-slate-900">
-              Infografis Peringkat Skor Readiness Criteria (RC)
-            </h1>
-            <p className="text-xs font-semibold text-[#0A1D6E] mt-0.5">
-              Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
-            </p>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Sektor Teknis: {sectorFilterLabel} · {yearFilterLabel} · {tierFilterLabel} ·{' '}
-              {statusFilterLabel} · {filteredRanked.length} dari {statusScoped.length} Paket
-            </p>
           </div>
-        </div>
-        <div className="text-right text-[11px] text-slate-500 font-mono shrink-0">
-          <div>
-            {sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi'}
-          </div>
-          <div>
-            Dicetak:{' '}
-            {new Intl.DateTimeFormat('id-ID', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            }).format(new Date())}
+          <div className="text-right text-[11px] text-indigo-100 font-mono shrink-0">
+            <div>
+              {sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi'}
+            </div>
+            <div>
+              Dicetak:{' '}
+              {new Intl.DateTimeFormat('id-ID', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              }).format(new Date())}
+            </div>
           </div>
         </div>
       </div>
@@ -1011,11 +1031,11 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
-                {/* Sebelah Kiri: Mengesahkan */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pt-1">
+                {/* Mengesahkan 1 */}
                 <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
                   <div className="text-xs font-bold text-slate-900">
-                    Mengesahkan (Sebelah Kiri)
+                    Mengesahkan 1
                   </div>
                   <div>
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
@@ -1049,6 +1069,100 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                           ...prev,
                           mengesahkan: {
                             ...prev.mengesahkan,
+                            nama: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Nama pejabat yang mengesahkan"
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Mengesahkan 2 */}
+                <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                  <div className="text-xs font-bold text-slate-900">
+                    Mengesahkan 2
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Jabatan
+                    </label>
+                    <input
+                      type="text"
+                      value={signatories.mengesahkan2?.jabatan ?? ''}
+                      onChange={(e) =>
+                        setSignatories((prev) => ({
+                          ...prev,
+                          mengesahkan2: {
+                            jabatan: e.target.value,
+                            nama: prev.mengesahkan2?.nama ?? '',
+                          },
+                        }))
+                      }
+                      placeholder="Contoh: Kepala Dinas PUPR Kab./Kota"
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Nama Lengkap &amp; Gelar
+                    </label>
+                    <input
+                      type="text"
+                      value={signatories.mengesahkan2?.nama ?? ''}
+                      onChange={(e) =>
+                        setSignatories((prev) => ({
+                          ...prev,
+                          mengesahkan2: {
+                            jabatan: prev.mengesahkan2?.jabatan ?? '',
+                            nama: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Nama pejabat yang mengesahkan"
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Mengesahkan 3 */}
+                <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                  <div className="text-xs font-bold text-slate-900">
+                    Mengesahkan 3
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Jabatan
+                    </label>
+                    <input
+                      type="text"
+                      value={signatories.mengesahkan3?.jabatan ?? ''}
+                      onChange={(e) =>
+                        setSignatories((prev) => ({
+                          ...prev,
+                          mengesahkan3: {
+                            jabatan: e.target.value,
+                            nama: prev.mengesahkan3?.nama ?? '',
+                          },
+                        }))
+                      }
+                      placeholder="Contoh: Kepala Bappeda Provinsi NTB"
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Nama Lengkap &amp; Gelar
+                    </label>
+                    <input
+                      type="text"
+                      value={signatories.mengesahkan3?.nama ?? ''}
+                      onChange={(e) =>
+                        setSignatories((prev) => ({
+                          ...prev,
+                          mengesahkan3: {
+                            jabatan: prev.mengesahkan3?.jabatan ?? '',
                             nama: e.target.value,
                           },
                         }))
@@ -1109,24 +1223,32 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
             </div>
 
             {/* Print-only Formal Signature Block */}
-            <div className="hidden print:grid print:grid-cols-2 gap-8 py-2 text-center text-xs text-slate-900">
-              <div className="flex flex-col items-center justify-between min-h-[120px]">
-                <div>
-                  <div className="h-4" />
-                  <div className="font-bold">Mengesahkan,</div>
-                  {signatories.mengesahkan.jabatan.trim() && (
-                    <div className="text-[11px] text-slate-700 mt-0.5 max-w-xs">
-                      {signatories.mengesahkan.jabatan.trim()}
+            <div className="hidden print:grid print:grid-cols-4 gap-4 py-2 text-center text-xs text-slate-900">
+              {[
+                signatories.mengesahkan,
+                signatories.mengesahkan2 ?? { jabatan: '', nama: '' },
+                signatories.mengesahkan3 ?? { jabatan: '', nama: '' },
+              ].map((party, idx) => (
+                <div
+                  key={`rc-print-mengesahkan-${idx}`}
+                  className="flex flex-col items-center justify-between min-h-[120px]"
+                >
+                  <div>
+                    <div className="h-4" />
+                    <div className="font-bold">Mengesahkan,</div>
+                    {party.jabatan.trim() && (
+                      <div className="text-[11px] text-slate-700 mt-0.5 max-w-[190px]">
+                        {party.jabatan.trim()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="pt-12">
+                    <div className="font-bold underline underline-offset-4">
+                      {party.nama.trim() || '( .............................. )'}
                     </div>
-                  )}
-                </div>
-                <div className="pt-12">
-                  <div className="font-bold underline underline-offset-4">
-                    {signatories.mengesahkan.nama.trim() ||
-                      '( ........................................ )'}
                   </div>
                 </div>
-              </div>
+              ))}
 
               <div className="flex flex-col items-center justify-between min-h-[120px]">
                 <div>
@@ -1135,7 +1257,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                   </div>
                   <div className="font-bold">Menyetujui,</div>
                   {signatories.menyetujui.jabatan.trim() && (
-                    <div className="text-[11px] text-slate-700 mt-0.5 max-w-xs">
+                    <div className="text-[11px] text-slate-700 mt-0.5 max-w-[190px]">
                       {signatories.menyetujui.jabatan.trim()}
                     </div>
                   )}
@@ -1143,7 +1265,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 <div className="pt-12">
                   <div className="font-bold underline underline-offset-4">
                     {signatories.menyetujui.nama.trim() ||
-                      '( ........................................ )'}
+                      '( .............................. )'}
                   </div>
                 </div>
               </div>

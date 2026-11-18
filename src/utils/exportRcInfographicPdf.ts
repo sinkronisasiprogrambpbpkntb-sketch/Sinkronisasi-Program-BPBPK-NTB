@@ -1,7 +1,11 @@
 import { jsPDF } from 'jspdf';
 import { formatRpMiliar, SEKTOR_SHORT_LABELS } from '../data/initialProposals';
 import { SektorCiptaKarya, UsulanProgram } from '../types/ciptaKarya';
-import { getCachedPuLogoDataUrl } from './puLogoAsset';
+import {
+  getCachedPuBatikAssets,
+  getCachedPuLogoDataUrl,
+  PuBatikPdfAssets,
+} from './puLogoAsset';
 
 export interface PdfRankedProposalItem {
   proposal: UsulanProgram;
@@ -50,6 +54,8 @@ export interface PdfSignatoryParty {
 export interface PdfSignatoriesConfig {
   tempatTanggal: string;
   mengesahkan: PdfSignatoryParty;
+  mengesahkan2?: PdfSignatoryParty;
+  mengesahkan3?: PdfSignatoryParty;
   menyetujui: PdfSignatoryParty;
 }
 
@@ -64,10 +70,17 @@ export interface PdfExportContext {
   searchQuery: string;
   signatories?: PdfSignatoriesConfig;
   logoDataUrl?: string | null;
+  batikAssets?: PuBatikPdfAssets | null;
   layoutMode?: RcPdfLayoutMode;
 }
 
 type RgbTuple = [number, number, number];
+
+const COLOR_PU_NAVY: RgbTuple = [6, 20, 89];
+const COLOR_PU_GOLD: RgbTuple = [232, 150, 17];
+const COLOR_PU_GOLD_LIGHT: RgbTuple = [253, 230, 138];
+const COLOR_PU_BORDER: RgbTuple = [199, 211, 232];
+const COLOR_PU_TINT: RgbTuple = [238, 242, 250];
 
 const COLOR_SLATE_900: RgbTuple = [15, 23, 42];
 const COLOR_SLATE_700: RgbTuple = [51, 65, 85];
@@ -83,6 +96,78 @@ const COLOR_EMERALD_600: RgbTuple = [5, 150, 105];
 const COLOR_EMERALD_700: RgbTuple = [4, 120, 87];
 const COLOR_AMBER_500: RgbTuple = [245, 158, 11];
 const COLOR_AMBER_700: RgbTuple = [180, 83, 9];
+
+function applyBatikPuPageFrame(
+  doc: jsPDF,
+  pageWidth: number,
+  pageHeight: number,
+  batikAssets?: PuBatikPdfAssets | null
+) {
+  if (batikAssets?.watermarkDataUrl?.startsWith('data:image/')) {
+    try {
+      doc.addImage(
+        batikAssets.watermarkDataUrl,
+        'JPEG',
+        0,
+        0,
+        pageWidth,
+        pageHeight,
+        undefined,
+        'FAST'
+      );
+    } catch {
+      // fallback plain background
+    }
+  }
+
+  // Top Batik PU ornamental ribbon + gold trim
+  if (batikAssets?.stripDataUrl?.startsWith('data:image/')) {
+    try {
+      doc.addImage(
+        batikAssets.stripDataUrl,
+        'JPEG',
+        0,
+        0,
+        pageWidth,
+        2.8,
+        undefined,
+        'FAST'
+      );
+    } catch {
+      doc.setFillColor(...COLOR_PU_NAVY);
+      doc.rect(0, 0, pageWidth, 2.8, 'F');
+    }
+  } else {
+    doc.setFillColor(...COLOR_PU_NAVY);
+    doc.rect(0, 0, pageWidth, 2.8, 'F');
+  }
+  doc.setFillColor(...COLOR_PU_GOLD);
+  doc.rect(0, 2.8, pageWidth, 0.55, 'F');
+
+  // Bottom gold trim + Batik PU ornamental ribbon
+  doc.setFillColor(...COLOR_PU_GOLD);
+  doc.rect(0, pageHeight - 2.65, pageWidth, 0.45, 'F');
+  if (batikAssets?.stripDataUrl?.startsWith('data:image/')) {
+    try {
+      doc.addImage(
+        batikAssets.stripDataUrl,
+        'JPEG',
+        0,
+        pageHeight - 2.2,
+        pageWidth,
+        2.2,
+        undefined,
+        'FAST'
+      );
+    } catch {
+      doc.setFillColor(...COLOR_PU_NAVY);
+      doc.rect(0, pageHeight - 2.2, pageWidth, 2.2, 'F');
+    }
+  } else {
+    doc.setFillColor(...COLOR_PU_NAVY);
+    doc.rect(0, pageHeight - 2.2, pageWidth, 2.2, 'F');
+  }
+}
 
 function sanitizePdfText(raw: string): string {
   return String(raw ?? '')
@@ -166,26 +251,47 @@ function buildRcInfographicSingleSheetPdfDoc(
   }).format(new Date());
 
   const puLogoDataUrl = context.logoDataUrl ?? getCachedPuLogoDataUrl();
+  const batikAssets = context.batikAssets ?? getCachedPuBatikAssets();
 
-  // 1. Compact Top Institutional Banner (y: 7..26, height 19mm)
-  const bannerY = 7;
+  applyBatikPuPageFrame(doc, pageWidth, pageHeight, batikAssets);
+
+  // 1. Compact Top Institutional Banner (y: 6.5..25.5, height 19mm)
+  const bannerY = 6.5;
   const bannerH = 19;
-  doc.setFillColor(...COLOR_SLATE_900);
+  doc.setFillColor(...COLOR_PU_NAVY);
   doc.rect(marginX, bannerY, contentWidth, bannerH, 'F');
-  doc.setFillColor(...COLOR_BLUE_700);
-  doc.rect(marginX, bannerY, 2.2, bannerH, 'F');
+  if (batikAssets?.bannerDataUrl?.startsWith('data:image/')) {
+    try {
+      doc.addImage(
+        batikAssets.bannerDataUrl,
+        'JPEG',
+        marginX,
+        bannerY,
+        contentWidth,
+        bannerH,
+        undefined,
+        'FAST'
+      );
+    } catch {
+      // keep navy fallback
+    }
+  }
+  doc.setFillColor(...COLOR_PU_GOLD);
+  doc.rect(marginX, bannerY, 2.4, bannerH, 'F');
+  doc.rect(marginX, bannerY + bannerH - 0.7, contentWidth, 0.7, 'F');
 
   let hasLogoRendered = false;
   if (puLogoDataUrl && puLogoDataUrl.startsWith('data:image/')) {
     try {
-      doc.setDrawColor(232, 150, 17);
-      doc.setLineWidth(0.3);
-      doc.rect(marginX + 3.5, bannerY + 2.3, 14.4, 14.4, 'S');
+      doc.setFillColor(...COLOR_WHITE);
+      doc.setDrawColor(...COLOR_PU_GOLD);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(marginX + 3.8, bannerY + 2.1, 14.6, 14.6, 1.0, 1.0, 'FD');
       doc.addImage(
         puLogoDataUrl,
         'PNG',
-        marginX + 3.7,
-        bannerY + 2.5,
+        marginX + 4.1,
+        bannerY + 2.4,
         14,
         14,
         undefined,
@@ -199,10 +305,10 @@ function buildRcInfographicSingleSheetPdfDoc(
     }
   }
 
-  const leftTextX = hasLogoRendered ? marginX + 20.5 : marginX + 5;
-  doc.setFont('helvetica', 'normal');
+  const leftTextX = hasLogoRendered ? marginX + 21 : marginX + 5.5;
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.6);
-  doc.setTextColor(147, 197, 253);
+  doc.setTextColor(...COLOR_PU_GOLD_LIGHT);
   doc.text(
     'KEMENTERIAN PEKERJAAN UMUM · SIMPRA BPBPK NUSA TENGGARA BARAT',
     leftTextX,
@@ -220,16 +326,16 @@ function buildRcInfographicSingleSheetPdfDoc(
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.6);
-  doc.setTextColor(253, 230, 138);
+  doc.setTextColor(224, 231, 255);
   doc.text(
     'Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat',
     leftTextX,
-    bannerY + 15.2
+    bannerY + 15.0
   );
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.8);
-  doc.setTextColor(203, 213, 225);
+  doc.setTextColor(224, 231, 255);
   doc.text(
     sanitizePdfText(`Tahun Anggaran: ${context.yearFilterLabel} | Mode: 1 Kertas`),
     pageWidth - marginX - 3.5,
@@ -249,11 +355,13 @@ function buildRcInfographicSingleSheetPdfDoc(
     { align: 'right' }
   );
 
-  // 2. Compact Filter Context Strip (y: 27.2..32.4)
+  // 2. Compact Filter Context Strip
   const stripY = bannerY + bannerH + 1.4;
-  doc.setFillColor(...COLOR_SLATE_100);
-  doc.setDrawColor(...COLOR_SLATE_200);
+  doc.setFillColor(...COLOR_PU_TINT);
+  doc.setDrawColor(...COLOR_PU_BORDER);
   doc.roundedRect(marginX, stripY, contentWidth, 5.4, 1.2, 1.2, 'FD');
+  doc.setFillColor(...COLOR_PU_NAVY);
+  doc.rect(marginX, stripY + 0.6, 1.3, 4.2, 'F');
 
   const sortText =
     context.sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi';
@@ -268,14 +376,14 @@ function buildRcInfographicSingleSheetPdfDoc(
   }
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.6);
-  doc.setTextColor(...COLOR_SLATE_700);
+  doc.setTextColor(...COLOR_PU_NAVY);
   doc.text(
-    truncateTextToWidth(doc, metaParts.join('  |  '), contentWidth - 6),
-    marginX + 3,
+    truncateTextToWidth(doc, metaParts.join('  |  '), contentWidth - 7),
+    marginX + 3.5,
     stripY + 3.7
   );
 
-  // 3. Compact 3-Column KPI Summary Row (y: 34..54.5, height 20.5mm)
+  // 3. Compact 3-Column KPI Summary Row
   const kpiY = stripY + 7;
   const kpiH = 20.5;
   const kpiGap = 3.5;
@@ -284,12 +392,16 @@ function buildRcInfographicSingleSheetPdfDoc(
   const drawCompactKpiFrame = (colIdx: number, title: string) => {
     const x = marginX + colIdx * (kpiW + kpiGap);
     doc.setFillColor(...COLOR_WHITE);
-    doc.setDrawColor(...COLOR_SLATE_200);
+    doc.setDrawColor(...COLOR_PU_BORDER);
     doc.roundedRect(x, kpiY, kpiW, kpiH, 1.5, 1.5, 'FD');
+    doc.setFillColor(...COLOR_PU_NAVY);
+    doc.rect(x + 1, kpiY, kpiW - 2, 1.0, 'F');
+    doc.setFillColor(...COLOR_PU_GOLD);
+    doc.rect(x + 1, kpiY, 16, 1.0, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.8);
-    doc.setTextColor(...COLOR_SLATE_500);
-    doc.text(sanitizePdfText(title), x + 3, kpiY + 4.1);
+    doc.setTextColor(...COLOR_PU_NAVY);
+    doc.text(sanitizePdfText(title), x + 3, kpiY + 4.4);
     return x;
   };
 
@@ -441,21 +553,23 @@ function buildRcInfographicSingleSheetPdfDoc(
     }
   });
 
-  // 4. Section Header (y: 56..63, height 6.8mm)
+  // 4. Section Header (Deep Batik PU Navy bar with Gold Accent)
   const secY = kpiY + kpiH + 2;
-  doc.setFillColor(...COLOR_SLATE_100);
-  doc.setDrawColor(...COLOR_SLATE_200);
-  doc.roundedRect(marginX, secY, contentWidth, 6.8, 1.2, 1.2, 'FD');
+  doc.setFillColor(...COLOR_PU_NAVY);
+  doc.rect(marginX, secY, contentWidth, 6.8, 'F');
+  doc.setFillColor(...COLOR_PU_GOLD);
+  doc.rect(marginX, secY, 2.0, 6.8, 'F');
+  doc.rect(marginX, secY + 6.3, contentWidth, 0.5, 'F');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.0);
-  doc.setTextColor(...COLOR_SLATE_900);
+  doc.setTextColor(...COLOR_WHITE);
   const sortTitle =
     context.sortOrder === 'desc' ? 'Tertinggi - Terendah' : 'Terendah - Tertinggi';
   doc.text(
     `Grafik Peringkat Skor RC per Paket Usulan (${sortTitle}) · Seluruh ${rankedItems.length} Paket dalam 1 Kertas`,
-    marginX + 3,
-    secY + 4.5
+    marginX + 4,
+    secY + 4.4
   );
 
   const legendItems: Array<{ label: string; color: RgbTuple }> = [
@@ -466,16 +580,16 @@ function buildRcInfographicSingleSheetPdfDoc(
   let lx = pageWidth - marginX - 3;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.2);
-  doc.setTextColor(...COLOR_SLATE_700);
-  doc.text('| Ambang = 80%', lx, secY + 4.5, { align: 'right' });
+  doc.setTextColor(...COLOR_PU_GOLD_LIGHT);
+  doc.text('| Ambang = 80%', lx, secY + 4.4, { align: 'right' });
   lx -= doc.getTextWidth('| Ambang = 80%') + 4;
   for (let i = legendItems.length - 1; i >= 0; i -= 1) {
     const leg = legendItems[i];
     const lw = doc.getTextWidth(leg.label);
-    doc.setTextColor(...COLOR_SLATE_700);
-    doc.text(leg.label, lx, secY + 4.5, { align: 'right' });
+    doc.setTextColor(...COLOR_WHITE);
+    doc.text(leg.label, lx, secY + 4.4, { align: 'right' });
     doc.setFillColor(...leg.color);
-    doc.circle(lx - lw - 2, secY + 3.7, 1.0, 'F');
+    doc.circle(lx - lw - 2, secY + 3.6, 1.0, 'F');
     lx -= lw + 5.5;
   }
 
@@ -648,18 +762,22 @@ function buildRcInfographicSingleSheetPdfDoc(
     });
   }
 
-  // 6. Signature Block (Mengesahkan Kiri & Menyetujui Kanan)
+  // 6. Signature Block (3 Mengesahkan + 1 Menyetujui)
   doc.setFillColor(...COLOR_WHITE);
-  doc.setDrawColor(...COLOR_SLATE_200);
+  doc.setDrawColor(...COLOR_PU_BORDER);
   doc.roundedRect(marginX, sigY, contentWidth, sigBoxHeight, 1.5, 1.5, 'FD');
+  doc.setFillColor(...COLOR_PU_NAVY);
+  doc.rect(marginX + 1, sigY, contentWidth - 2, 1.0, 'F');
+  doc.setFillColor(...COLOR_PU_GOLD);
+  doc.rect(marginX + 1, sigY, 28, 1.0, 'F');
 
-  const leftCenterX = marginX + contentWidth * 0.25;
-  const rightCenterX = marginX + contentWidth * 0.75;
-  const sigColMaxW = contentWidth * 0.42;
+  const sigColMaxW = contentWidth * 0.22;
 
   const sigConfig: PdfSignatoriesConfig = context.signatories ?? {
     tempatTanggal: '',
     mengesahkan: { jabatan: '', nama: '' },
+    mengesahkan2: { jabatan: '', nama: '' },
+    mengesahkan3: { jabatan: '', nama: '' },
     menyetujui: { jabatan: '', nama: '' },
   };
 
@@ -672,7 +790,7 @@ function buildRcInfographicSingleSheetPdfDoc(
     const cleanTop = sanitizePdfText(topMeta);
     if (cleanTop) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.8);
+      doc.setFontSize(6.6);
       doc.setTextColor(...COLOR_SLATE_700);
       doc.text(truncateTextToWidth(doc, cleanTop, sigColMaxW), centerX, sigY + 4.0, {
         align: 'center',
@@ -680,14 +798,14 @@ function buildRcInfographicSingleSheetPdfDoc(
     }
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.6);
+    doc.setFontSize(7.4);
     doc.setTextColor(...COLOR_SLATE_900);
     doc.text(headingLabel, centerX, sigY + 7.6, { align: 'center' });
 
     const cleanJabatan = sanitizePdfText(party.jabatan);
     if (cleanJabatan) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.8);
+      doc.setFontSize(6.5);
       doc.setTextColor(...COLOR_SLATE_700);
       const jabLines = doc.splitTextToSize(cleanJabatan, sigColMaxW).slice(0, 2) as string[];
       jabLines.forEach((line, lIdx) => {
@@ -700,7 +818,7 @@ function buildRcInfographicSingleSheetPdfDoc(
     if (cleanNama) {
       const displayNama = truncateTextToWidth(doc, cleanNama, sigColMaxW);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.6);
+      doc.setFontSize(7.4);
       doc.setTextColor(...COLOR_SLATE_900);
       doc.text(displayNama, centerX, nameY, { align: 'center' });
 
@@ -711,17 +829,34 @@ function buildRcInfographicSingleSheetPdfDoc(
       doc.setLineWidth(0.2);
     } else {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.2);
+      doc.setFontSize(6.8);
       doc.setTextColor(...COLOR_SLATE_400);
-      doc.text('( ........................................ )', centerX, nameY, {
+      doc.text('( .............................. )', centerX, nameY, {
         align: 'center',
       });
     }
   };
 
-  renderSingleSheetSignatureCol(leftCenterX, 'Mengesahkan,', '', sigConfig.mengesahkan);
   renderSingleSheetSignatureCol(
-    rightCenterX,
+    marginX + contentWidth * 0.125,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan
+  );
+  renderSingleSheetSignatureCol(
+    marginX + contentWidth * 0.375,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
+  );
+  renderSingleSheetSignatureCol(
+    marginX + contentWidth * 0.625,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
+  );
+  renderSingleSheetSignatureCol(
+    marginX + contentWidth * 0.875,
     'Menyetujui,',
     sigConfig.tempatTanggal,
     sigConfig.menyetujui
@@ -779,27 +914,50 @@ function buildRcInfographicPdfDoc(
   }).format(new Date());
 
   const puLogoDataUrl = context.logoDataUrl ?? getCachedPuLogoDataUrl();
+  const batikAssets = context.batikAssets ?? getCachedPuBatikAssets();
 
   const drawTopInstitutionalBanner = (isContinuation: boolean) => {
+    applyBatikPuPageFrame(doc, pageWidth, pageHeight, batikAssets);
+
+    const bannerY = 7.5;
     const bannerHeight = isContinuation ? 13 : 24;
-    doc.setFillColor(...COLOR_SLATE_900);
-    doc.rect(marginX, 10, contentWidth, bannerHeight, 'F');
-    doc.setFillColor(...COLOR_BLUE_700);
-    doc.rect(marginX, 10, 2.5, bannerHeight, 'F');
+    doc.setFillColor(...COLOR_PU_NAVY);
+    doc.rect(marginX, bannerY, contentWidth, bannerHeight, 'F');
+    if (batikAssets?.bannerDataUrl?.startsWith('data:image/')) {
+      try {
+        doc.addImage(
+          batikAssets.bannerDataUrl,
+          'JPEG',
+          marginX,
+          bannerY,
+          contentWidth,
+          bannerHeight,
+          undefined,
+          'FAST'
+        );
+      } catch {
+        // navy fallback
+      }
+    }
+    doc.setFillColor(...COLOR_PU_GOLD);
+    doc.rect(marginX, bannerY, 2.5, bannerHeight, 'F');
+    doc.rect(marginX, bannerY + bannerHeight - 0.7, contentWidth, 0.7, 'F');
 
     let hasLogoRendered = false;
     if (puLogoDataUrl && puLogoDataUrl.startsWith('data:image/')) {
       try {
         if (isContinuation) {
-          doc.setDrawColor(232, 150, 17);
+          doc.setFillColor(...COLOR_WHITE);
+          doc.setDrawColor(...COLOR_PU_GOLD);
           doc.setLineWidth(0.3);
-          doc.rect(marginX + 4.3, 11.3, 10.4, 10.4, 'S');
-          doc.addImage(puLogoDataUrl, 'PNG', marginX + 4.5, 11.5, 10, 10, undefined, 'FAST');
+          doc.roundedRect(marginX + 4.3, bannerY + 1.3, 10.4, 10.4, 0.8, 0.8, 'FD');
+          doc.addImage(puLogoDataUrl, 'PNG', marginX + 4.5, bannerY + 1.5, 10, 10, undefined, 'FAST');
         } else {
-          doc.setDrawColor(232, 150, 17);
+          doc.setFillColor(...COLOR_WHITE);
+          doc.setDrawColor(...COLOR_PU_GOLD);
           doc.setLineWidth(0.35);
-          doc.rect(marginX + 4.3, 12.8, 18.4, 18.4, 'S');
-          doc.addImage(puLogoDataUrl, 'PNG', marginX + 4.5, 13, 18, 18, undefined, 'FAST');
+          doc.roundedRect(marginX + 4.3, bannerY + 2.8, 18.4, 18.4, 1.2, 1.2, 'FD');
+          doc.addImage(puLogoDataUrl, 'PNG', marginX + 4.5, bannerY + 3.0, 18, 18, undefined, 'FAST');
         }
         hasLogoRendered = true;
       } catch {
@@ -822,29 +980,29 @@ function buildRcInfographicPdfDoc(
       doc.text(
         'INFOGRAFIS PERINGKAT SKOR READINESS CRITERIA (RC) - LANJUTAN',
         leftTextX,
-        18
+        bannerY + 8
       );
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
-      doc.setTextColor(203, 213, 225);
+      doc.setTextColor(...COLOR_PU_GOLD_LIGHT);
       doc.text(
         sanitizePdfText(
           `SIMPRA BPBPK NTB · ${context.yearFilterLabel} · ${context.sectorFilterLabel || 'Semua Sektor Teknis'} · Dicetak: ${printTimestamp}`
         ),
         pageWidth - marginX - 4,
-        18,
+        bannerY + 8,
         { align: 'right' }
       );
-      return 10 + bannerHeight + 4;
+      return bannerY + bannerHeight + 4;
     }
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.setTextColor(147, 197, 253);
+    doc.setTextColor(...COLOR_PU_GOLD_LIGHT);
     doc.text(
       'KEMENTERIAN PEKERJAAN UMUM · SIMPRA BPBPK NUSA TENGGARA BARAT',
       leftTextX,
-      15.2
+      bannerY + 5.2
     );
 
     doc.setFont('helvetica', 'bold');
@@ -853,45 +1011,47 @@ function buildRcInfographicPdfDoc(
     doc.text(
       'INFOGRAFIS PERINGKAT SKOR READINESS CRITERIA (RC)',
       leftTextX,
-      21.5
+      bannerY + 11.5
     );
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
-    doc.setTextColor(253, 230, 138);
+    doc.setTextColor(224, 231, 255);
     doc.text(
       'Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat',
       leftTextX,
-      27.5
+      bannerY + 17.5
     );
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
-    doc.setTextColor(203, 213, 225);
+    doc.setTextColor(224, 231, 255);
     doc.text(
       sanitizePdfText(`Tahun Anggaran: ${context.yearFilterLabel}`),
       pageWidth - marginX - 4,
-      16,
+      bannerY + 6,
       { align: 'right' }
     );
     doc.text(
       sanitizePdfText(`Dicetak: ${printTimestamp}`),
       pageWidth - marginX - 4,
-      21.5,
+      bannerY + 11.5,
       { align: 'right' }
     );
     doc.text(
       sanitizePdfText(`Cakupan Paket: ${rankedItems.length} dari ${summaryStats.totalCount} Usulan`),
       pageWidth - marginX - 4,
-      27,
+      bannerY + 17,
       { align: 'right' }
     );
 
     // Filter Context Strip
-    const stripY = 10 + bannerHeight + 2;
-    doc.setFillColor(...COLOR_SLATE_100);
-    doc.setDrawColor(...COLOR_SLATE_200);
+    const stripY = bannerY + bannerHeight + 2;
+    doc.setFillColor(...COLOR_PU_TINT);
+    doc.setDrawColor(...COLOR_PU_BORDER);
     doc.roundedRect(marginX, stripY, contentWidth, 7.5, 1.5, 1.5, 'FD');
+    doc.setFillColor(...COLOR_PU_NAVY);
+    doc.rect(marginX, stripY + 0.8, 1.5, 5.9, 'F');
 
     const sortText =
       context.sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi';
@@ -907,10 +1067,10 @@ function buildRcInfographicPdfDoc(
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
-    doc.setTextColor(...COLOR_SLATE_700);
+    doc.setTextColor(...COLOR_PU_NAVY);
     doc.text(
-      truncateTextToWidth(doc, metaParts.join('   |   '), contentWidth - 8),
-      marginX + 4,
+      truncateTextToWidth(doc, metaParts.join('   |   '), contentWidth - 9),
+      marginX + 4.5,
       stripY + 5
     );
 
@@ -927,12 +1087,16 @@ function buildRcInfographicPdfDoc(
   const drawKpiCardFrame = (colIdx: number, title: string) => {
     const x = marginX + colIdx * (kpiWidth + kpiGap);
     doc.setFillColor(...COLOR_WHITE);
-    doc.setDrawColor(...COLOR_SLATE_200);
+    doc.setDrawColor(...COLOR_PU_BORDER);
     doc.roundedRect(x, cursorY, kpiWidth, kpiHeight, 1.8, 1.8, 'FD');
+    doc.setFillColor(...COLOR_PU_NAVY);
+    doc.rect(x + 1, cursorY, kpiWidth - 2, 1.1, 'F');
+    doc.setFillColor(...COLOR_PU_GOLD);
+    doc.rect(x + 1, cursorY, 20, 1.1, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.setTextColor(...COLOR_SLATE_500);
-    doc.text(sanitizePdfText(title), x + 3.5, cursorY + 5);
+    doc.setTextColor(...COLOR_PU_NAVY);
+    doc.text(sanitizePdfText(title), x + 3.5, cursorY + 5.2);
     return x;
   };
 
@@ -1110,21 +1274,23 @@ function buildRcInfographicPdfDoc(
 
   cursorY += kpiHeight + 5;
 
-  // Section 1 Header: Ranked Proposals Bar Chart
+  // Section 1 Header: Ranked Proposals Bar Chart (Deep Batik PU Navy bar with Gold Trim)
   const drawRankingSectionHeader = (y: number) => {
-    doc.setFillColor(...COLOR_SLATE_100);
-    doc.setDrawColor(...COLOR_SLATE_200);
-    doc.roundedRect(marginX, y, contentWidth, 9, 1.5, 1.5, 'FD');
+    doc.setFillColor(...COLOR_PU_NAVY);
+    doc.rect(marginX, y, contentWidth, 9, 'F');
+    doc.setFillColor(...COLOR_PU_GOLD);
+    doc.rect(marginX, y, 2.2, 9, 'F');
+    doc.rect(marginX, y + 8.4, contentWidth, 0.6, 'F');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.setTextColor(...COLOR_SLATE_900);
+    doc.setTextColor(...COLOR_WHITE);
     const sortTitle =
       context.sortOrder === 'desc' ? 'Tertinggi - Terendah' : 'Terendah - Tertinggi';
     doc.text(
       `Grafik Peringkat Skor RC per Paket Usulan (${sortTitle})`,
-      marginX + 3.5,
-      y + 5.8
+      marginX + 4.5,
+      y + 5.7
     );
 
     // Legend on right
@@ -1136,17 +1302,17 @@ function buildRcInfographicPdfDoc(
     let lx = pageWidth - marginX - 4;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
-    doc.setTextColor(...COLOR_SLATE_700);
-    doc.text('| Garis Ambang = 80%', lx, y + 5.8, { align: 'right' });
+    doc.setTextColor(...COLOR_PU_GOLD_LIGHT);
+    doc.text('| Garis Ambang = 80%', lx, y + 5.7, { align: 'right' });
     lx -= doc.getTextWidth('| Garis Ambang = 80%') + 5;
 
     for (let i = legendItems.length - 1; i >= 0; i -= 1) {
       const leg = legendItems[i];
       const lw = doc.getTextWidth(leg.label);
-      doc.setTextColor(...COLOR_SLATE_700);
-      doc.text(leg.label, lx, y + 5.8, { align: 'right' });
+      doc.setTextColor(...COLOR_WHITE);
+      doc.text(leg.label, lx, y + 5.7, { align: 'right' });
       doc.setFillColor(...leg.color);
-      doc.circle(lx - lw - 2.5, y + 4.8, 1.3, 'F');
+      doc.circle(lx - lw - 2.5, y + 4.7, 1.3, 'F');
       lx -= lw + 7;
     }
 
@@ -1260,16 +1426,20 @@ function buildRcInfographicPdfDoc(
   }
 
   doc.setFillColor(...COLOR_WHITE);
-  doc.setDrawColor(...COLOR_SLATE_200);
+  doc.setDrawColor(...COLOR_PU_BORDER);
   doc.roundedRect(marginX, cursorY, contentWidth, sigBoxHeight, 1.5, 1.5, 'FD');
+  doc.setFillColor(...COLOR_PU_NAVY);
+  doc.rect(marginX + 1, cursorY, contentWidth - 2, 1.1, 'F');
+  doc.setFillColor(...COLOR_PU_GOLD);
+  doc.rect(marginX + 1, cursorY, 32, 1.1, 'F');
 
-  const leftCenterX = marginX + contentWidth * 0.25;
-  const rightCenterX = marginX + contentWidth * 0.75;
-  const sigColMaxW = contentWidth * 0.42;
+  const sigColMaxW = contentWidth * 0.22;
 
   const sigConfig: PdfSignatoriesConfig = context.signatories ?? {
     tempatTanggal: '',
     mengesahkan: { jabatan: '', nama: '' },
+    mengesahkan2: { jabatan: '', nama: '' },
+    mengesahkan3: { jabatan: '', nama: '' },
     menyetujui: { jabatan: '', nama: '' },
   };
 
@@ -1282,7 +1452,7 @@ function buildRcInfographicPdfDoc(
     const cleanTop = sanitizePdfText(topMeta);
     if (cleanTop) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
+      doc.setFontSize(7.0);
       doc.setTextColor(...COLOR_SLATE_700);
       doc.text(truncateTextToWidth(doc, cleanTop, sigColMaxW), centerX, cursorY + 6.2, {
         align: 'center',
@@ -1290,18 +1460,18 @@ function buildRcInfographicPdfDoc(
     }
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
+    doc.setFontSize(8.0);
     doc.setTextColor(...COLOR_SLATE_900);
     doc.text(headingLabel, centerX, cursorY + 10.8, { align: 'center' });
 
     const cleanJabatan = sanitizePdfText(party.jabatan);
     if (cleanJabatan) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.8);
+      doc.setFontSize(7.2);
       doc.setTextColor(...COLOR_SLATE_700);
       const jabLines = doc.splitTextToSize(cleanJabatan, sigColMaxW).slice(0, 2) as string[];
       jabLines.forEach((line, lIdx) => {
-        doc.text(line, centerX, cursorY + 15 + lIdx * 3.6, { align: 'center' });
+        doc.text(line, centerX, cursorY + 15 + lIdx * 3.4, { align: 'center' });
       });
     }
 
@@ -1310,7 +1480,7 @@ function buildRcInfographicPdfDoc(
     if (cleanNama) {
       const displayNama = truncateTextToWidth(doc, cleanNama, sigColMaxW);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
+      doc.setFontSize(8.0);
       doc.setTextColor(...COLOR_SLATE_900);
       doc.text(displayNama, centerX, nameY, { align: 'center' });
 
@@ -1321,17 +1491,34 @@ function buildRcInfographicPdfDoc(
       doc.setLineWidth(0.2);
     } else {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setTextColor(...COLOR_SLATE_400);
-      doc.text('( ........................................ )', centerX, nameY, {
+      doc.text('( .............................. )', centerX, nameY, {
         align: 'center',
       });
     }
   };
 
-  renderSignatureColumn(leftCenterX, 'Mengesahkan,', '', sigConfig.mengesahkan);
   renderSignatureColumn(
-    rightCenterX,
+    marginX + contentWidth * 0.125,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan
+  );
+  renderSignatureColumn(
+    marginX + contentWidth * 0.375,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
+  );
+  renderSignatureColumn(
+    marginX + contentWidth * 0.625,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
+  );
+  renderSignatureColumn(
+    marginX + contentWidth * 0.875,
     'Menyetujui,',
     sigConfig.tempatTanggal,
     sigConfig.menyetujui

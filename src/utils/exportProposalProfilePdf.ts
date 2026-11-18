@@ -12,7 +12,11 @@ import {
   UsulanProgram,
 } from '../types/ciptaKarya';
 import { PdfSignatoriesConfig, PdfSignatoryParty } from './exportRcInfographicPdf';
-import { getCachedPuWordmarkDataUrl } from './puLogoAsset';
+import {
+  getCachedPuBatikAssets,
+  getCachedPuWordmarkDataUrl,
+  PuBatikPdfAssets,
+} from './puLogoAsset';
 
 export interface ProposalProfilePdfInput {
   proposal: UsulanProgram;
@@ -24,6 +28,7 @@ export interface ProposalProfilePdfInput {
   imageDataUrl?: string;
   signatories?: PdfSignatoriesConfig;
   wordmarkDataUrl?: string | null;
+  batikAssets?: PuBatikPdfAssets | null;
 }
 
 export interface ProposalProfilePdfPreviewPayload {
@@ -34,6 +39,11 @@ export interface ProposalProfilePdfPreviewPayload {
 
 type RgbTuple = [number, number, number];
 
+const PU_NAVY: RgbTuple = [6, 20, 89];
+const PU_GOLD: RgbTuple = [232, 150, 17];
+const PU_GOLD_LIGHT: RgbTuple = [253, 230, 138];
+const PU_BORDER: RgbTuple = [199, 211, 232];
+const PU_TINT: RgbTuple = [238, 242, 250];
 const NAVY_DARK: RgbTuple = [11, 60, 124];
 const GOLD_ACCENT: RgbTuple = [245, 168, 0];
 const SLATE_900: RgbTuple = [15, 23, 42];
@@ -45,8 +55,7 @@ const SLATE_300: RgbTuple = [203, 213, 225];
 const SLATE_200: RgbTuple = [226, 232, 240];
 const SLATE_100: RgbTuple = [241, 245, 249];
 const WHITE: RgbTuple = [255, 255, 255];
-const SKY_ACCENT: RgbTuple = [2, 132, 199];
-const STEEL_SUBTITLE: RgbTuple = [91, 127, 166];
+const STEEL_SUBTITLE: RgbTuple = [71, 102, 145];
 const EMERALD_700: RgbTuple = [15, 118, 110];
 const AMBER_700: RgbTuple = [180, 83, 9];
 const BLUE_700: RgbTuple = [29, 78, 216];
@@ -93,29 +102,31 @@ function drawCardFrame(
   rightBadge?: string
 ) {
   doc.setFillColor(...WHITE);
-  doc.setDrawColor(...SLATE_300);
-  doc.setLineWidth(0.28);
+  doc.setDrawColor(...PU_BORDER);
+  doc.setLineWidth(0.3);
   doc.roundedRect(x, y, w, h, 2, 2, 'FD');
 
-  // Accent dot + card title
-  doc.setFillColor(...SKY_ACCENT);
-  doc.circle(x + 4, y + 5.2, 1.1, 'F');
+  // Deep Batik PU Navy header band + Gold accent strip
+  doc.setFillColor(...PU_NAVY);
+  doc.rect(x + 0.15, y + 0.15, w - 0.3, 7.6, 'F');
+  doc.setFillColor(...PU_GOLD);
+  doc.rect(x + 0.15, y + 7.45, w - 0.3, 0.55, 'F');
+
+  // Gold accent dot + crisp white card title
+  doc.setFillColor(...PU_GOLD);
+  doc.circle(x + 3.8, y + 4.1, 1.05, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.8);
-  doc.setTextColor(...SLATE_800);
-  doc.text(sanitizePdfText(title), x + 6.8, y + 6.2);
+  doc.setFontSize(8.5);
+  doc.setTextColor(...WHITE);
+  doc.text(sanitizePdfText(title), x + 6.4, y + 5.1);
 
   if (rightBadge) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.8);
-    doc.setTextColor(...NAVY_DARK);
-    doc.text(sanitizePdfText(rightBadge), x + w - 3.5, y + 6.2, { align: 'right' });
+    doc.setTextColor(...PU_GOLD_LIGHT);
+    doc.text(sanitizePdfText(rightBadge), x + w - 3.5, y + 5.1, { align: 'right' });
   }
-
-  doc.setDrawColor(...SLATE_200);
-  doc.setLineWidth(0.2);
-  doc.line(x + 3.2, y + 8.6, x + w - 3.2, y + 8.6);
 }
 
 function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
@@ -144,28 +155,90 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
   const pageHeight = doc.internal.pageSize.getHeight(); // 210
   const marginX = 11;
   const contentWidth = pageWidth - marginX * 2; // 275
+  const batikAssets = input.batikAssets ?? getCachedPuBatikAssets();
 
-  // HEADER
-  const headerY = 8;
-  doc.setFillColor(...NAVY_DARK);
-  doc.rect(marginX, headerY, 2.2, 13, 'F');
+  // Subtle A4 Batik PU Paper Watermark + Top & Bottom Ornamental Ribbons
+  if (batikAssets?.watermarkDataUrl?.startsWith('data:image/')) {
+    try {
+      doc.addImage(
+        batikAssets.watermarkDataUrl,
+        'JPEG',
+        0,
+        0,
+        pageWidth,
+        pageHeight,
+        undefined,
+        'FAST'
+      );
+    } catch {
+      // plain paper fallback
+    }
+  }
+
+  if (batikAssets?.stripDataUrl?.startsWith('data:image/')) {
+    try {
+      doc.addImage(batikAssets.stripDataUrl, 'JPEG', 0, 0, pageWidth, 2.8, undefined, 'FAST');
+    } catch {
+      doc.setFillColor(...PU_NAVY);
+      doc.rect(0, 0, pageWidth, 2.8, 'F');
+    }
+  } else {
+    doc.setFillColor(...PU_NAVY);
+    doc.rect(0, 0, pageWidth, 2.8, 'F');
+  }
+  doc.setFillColor(...PU_GOLD);
+  doc.rect(0, 2.8, pageWidth, 0.55, 'F');
+
+  doc.setFillColor(...PU_GOLD);
+  doc.rect(0, pageHeight - 2.65, pageWidth, 0.45, 'F');
+  if (batikAssets?.stripDataUrl?.startsWith('data:image/')) {
+    try {
+      doc.addImage(
+        batikAssets.stripDataUrl,
+        'JPEG',
+        0,
+        pageHeight - 2.2,
+        pageWidth,
+        2.2,
+        undefined,
+        'FAST'
+      );
+    } catch {
+      doc.setFillColor(...PU_NAVY);
+      doc.rect(0, pageHeight - 2.2, pageWidth, 2.2, 'F');
+    }
+  } else {
+    doc.setFillColor(...PU_NAVY);
+    doc.rect(0, pageHeight - 2.2, pageWidth, 2.2, 'F');
+  }
+
+  // HEADER (framed on clean white surface so PU wordmark stays razor-sharp)
+  const headerY = 5.4;
+  const headerH = 15.2;
+  doc.setFillColor(...WHITE);
+  doc.setDrawColor(...PU_BORDER);
+  doc.setLineWidth(0.28);
+  doc.roundedRect(marginX, headerY, contentWidth, headerH, 2, 2, 'FD');
+
+  doc.setFillColor(...PU_NAVY);
+  doc.rect(marginX + 1.8, headerY + 1.6, 2.2, headerH - 3.2, 'F');
   doc.setFillColor(...GOLD_ACCENT);
-  doc.rect(marginX + 2.2, headerY, 2.5, 13, 'F');
+  doc.rect(marginX + 4.0, headerY + 1.6, 2.2, headerH - 3.2, 'F');
 
   const titleMaxW = contentWidth - 62;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11.4);
-  doc.setTextColor(...SLATE_800);
+  doc.setFontSize(11.0);
+  doc.setTextColor(...PU_NAVY);
   const titleLines = doc
     .splitTextToSize(sanitizePdfText(proposal.namaProgram).toUpperCase(), titleMaxW)
     .slice(0, 2) as string[];
   titleLines.forEach((line, idx) => {
-    doc.text(line, marginX + 7.5, headerY + 4.3 + idx * 4.4);
+    doc.text(line, marginX + 8.5, headerY + 5.2 + idx * 4.2);
   });
 
-  const subY = headerY + (titleLines.length > 1 ? 12.6 : 9.0);
+  const subY = headerY + (titleLines.length > 1 ? 13.0 : 9.8);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.0);
+  doc.setFontSize(7.8);
   doc.setTextColor(...STEEL_SUBTITLE);
   doc.text(
     truncateLine(
@@ -173,18 +246,18 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
       `${proposal.kabupatenKota} | ${details.provinsi ?? 'Nusa Tenggara Barat'} (${proposal.kodeUsulan} | ${formatActiveYears(proposal.pagu)})`,
       titleMaxW
     ),
-    marginX + 7.5,
+    marginX + 8.5,
     subY
   );
 
-  // Right Official Kementerian Pekerjaan Umum Logo (replaces KEMENPU tagline lockup)
+  // Right Official Kementerian Pekerjaan Umum Logo
   const wordmarkDataUrl = input.wordmarkDataUrl ?? getCachedPuWordmarkDataUrl();
   if (wordmarkDataUrl && wordmarkDataUrl.startsWith('data:image/')) {
     try {
-      const logoH = 11.5;
-      const logoW = logoH * (262 / 64); // ~47.08mm matching 262x64 aspect ratio
-      const logoX = pageWidth - marginX - logoW;
-      const logoY = headerY + 0.75;
+      const logoH = 11.2;
+      const logoW = logoH * (262 / 64);
+      const logoX = pageWidth - marginX - logoW - 3;
+      const logoY = headerY + 2.0;
       doc.addImage(wordmarkDataUrl, 'PNG', logoX, logoY, logoW, logoH, undefined, 'FAST');
     } catch {
       // Fallback if canvas image load failed
@@ -446,8 +519,8 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
   const hdrRow2H = 5.0;
   const hdrTotalH = hdrRow1H + hdrRow2H;
 
-  doc.setFillColor(...SLATE_100);
-  doc.setDrawColor(...SLATE_300);
+  doc.setFillColor(...PU_TINT);
+  doc.setDrawColor(...PU_BORDER);
   doc.setLineWidth(0.2);
   doc.rect(tblX, tblY, tblW, hdrTotalH, 'FD');
 
@@ -465,7 +538,7 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.2);
-  doc.setTextColor(...SLATE_800);
+  doc.setTextColor(...PU_NAVY);
   doc.text('Dokumen', tblX + colDocW / 2, tblY + 6.3, { align: 'center' });
   doc.text('Status', tblX + colDocW + colStatusTotalW / 2, tblY + 3.7, { align: 'center' });
   doc.text('Keterangan', tblX + colDocW + colStatusTotalW + colKetW / 2, tblY + 6.3, {
@@ -539,23 +612,27 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     });
   });
 
-  // SIGNATURE BLOCK AT BOTTOM: Mengesahkan (Sebelah Kiri) & Menyetujui (Sebelah Kanan)
+  // SIGNATURE BLOCK AT BOTTOM: 3 Kolom Mengesahkan & 1 Kolom Menyetujui (Sebelah Kanan)
   const sigY = row3Y + row3H + 2.5;
   const sigH = 34;
   doc.setFillColor(...WHITE);
-  doc.setDrawColor(...SLATE_300);
+  doc.setDrawColor(...PU_BORDER);
   doc.setLineWidth(0.25);
   doc.roundedRect(marginX, sigY, contentWidth, sigH, 2, 2, 'FD');
+  doc.setFillColor(...PU_NAVY);
+  doc.rect(marginX + 1, sigY, contentWidth - 2, 1.1, 'F');
+  doc.setFillColor(...PU_GOLD);
+  doc.rect(marginX + 1, sigY, 32, 1.1, 'F');
 
   const sigConfig: PdfSignatoriesConfig = signatories ?? {
     tempatTanggal: '',
     mengesahkan: { jabatan: '', nama: '' },
+    mengesahkan2: { jabatan: '', nama: '' },
+    mengesahkan3: { jabatan: '', nama: '' },
     menyetujui: { jabatan: '', nama: '' },
   };
 
-  const leftCenterX = marginX + contentWidth * 0.25;
-  const rightCenterX = marginX + contentWidth * 0.75;
-  const sigColMaxW = contentWidth * 0.42;
+  const sigColMaxW = contentWidth * 0.22;
 
   const drawSignatorySide = (
     centerX: number,
@@ -566,7 +643,7 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     const cleanTop = sanitizePdfText(topMeta);
     if (cleanTop) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.0);
+      doc.setFontSize(6.6);
       doc.setTextColor(...SLATE_700);
       doc.text(truncateLine(doc, cleanTop, sigColMaxW), centerX, sigY + 4.4, {
         align: 'center',
@@ -574,18 +651,18 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     }
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.0);
+    doc.setFontSize(7.6);
     doc.setTextColor(...SLATE_900);
     doc.text(headingLabel, centerX, sigY + 8.4, { align: 'center' });
 
     const cleanJabatan = sanitizePdfText(party.jabatan);
     if (cleanJabatan) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.2);
+      doc.setFontSize(6.8);
       doc.setTextColor(...SLATE_700);
       const jabLines = doc.splitTextToSize(cleanJabatan, sigColMaxW).slice(0, 2) as string[];
       jabLines.forEach((line, lIdx) => {
-        doc.text(line, centerX, sigY + 12.2 + lIdx * 3.3, { align: 'center' });
+        doc.text(line, centerX, sigY + 12.2 + lIdx * 3.1, { align: 'center' });
       });
     }
 
@@ -594,7 +671,7 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     if (cleanNama) {
       const displayNama = truncateLine(doc, cleanNama, sigColMaxW);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.0);
+      doc.setFontSize(7.6);
       doc.setTextColor(...SLATE_900);
       doc.text(displayNama, centerX, nameY, { align: 'center' });
 
@@ -605,17 +682,34 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
       doc.setLineWidth(0.2);
     } else {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.6);
+      doc.setFontSize(7.2);
       doc.setTextColor(...SLATE_400);
-      doc.text('( ........................................ )', centerX, nameY, {
+      doc.text('( .............................. )', centerX, nameY, {
         align: 'center',
       });
     }
   };
 
-  drawSignatorySide(leftCenterX, 'Mengesahkan,', '', sigConfig.mengesahkan);
   drawSignatorySide(
-    rightCenterX,
+    marginX + contentWidth * 0.125,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan
+  );
+  drawSignatorySide(
+    marginX + contentWidth * 0.375,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
+  );
+  drawSignatorySide(
+    marginX + contentWidth * 0.625,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
+  );
+  drawSignatorySide(
+    marginX + contentWidth * 0.875,
     'Menyetujui,',
     sigConfig.tempatTanggal,
     sigConfig.menyetujui

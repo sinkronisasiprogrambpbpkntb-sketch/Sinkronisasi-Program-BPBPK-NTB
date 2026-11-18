@@ -31,6 +31,7 @@ import {
 import { PdfSignatoriesConfig } from '../utils/exportRcInfographicPdf';
 import {
   getCachedPuWordmarkDataUrl,
+  loadPuBatikAssets,
   loadPuWordmarkDataUrl,
   PU_WORDMARK_SRC,
 } from '../utils/puLogoAsset';
@@ -263,6 +264,8 @@ function createEmptyProfilSignatories(): PdfSignatoriesConfig {
   return {
     tempatTanggal: getDefaultProfilTempatTanggal(),
     mengesahkan: { jabatan: '', nama: '' },
+    mengesahkan2: { jabatan: '', nama: '' },
+    mengesahkan3: { jabatan: '', nama: '' },
     menyetujui: { jabatan: '', nama: '' },
   };
 }
@@ -282,6 +285,14 @@ function loadInitialProfilSignatories(): PdfSignatoriesConfig {
       mengesahkan: {
         jabatan: parsed.mengesahkan?.jabatan ?? '',
         nama: parsed.mengesahkan?.nama ?? '',
+      },
+      mengesahkan2: {
+        jabatan: parsed.mengesahkan2?.jabatan ?? '',
+        nama: parsed.mengesahkan2?.nama ?? '',
+      },
+      mengesahkan3: {
+        jabatan: parsed.mengesahkan3?.jabatan ?? '',
+        nama: parsed.mengesahkan3?.nama ?? '',
       },
       menyetujui: {
         jabatan: parsed.menyetujui?.jabatan ?? '',
@@ -835,8 +846,15 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   type="button"
                   onClick={() => {
                     void (async () => {
-                      const wordmarkDataUrl = await loadPuWordmarkDataUrl();
-                      exportProposalProfilePdf({ ...pdfPreviewInput, wordmarkDataUrl });
+                      const [wordmarkDataUrl, batikAssets] = await Promise.all([
+                        loadPuWordmarkDataUrl(),
+                        loadPuBatikAssets(),
+                      ]);
+                      exportProposalProfilePdf({
+                        ...pdfPreviewInput,
+                        wordmarkDataUrl,
+                        batikAssets,
+                      });
                     })();
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#07165B] hover:bg-[#0A1D6E] text-white cursor-pointer whitespace-nowrap border border-amber-400/50"
@@ -913,8 +931,9 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           </div>
         )}
 
-        {/* KEMENPU Executive Slide Canvas (Matches Poster_f7f60e1e.png Template) */}
-        <div className="flex-1 overflow-y-auto bg-white p-5 sm:p-8 space-y-4">
+        {/* KEMENPU Executive Slide Canvas (Matches Batik PU PDF Theme on Print) */}
+        <div className="flex-1 overflow-y-auto bg-white print-batik-watermark p-5 sm:p-8 print:p-5 space-y-4">
+          <div className="hidden print:block h-2.5 w-full batik-pu-strip border-b-2 border-[#E89611] mb-2" />
           {/* SLIDE HEADER: Left Navy/Gold Bar + Uppercase Title & Subtitle | Right KEMENPU Lockup */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-1">
             <div className="flex items-stretch gap-3.5 min-w-0">
@@ -1429,11 +1448,11 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
-                  {/* Sebelah Kiri: Mengesahkan */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pt-1">
+                  {/* Mengesahkan 1 */}
                   <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
                     <div className="text-xs font-bold text-slate-900">
-                      Mengesahkan (Sebelah Kiri)
+                      Mengesahkan 1
                     </div>
                     <div>
                       <label className="block text-[11px] font-medium text-slate-600 mb-1">
@@ -1467,6 +1486,100 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                             ...prev,
                             mengesahkan: {
                               ...prev.mengesahkan,
+                              nama: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Nama pejabat yang mengesahkan"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mengesahkan 2 */}
+                  <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+                    <div className="text-xs font-bold text-slate-900">
+                      Mengesahkan 2
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Jabatan
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.mengesahkan2?.jabatan ?? ''}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            mengesahkan2: {
+                              jabatan: e.target.value,
+                              nama: prev.mengesahkan2?.nama ?? '',
+                            },
+                          }))
+                        }
+                        placeholder="Contoh: Kepala Dinas PUPR Kab./Kota"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Nama Lengkap &amp; Gelar
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.mengesahkan2?.nama ?? ''}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            mengesahkan2: {
+                              jabatan: prev.mengesahkan2?.jabatan ?? '',
+                              nama: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Nama pejabat yang mengesahkan"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mengesahkan 3 */}
+                  <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+                    <div className="text-xs font-bold text-slate-900">
+                      Mengesahkan 3
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Jabatan
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.mengesahkan3?.jabatan ?? ''}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            mengesahkan3: {
+                              jabatan: e.target.value,
+                              nama: prev.mengesahkan3?.nama ?? '',
+                            },
+                          }))
+                        }
+                        placeholder="Contoh: Kepala Bappeda Provinsi NTB"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Nama Lengkap &amp; Gelar
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.mengesahkan3?.nama ?? ''}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            mengesahkan3: {
+                              jabatan: prev.mengesahkan3?.jabatan ?? '',
                               nama: e.target.value,
                             },
                           }))
@@ -1527,24 +1640,32 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               </div>
 
               {/* Print-only Formal Signature Block */}
-              <div className="hidden print:grid print:grid-cols-2 gap-8 py-2 text-center text-xs text-slate-900">
-                <div className="flex flex-col items-center justify-between min-h-[110px]">
-                  <div>
-                    <div className="h-4" />
-                    <div className="font-bold">Mengesahkan,</div>
-                    {signatories.mengesahkan.jabatan.trim() && (
-                      <div className="text-[11px] text-slate-700 mt-0.5 max-w-xs">
-                        {signatories.mengesahkan.jabatan.trim()}
+              <div className="hidden print:grid print:grid-cols-4 gap-4 py-2 text-center text-xs text-slate-900">
+                {[
+                  signatories.mengesahkan,
+                  signatories.mengesahkan2 ?? { jabatan: '', nama: '' },
+                  signatories.mengesahkan3 ?? { jabatan: '', nama: '' },
+                ].map((party, idx) => (
+                  <div
+                    key={`profil-print-mengesahkan-${idx}`}
+                    className="flex flex-col items-center justify-between min-h-[110px]"
+                  >
+                    <div>
+                      <div className="h-4" />
+                      <div className="font-bold">Mengesahkan,</div>
+                      {party.jabatan.trim() && (
+                        <div className="text-[11px] text-slate-700 mt-0.5 max-w-[190px]">
+                          {party.jabatan.trim()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="pt-10">
+                      <div className="font-bold underline underline-offset-4">
+                        {party.nama.trim() || '( .............................. )'}
                       </div>
-                    )}
-                  </div>
-                  <div className="pt-10">
-                    <div className="font-bold underline underline-offset-4">
-                      {signatories.mengesahkan.nama.trim() ||
-                        '( ........................................ )'}
                     </div>
                   </div>
-                </div>
+                ))}
 
                 <div className="flex flex-col items-center justify-between min-h-[110px]">
                   <div>
@@ -1553,7 +1674,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     </div>
                     <div className="font-bold">Menyetujui,</div>
                     {signatories.menyetujui.jabatan.trim() && (
-                      <div className="text-[11px] text-slate-700 mt-0.5 max-w-xs">
+                      <div className="text-[11px] text-slate-700 mt-0.5 max-w-[190px]">
                         {signatories.menyetujui.jabatan.trim()}
                       </div>
                     )}
@@ -1561,13 +1682,14 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   <div className="pt-10">
                     <div className="font-bold underline underline-offset-4">
                       {signatories.menyetujui.nama.trim() ||
-                        '( ........................................ )'}
+                        '( .............................. )'}
                     </div>
                   </div>
                 </div>
               </div>
             </section>
           )}
+          <div className="hidden print:block h-2 w-full batik-pu-strip border-t-2 border-[#E89611] mt-2" />
         </div>
       </div>
 
@@ -1576,8 +1698,15 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         onClose={() => setShowPdfPreview(false)}
         onDownloadPdf={() => {
           void (async () => {
-            const wordmarkDataUrl = await loadPuWordmarkDataUrl();
-            exportProposalProfilePdf({ ...pdfPreviewInput, wordmarkDataUrl });
+            const [wordmarkDataUrl, batikAssets] = await Promise.all([
+              loadPuWordmarkDataUrl(),
+              loadPuBatikAssets(),
+            ]);
+            exportProposalProfilePdf({
+              ...pdfPreviewInput,
+              wordmarkDataUrl,
+              batikAssets,
+            });
           })();
         }}
         onPrintDirect={() => window.print()}

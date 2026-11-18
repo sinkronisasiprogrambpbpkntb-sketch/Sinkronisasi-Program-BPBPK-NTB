@@ -20,7 +20,11 @@ import {
   RcPdfLayoutMode,
   RcPdfPreviewPayload,
 } from '../utils/exportRcInfographicPdf';
-import { loadPuLogoDataUrl, PU_LOGO_SRC } from '../utils/puLogoAsset';
+import {
+  loadPuBatikAssets,
+  loadPuLogoDataUrl,
+  PU_LOGO_SRC,
+} from '../utils/puLogoAsset';
 
 interface RcInfographicPreviewModalProps {
   isOpen: boolean;
@@ -72,14 +76,17 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
     let generatedUrl: string | null = null;
 
     void (async () => {
-      const logoDataUrl = context.logoDataUrl ?? (await loadPuLogoDataUrl());
+      const [logoDataUrl, batikAssets] = await Promise.all([
+        context.logoDataUrl ? Promise.resolve(context.logoDataUrl) : loadPuLogoDataUrl(),
+        context.batikAssets ? Promise.resolve(context.batikAssets) : loadPuBatikAssets(),
+      ]);
       if (cancelled) return;
       const payload = createRcInfographicPdfPreview(
         rankedItems,
         summaryStats,
         sectorAverages,
         regionalAverages,
-        { ...context, logoDataUrl, layoutMode }
+        { ...context, logoDataUrl, batikAssets, layoutMode }
       );
       if (cancelled) {
         URL.revokeObjectURL(payload.blobUrl);
@@ -332,7 +339,7 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
         ) : (
           <div className="flex justify-center">
             <div
-              className="bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-300 w-full max-w-[1122px] p-6 sm:p-8 space-y-5 origin-top transition-transform"
+              className="batik-pu-watermark text-slate-900 shadow-2xl rounded-sm border border-[#C7D3E8] w-full max-w-[1122px] overflow-hidden origin-top transition-transform"
               style={
                 zoomPct !== 100
                   ? {
@@ -342,27 +349,31 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                   : undefined
               }
             >
-              {/* Institutional Banner matching PDF */}
-              <div className="bg-slate-900 text-white px-5 py-4 border-l-4 border-blue-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              {/* Top Batik PU Ornamental Ribbon */}
+              <div className="h-2.5 w-full batik-pu-strip border-b-2 border-[#E89611]" />
+
+              <div className="p-6 sm:p-8 space-y-5">
+              {/* Institutional Banner matching Batik PU PDF */}
+              <div className="batik-pu-banner text-white px-5 py-4 border-l-4 border-[#E89611] border-b-2 border-b-[#E89611] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3.5 min-w-0">
                   <img
                     src={PU_LOGO_SRC}
                     alt="Logo Kementerian Pekerjaan Umum"
-                    className="w-14 h-14 object-contain rounded border border-amber-400/70 shrink-0"
+                    className="w-14 h-14 object-contain rounded bg-white p-0.5 border border-[#E89611] shrink-0"
                   />
                   <div className="min-w-0">
-                    <div className="text-[10px] font-medium tracking-wider text-blue-300 uppercase">
+                    <div className="text-[10px] font-bold tracking-wider text-amber-200 uppercase">
                       KEMENTERIAN PEKERJAAN UMUM · SIMPRA BPBPK NUSA TENGGARA BARAT
                     </div>
                     <h3 className="text-base sm:text-lg font-bold tracking-tight mt-0.5">
                       INFOGRAFIS PERINGKAT SKOR READINESS CRITERIA (RC)
                     </h3>
-                    <div className="text-xs text-amber-200 mt-0.5 font-medium">
+                    <div className="text-xs text-indigo-100 mt-0.5 font-medium">
                       Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
                     </div>
                   </div>
                 </div>
-                <div className="text-left sm:text-right text-[11px] text-slate-300 font-mono space-y-0.5 shrink-0">
+                <div className="text-left sm:text-right text-[11px] text-indigo-100 font-mono space-y-0.5 shrink-0">
                   <div>Tahun Anggaran: {context.yearFilterLabel}</div>
                   <div>Dicetak: {printTimestamp}</div>
                   <div>
@@ -372,7 +383,7 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
               </div>
 
               {/* Filter Context Strip */}
-              <div className="bg-slate-100 border border-slate-200 rounded px-3.5 py-2 text-[11px] text-slate-700 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <div className="bg-[#EEF2FA] border border-[#C7D3E8] border-l-4 border-l-[#061459] rounded px-3.5 py-2 text-[11px] text-[#061459] flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span>
                   <strong>Sektor Teknis:</strong>{' '}
                   {context.sectorFilterLabel || 'Semua Sektor Teknis'}
@@ -396,8 +407,8 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
               {/* 3-Column KPI Summary Row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 {/* KPI 1: Highest */}
-                <div className="border border-slate-200 rounded-lg p-3.5 bg-white">
-                  <div className="text-[11px] font-bold text-slate-500">Skor RC Tertinggi</div>
+                <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-lg p-3.5 bg-white">
+                  <div className="text-[11px] font-bold text-[#061459]">Skor RC Tertinggi</div>
                   {summaryStats.highest ? (
                     <>
                       <div className="mt-1.5 flex items-baseline justify-between gap-2">
@@ -422,8 +433,8 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                 </div>
 
                 {/* KPI 2: Lowest */}
-                <div className="border border-slate-200 rounded-lg p-3.5 bg-white">
-                  <div className="text-[11px] font-bold text-slate-500">Skor RC Terendah</div>
+                <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-lg p-3.5 bg-white">
+                  <div className="text-[11px] font-bold text-[#061459]">Skor RC Terendah</div>
                   {summaryStats.lowest ? (
                     <>
                       <div className="mt-1.5 flex items-baseline justify-between gap-2">
@@ -448,9 +459,9 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                 </div>
 
                 {/* KPI 3: Infografis Jumlah Usulan per Kesiapan */}
-                <div className="border border-slate-200 rounded-lg p-3.5 bg-white">
+                <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-lg p-3.5 bg-white">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-slate-500">
+                    <span className="text-[11px] font-bold text-[#061459]">
                       Jumlah Usulan per Kesiapan
                     </span>
                     <span className="font-mono text-[10px] text-slate-500">
@@ -516,26 +527,26 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
               </div>
 
               {/* Section 1: Grafik Peringkat Skor RC per Paket Usulan */}
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="bg-slate-100 border-b border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+              <div className="border border-[#C7D3E8] rounded-lg overflow-hidden bg-white">
+                <div className="bg-[#061459] text-white border-b-2 border-[#E89611] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-xs font-bold text-slate-900">
+                    <div className="text-xs font-bold text-white">
                       Grafik Peringkat Skor RC per Paket Usulan ({sortLabel})
                     </div>
-                    <div className="text-[10px] text-slate-500">
+                    <div className="text-[10px] text-amber-200/95">
                       Menampilkan {rankedItems.length} paket sesuai filter aktif · Garis putus pada bar
                       menandakan ambang batas 80%
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-600">
+                  <div className="flex items-center gap-3 text-[10px] text-indigo-100">
                     <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-emerald-600" /> Siap ≥80%
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" /> Siap ≥80%
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-blue-600" /> Proses 50–79%
+                      <span className="w-2 h-2 rounded-full bg-sky-400" /> Proses 50–79%
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-amber-500" /> Kurang &lt;50%
+                      <span className="w-2 h-2 rounded-full bg-amber-400" /> Kurang &lt;50%
                     </span>
                   </div>
                 </div>
@@ -647,26 +658,36 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                 )}
               </div>
 
-              {/* Signature Block: Mengesahkan (Left) & Menyetujui (Right) without NIP */}
-              <div className="border border-slate-200 rounded-lg px-6 py-5 bg-white">
-                <div className="grid grid-cols-2 gap-8 text-center text-xs text-slate-900">
-                  <div className="flex flex-col items-center justify-between min-h-[108px]">
-                    <div>
-                      <div className="h-4" />
-                      <div className="font-bold">Mengesahkan,</div>
-                      {sig?.mengesahkan.jabatan.trim() && (
-                        <div className="text-[11px] text-slate-600 mt-0.5 max-w-xs">
-                          {sig.mengesahkan.jabatan.trim()}
+              {/* Signature Block: 3 Kolom Mengesahkan & 1 Kolom Menyetujui without NIP */}
+              <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-lg px-5 py-5 bg-white">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 text-center text-xs text-slate-900">
+                  {(
+                    [
+                      { key: 'm1', party: sig?.mengesahkan },
+                      { key: 'm2', party: sig?.mengesahkan2 },
+                      { key: 'm3', party: sig?.mengesahkan3 },
+                    ] as const
+                  ).map(({ key, party }) => (
+                    <div
+                      key={key}
+                      className="flex flex-col items-center justify-between min-h-[108px]"
+                    >
+                      <div>
+                        <div className="h-4" />
+                        <div className="font-bold">Mengesahkan,</div>
+                        {party?.jabatan?.trim() && (
+                          <div className="text-[11px] text-slate-600 mt-0.5 max-w-[200px]">
+                            {party.jabatan.trim()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="pt-10">
+                        <div className="font-bold underline underline-offset-4">
+                          {party?.nama?.trim() || '( .............................. )'}
                         </div>
-                      )}
-                    </div>
-                    <div className="pt-10">
-                      <div className="font-bold underline underline-offset-4">
-                        {sig?.mengesahkan.nama.trim() ||
-                          '( ........................................ )'}
                       </div>
                     </div>
-                  </div>
+                  ))}
 
                   <div className="flex flex-col items-center justify-between min-h-[108px]">
                     <div>
@@ -675,15 +696,14 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                       </div>
                       <div className="font-bold">Menyetujui,</div>
                       {sig?.menyetujui.jabatan.trim() && (
-                        <div className="text-[11px] text-slate-600 mt-0.5 max-w-xs">
+                        <div className="text-[11px] text-slate-600 mt-0.5 max-w-[200px]">
                           {sig.menyetujui.jabatan.trim()}
                         </div>
                       )}
                     </div>
                     <div className="pt-10">
                       <div className="font-bold underline underline-offset-4">
-                        {sig?.menyetujui.nama.trim() ||
-                          '( ........................................ )'}
+                        {sig?.menyetujui.nama.trim() || '( .............................. )'}
                       </div>
                     </div>
                   </div>
@@ -691,7 +711,7 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
               </div>
 
               {/* Footer matching PDF */}
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
+              <div className="pt-2 border-t border-[#C7D3E8] flex items-center justify-between text-[10px] text-slate-500">
                 <span>
                   SIMPRA BPBPK NTB TA. 2027-2030 · Infografis Peringkat Skor Readiness Criteria (RC)
                 </span>
@@ -699,6 +719,10 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                   {pdfPayload ? `${pdfPayload.pageCount} Halaman (A4 Landscape)` : 'A4 Landscape'}
                 </span>
               </div>
+              </div>
+
+              {/* Bottom Batik PU Ornamental Ribbon */}
+              <div className="h-2 w-full batik-pu-strip border-t-2 border-[#E89611]" />
             </div>
           </div>
         )}

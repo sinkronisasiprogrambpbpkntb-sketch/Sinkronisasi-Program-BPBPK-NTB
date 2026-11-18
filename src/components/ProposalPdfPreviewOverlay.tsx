@@ -27,7 +27,11 @@ import {
   ProposalProfilePdfInput,
   ProposalProfilePdfPreviewPayload,
 } from '../utils/exportProposalProfilePdf';
-import { loadPuWordmarkDataUrl, PU_WORDMARK_SRC } from '../utils/puLogoAsset';
+import {
+  loadPuBatikAssets,
+  loadPuWordmarkDataUrl,
+  PU_WORDMARK_SRC,
+} from '../utils/puLogoAsset';
 
 interface ProposalPdfPreviewOverlayProps {
   isOpen: boolean;
@@ -65,12 +69,17 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
     let generatedUrl: string | null = null;
 
     void (async () => {
-      const wordmarkDataUrl =
-        pdfInput.wordmarkDataUrl ?? (await loadPuWordmarkDataUrl());
+      const [wordmarkDataUrl, batikAssets] = await Promise.all([
+        pdfInput.wordmarkDataUrl
+          ? Promise.resolve(pdfInput.wordmarkDataUrl)
+          : loadPuWordmarkDataUrl(),
+        pdfInput.batikAssets ? Promise.resolve(pdfInput.batikAssets) : loadPuBatikAssets(),
+      ]);
       if (cancelled) return;
       const payload = createProposalProfilePdfPreview({
         ...pdfInput,
         wordmarkDataUrl,
+        batikAssets,
       });
       if (cancelled) {
         URL.revokeObjectURL(payload.blobUrl);
@@ -277,7 +286,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
         ) : (
           <div className="flex justify-center">
             <div
-              className="bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-300 w-full max-w-[1122px] p-6 sm:p-7 space-y-4 origin-top transition-transform"
+              className="batik-pu-watermark text-slate-900 shadow-2xl rounded-sm border border-[#C7D3E8] w-full max-w-[1122px] overflow-hidden origin-top transition-transform"
               style={
                 zoomPct !== 100
                   ? {
@@ -287,18 +296,22 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                   : undefined
               }
             >
+              {/* Top Batik PU Ornamental Ribbon */}
+              <div className="h-2.5 w-full batik-pu-strip border-b-2 border-[#E89611]" />
+
+              <div className="p-6 sm:p-7 space-y-4">
               {/* Header KEMENPU */}
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-1">
+              <div className="bg-white border border-[#C7D3E8] rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-stretch gap-3 min-w-0">
                   <div className="flex shrink-0 select-none" aria-hidden="true">
-                    <div className="w-2 bg-[#0b3c7c]" />
-                    <div className="w-2.5 bg-[#f5a800]" />
+                    <div className="w-2 bg-[#061459]" />
+                    <div className="w-2.5 bg-[#E89611]" />
                   </div>
                   <div className="min-w-0 py-0.5">
-                    <h3 className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-800 uppercase leading-snug">
+                    <h3 className="text-lg sm:text-xl font-extrabold tracking-tight text-[#061459] uppercase leading-snug">
                       {proposal.namaProgram}
                     </h3>
-                    <div className="mt-0.5 text-xs sm:text-sm font-semibold text-[#5b7fa6] uppercase tracking-wide">
+                    <div className="mt-0.5 text-xs sm:text-sm font-semibold text-[#476691] uppercase tracking-wide">
                       {proposal.kabupatenKota} ·{' '}
                       {details.provinsi ?? 'Nusa Tenggara Barat'} ({proposal.kodeUsulan} ·{' '}
                       {formatActiveYears(proposal.pagu)})
@@ -317,11 +330,12 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
 
               {/* Row 1: Gambaran Umum | Urgensi Strategis | Lingkup Pekerjaan */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
-                <div className="lg:col-span-5 bg-white border border-slate-300 rounded-xl p-3.5 flex flex-col">
-                  <div className="flex items-center gap-2 pb-2 mb-2 border-b border-slate-200">
-                    <Target className="w-4 h-4 text-[#0284c7] shrink-0" />
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-800">Gambaran Umum</h4>
+                <div className="lg:col-span-5 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden flex flex-col">
+                  <div className="flex items-center gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                    <Target className="w-4 h-4 text-[#E89611] shrink-0" />
+                    <h4 className="text-xs sm:text-sm font-bold text-white">Gambaran Umum</h4>
                   </div>
+                  <div className="p-3.5">
                   <ul className="list-disc pl-4 space-y-1.5 text-[11px] text-slate-700 leading-relaxed">
                     <li>
                       <strong className="text-slate-800">Latar belakang: </strong>
@@ -332,15 +346,17 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                       {details.dasarPenugasan}
                     </li>
                   </ul>
+                  </div>
                 </div>
 
-                <div className="lg:col-span-4 bg-white border border-slate-300 rounded-xl p-3.5 flex flex-col">
-                  <div className="flex items-center gap-2 pb-2 mb-2 border-b border-slate-200">
-                    <AlertTriangle className="w-4 h-4 text-[#0284c7] shrink-0" />
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                <div className="lg:col-span-4 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden flex flex-col">
+                  <div className="flex items-center gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                    <AlertTriangle className="w-4 h-4 text-[#E89611] shrink-0" />
+                    <h4 className="text-xs sm:text-sm font-bold text-white">
                       Urgensi Strategis
                     </h4>
                   </div>
+                  <div className="p-3.5">
                   <ul className="list-disc pl-4 space-y-1.5 text-[11px] text-slate-700 leading-relaxed">
                     <li>
                       <strong className="text-slate-800">Dukungan Prioritas: </strong>
@@ -351,15 +367,17 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                       {details.manfaatKegiatan}
                     </li>
                   </ul>
+                  </div>
                 </div>
 
-                <div className="lg:col-span-3 bg-white border border-slate-300 rounded-xl p-3.5 flex flex-col">
-                  <div className="flex items-center gap-2 pb-2 mb-2 border-b border-slate-200">
-                    <ListChecks className="w-4 h-4 text-[#0284c7] shrink-0" />
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                <div className="lg:col-span-3 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden flex flex-col">
+                  <div className="flex items-center gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                    <ListChecks className="w-4 h-4 text-[#E89611] shrink-0" />
+                    <h4 className="text-xs sm:text-sm font-bold text-white">
                       Lingkup Pekerjaan
                     </h4>
                   </div>
+                  <div className="p-3.5">
                   <ul className="space-y-1 text-[11px] text-slate-700 leading-relaxed">
                     {(details.lingkupPekerjaan ?? []).map((item, idx) => (
                       <li key={idx} className="flex items-start gap-1.5">
@@ -368,19 +386,20 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                       </li>
                     ))}
                   </ul>
+                  </div>
                 </div>
               </div>
 
               {/* Row 2: Kebutuhan Anggaran | Output & Outcome */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
-                <div className="lg:col-span-6 bg-white border border-slate-300 rounded-xl p-3.5">
-                  <div className="flex items-center gap-2 pb-2 mb-2 border-b border-slate-200">
-                    <Wallet className="w-4 h-4 text-[#0284c7] shrink-0" />
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                <div className="lg:col-span-6 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                    <Wallet className="w-4 h-4 text-[#E89611] shrink-0" />
+                    <h4 className="text-xs sm:text-sm font-bold text-white">
                       Kebutuhan Anggaran
                     </h4>
                   </div>
-                  <div className="text-[11px] text-slate-700 space-y-1">
+                  <div className="p-3.5 text-[11px] text-slate-700 space-y-1">
                     <p>
                       Estimasi total kebutuhan anggaran sebesar{' '}
                       <strong className="font-mono text-slate-900">
@@ -407,14 +426,14 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                   </div>
                 </div>
 
-                <div className="lg:col-span-6 bg-white border border-slate-300 rounded-xl p-3.5">
-                  <div className="flex items-center gap-2 pb-2 mb-2 border-b border-slate-200">
-                    <PieChart className="w-4 h-4 text-[#0284c7] shrink-0" />
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                <div className="lg:col-span-6 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                    <PieChart className="w-4 h-4 text-[#E89611] shrink-0" />
+                    <h4 className="text-xs sm:text-sm font-bold text-white">
                       Output &amp; Outcome
                     </h4>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-700 leading-relaxed">
+                  <div className="p-3.5 grid grid-cols-2 gap-3 text-[11px] text-slate-700 leading-relaxed">
                     <div>
                       <div className="font-bold text-slate-900">Output</div>
                       <div>❖ {details.outputTambahan || '—'}</div>
@@ -429,14 +448,15 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
 
               {/* Row 3: Gambaran Lokasi Kegiatan | Status Readiness Criteria (RC) */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
-                <div className="lg:col-span-6 bg-white border border-slate-300 rounded-xl p-3.5 flex flex-col justify-between">
+                <div className="lg:col-span-6 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center gap-2 pb-2 mb-2.5 border-b border-slate-200">
-                      <MapPin className="w-4 h-4 text-[#0284c7] shrink-0" />
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                    <div className="flex items-center gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                      <MapPin className="w-4 h-4 text-[#E89611] shrink-0" />
+                      <h4 className="text-xs sm:text-sm font-bold text-white">
                         Gambaran Lokasi Kegiatan
                       </h4>
                     </div>
+                    <div className="p-3.5">
                     {imageDataUrl ? (
                       <div className="h-[220px] w-full rounded-lg border border-slate-200 overflow-hidden bg-white">
                         <img
@@ -478,28 +498,30 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                         </div>
                       </div>
                     )}
+                    </div>
                   </div>
-                  <div className="mt-2.5 text-[11px] text-slate-700 leading-relaxed">
+                  <div className="px-3.5 pb-3.5 text-[11px] text-slate-700 leading-relaxed">
                     ❖ {details.deskripsiLokasi}
                   </div>
                 </div>
 
-                <div className="lg:col-span-6 bg-white border border-slate-300 rounded-xl p-3.5">
-                  <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-200">
+                <div className="lg:col-span-6 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
                     <div className="flex items-center gap-2">
-                      <FileCheck2 className="w-4 h-4 text-[#0284c7] shrink-0" />
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                      <FileCheck2 className="w-4 h-4 text-[#E89611] shrink-0" />
+                      <h4 className="text-xs sm:text-sm font-bold text-white">
                         Status <span className="italic">Readiness Criteria</span> (RC)
                       </h4>
                     </div>
-                    <span className="font-mono text-xs font-bold text-[#0b3c7c]">
+                    <span className="font-mono text-xs font-bold text-amber-200">
                       Skor RC: {rcPercentage}%
                     </span>
                   </div>
 
+                  <div className="p-3.5">
                   <table className="w-full border-collapse text-[11px]">
                     <thead>
-                      <tr className="border-b border-slate-300 bg-slate-50 text-slate-800">
+                      <tr className="border-b border-[#C7D3E8] bg-[#EEF2FA] text-[#061459]">
                         <th
                           rowSpan={2}
                           className="py-1.5 px-2 text-center font-bold border-r border-slate-300 w-[37%]"
@@ -554,29 +576,40 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                       })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
 
-              {/* Signature Block: Mengesahkan (Left) & Menyetujui (Right) */}
-              <div className="border border-slate-300 rounded-xl px-6 py-4 bg-white">
-                <div className="grid grid-cols-2 gap-8 text-center text-xs text-slate-900">
-                  <div className="flex flex-col items-center justify-between min-h-[100px]">
-                    <div>
-                      <div className="h-4" />
-                      <div className="font-bold">Mengesahkan,</div>
-                      {signatories?.mengesahkan.jabatan.trim() && (
-                        <div className="text-[11px] text-slate-600 mt-0.5 max-w-xs">
-                          {signatories.mengesahkan.jabatan.trim()}
+              {/* Signature Block: 3 Kolom Mengesahkan & 1 Kolom Menyetujui */}
+              <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-xl px-5 py-4 bg-white">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 text-center text-xs text-slate-900">
+                  {(
+                    [
+                      { key: 'm1', party: signatories?.mengesahkan },
+                      { key: 'm2', party: signatories?.mengesahkan2 },
+                      { key: 'm3', party: signatories?.mengesahkan3 },
+                    ] as const
+                  ).map(({ key, party }) => (
+                    <div
+                      key={key}
+                      className="flex flex-col items-center justify-between min-h-[100px]"
+                    >
+                      <div>
+                        <div className="h-4" />
+                        <div className="font-bold">Mengesahkan,</div>
+                        {party?.jabatan?.trim() && (
+                          <div className="text-[11px] text-slate-600 mt-0.5 max-w-[200px]">
+                            {party.jabatan.trim()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="pt-9">
+                        <div className="font-bold underline underline-offset-4">
+                          {party?.nama?.trim() || '( .............................. )'}
                         </div>
-                      )}
-                    </div>
-                    <div className="pt-9">
-                      <div className="font-bold underline underline-offset-4">
-                        {signatories?.mengesahkan.nama.trim() ||
-                          '( ........................................ )'}
                       </div>
                     </div>
-                  </div>
+                  ))}
 
                   <div className="flex flex-col items-center justify-between min-h-[100px]">
                     <div>
@@ -585,7 +618,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                       </div>
                       <div className="font-bold">Menyetujui,</div>
                       {signatories?.menyetujui.jabatan.trim() && (
-                        <div className="text-[11px] text-slate-600 mt-0.5 max-w-xs">
+                        <div className="text-[11px] text-slate-600 mt-0.5 max-w-[200px]">
                           {signatories.menyetujui.jabatan.trim()}
                         </div>
                       )}
@@ -593,7 +626,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                     <div className="pt-9">
                       <div className="font-bold underline underline-offset-4">
                         {signatories?.menyetujui.nama.trim() ||
-                          '( ........................................ )'}
+                          '( .............................. )'}
                       </div>
                     </div>
                   </div>
@@ -601,12 +634,16 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
               </div>
 
               {/* Footer */}
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
+              <div className="pt-2 border-t border-[#C7D3E8] flex items-center justify-between text-[10px] text-slate-500">
                 <span>
                   SIMPRA BPBPK NTB · Profil Usulan Program ({proposal.kodeUsulan})
                 </span>
                 <span>Dicetak: {printTimestamp} · Halaman 1 dari 1</span>
               </div>
+              </div>
+
+              {/* Bottom Batik PU Ornamental Ribbon */}
+              <div className="h-2 w-full batik-pu-strip border-t-2 border-[#E89611]" />
             </div>
           </div>
         )}
