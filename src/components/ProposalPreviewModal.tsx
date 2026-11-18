@@ -606,35 +606,42 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
 
     const htmlWordmarkSrc =
       getCachedPuWordmarkDataUrl() || `${window.location.origin}${PU_WORDMARK_SRC}`;
+    const htmlBatikSrc = `${window.location.origin}/assets/aistudio/WhatsApp-Image-2019-11-27-at-8.49.19-AM.jpeg__1__eda5fd50.webp`;
     const htmlDoc = `<!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8" />
 <title>Paparan Usulan ${proposal.kodeUsulan} - Kementerian Pekerjaan Umum</title>
 <style>
-  body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; background:#f8fafc; color:#1e293b; margin:0; padding:24px; }
-  .slide { max-width:1240px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:28px 32px; }
-  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
+  body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; background:#EEF2FA; color:#0f172a; margin:0; padding:24px; }
+  .slide { max-width:1240px; margin:0 auto; background-color:#ffffff; background-image:linear-gradient(rgba(255,255,255,0.945), rgba(255,255,255,0.945)), url('${htmlBatikSrc}'); background-size:auto, 240px auto; background-repeat:no-repeat, repeat; border:1px solid #C7D3E8; border-radius:16px; overflow:hidden; box-shadow:0 12px 32px rgba(6,20,89,0.10); }
+  .batik-strip { height:10px; width:100%; background-color:#061459; background-image:url('${htmlBatikSrc}'); background-size:260px auto; background-repeat:repeat-x; background-position:center; border-bottom:2px solid #E89611; }
+  .batik-strip-bottom { height:8px; width:100%; background-color:#061459; background-image:url('${htmlBatikSrc}'); background-size:260px auto; background-repeat:repeat-x; background-position:center; border-top:2px solid #E89611; }
+  .slide-inner { padding:24px 28px; }
+  .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; background:#ffffff; border:1px solid #C7D3E8; border-radius:14px; padding:14px 18px; gap:16px; }
   .title-wrap { display:flex; align-items:stretch; gap:14px; }
-  .bars { display:flex; width:14px; flex-shrink:0; }
-  .bar-blue { width:7px; background:#0b3c7c; }
-  .bar-gold { width:7px; background:#f5a800; }
-  h1 { margin:0; font-size:24px; font-weight:800; text-transform:uppercase; color:#1e293b; }
-  .subtitle { margin-top:4px; font-size:15px; color:#5b7fa6; text-transform:uppercase; font-weight:500; }
+  .bars { display:flex; width:16px; flex-shrink:0; }
+  .bar-blue { width:7px; background:#061459; }
+  .bar-gold { width:9px; background:#E89611; }
+  h1 { margin:0; font-size:22px; font-weight:800; text-transform:uppercase; color:#061459; }
+  .subtitle { margin-top:4px; font-size:14px; color:#476691; text-transform:uppercase; font-weight:600; }
   .brand { display:flex; align-items:center; justify-content:flex-end; flex-shrink:0; }
   .brand-logo { height:48px; width:auto; object-fit:contain; }
   .row3 { display:grid; grid-template-columns: 5fr 4fr 3fr; gap:14px; margin-bottom:14px; }
   .row2 { display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:14px; }
   .row-bottom { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
-  .card { border:1px solid #cbd5e1; border-radius:14px; padding:14px 16px; }
-  .card-title { font-size:15px; font-weight:700; color:#1e293b; padding-bottom:8px; margin-bottom:10px; border-bottom:1px solid #e2e8f0; }
-  ul { margin:6px 0 0; padding-left:18px; font-size:12.5px; line-height:1.55; }
+  .card { border:1px solid #C7D3E8; border-radius:14px; background:#ffffff; overflow:hidden; }
+  .card-title { font-size:14px; font-weight:700; color:#ffffff; background:#061459; padding:9px 14px; border-bottom:2px solid #E89611; }
+  .card-body { padding:13px 15px; }
+  ul { margin:4px 0 0; padding-left:18px; font-size:12.5px; line-height:1.55; }
   table { width:100%; border-collapse:collapse; font-size:12px; }
-  th { padding:7px 10px; border-bottom:1px solid #94a3b8; text-align:center; font-weight:700; }
+  th { padding:7px 10px; border-bottom:1px solid #C7D3E8; text-align:center; font-weight:700; background:#EEF2FA; color:#061459; }
 </style>
 </head>
 <body>
   <div class="slide">
+    <div class="batik-strip"></div>
+    <div class="slide-inner">
     <div class="header">
       <div class="title-wrap">
         <div class="bars"><div class="bar-blue"></div><div class="bar-gold"></div></div>
@@ -650,7 +657,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     <div class="row3">
       <div class="card">
         <div class="card-title">Gambaran Umum</div>
-        <div style="font-size:12.5px;line-height:1.55;">
+        <div class="card-body" style="font-size:12.5px;line-height:1.55;">
           <ul>
             <li><strong>Latar belakang:</strong> ${details.latarBelakang}</li>
             <li><strong>Dasar penugasan:</strong> ${details.dasarPenugasan}</li>
@@ -659,20 +666,24 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       </div>
       <div class="card">
         <div class="card-title">Urgensi Strategis</div>
-        <ul>
-          <li>${proposal.prioritasNasional}</li>
-          <li>${details.manfaatKegiatan}</li>
-        </ul>
+        <div class="card-body">
+          <ul>
+            <li>${proposal.prioritasNasional}</li>
+            <li>${details.manfaatKegiatan}</li>
+          </ul>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">Lingkup Pekerjaan</div>
-        <ul style="list-style:none;padding-left:0;">${lingkupHtml}</ul>
+        <div class="card-body">
+          <ul style="list-style:none;padding-left:0;">${lingkupHtml}</ul>
+        </div>
       </div>
     </div>
     <div class="row2">
       <div class="card">
         <div class="card-title">Kebutuhan Anggaran</div>
-        <div style="font-size:12.5px;line-height:1.6;">
+        <div class="card-body" style="font-size:12.5px;line-height:1.6;">
           <div>Estimasi total kebutuhan anggaran sebesar <strong>Rp ${formatNumberMiliar(totalPagu)} Miliar</strong></div>
           <div>&#10070; Fisik Rp ${formatNumberMiliar(details.biayaFisikMiliar)} Miliar</div>
           <div>&#10070; Manajemen Konstruksi/Supervisi Rp ${formatNumberMiliar(details.biayaSupervisiMiliar)} Miliar</div>
@@ -680,7 +691,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       </div>
       <div class="card">
         <div class="card-title">Output &amp; Outcome</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px;line-height:1.6;">
+        <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px;line-height:1.6;">
           <div>
             <strong>Output</strong>
             ${details.outputTambahan ? `<div>&#10070; ${details.outputTambahan}</div>` : '<div>&#10070; —</div>'}
@@ -695,32 +706,38 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     <div class="row-bottom">
       <div class="card">
         <div class="card-title">Gambaran Lokasi Kegiatan</div>
-        ${
-          imageDraftUrl
-            ? `<img src="${imageDraftUrl}" alt="Gambaran Lokasi" style="width:100%;height:240px;object-fit:contain;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:8px;" />`
-            : `<div style="padding:18px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;margin-bottom:8px;font-size:12px;">Koordinat Lokasi: <strong>${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}</strong> (${proposal.kecamatanKawasan}, ${proposal.kabupatenKota})</div>`
-        }
-        <div style="font-size:12px;line-height:1.5;">&#10070; ${details.deskripsiLokasi}</div>
+        <div class="card-body">
+          ${
+            imageDraftUrl
+              ? `<img src="${imageDraftUrl}" alt="Gambaran Lokasi" style="width:100%;height:240px;object-fit:contain;border-radius:10px;border:1px solid #C7D3E8;margin-bottom:8px;" />`
+              : `<div style="padding:18px;border:1px solid #C7D3E8;border-radius:10px;background:#F8FAFE;margin-bottom:8px;font-size:12px;">Koordinat Lokasi: <strong>${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}</strong> (${proposal.kecamatanKawasan}, ${proposal.kabupatenKota})</div>`
+          }
+          <div style="font-size:12px;line-height:1.5;">&#10070; ${details.deskripsiLokasi}</div>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">Status <em>Readiness Criteria</em> (RC) — Skor: ${rcDraft}%</div>
-        <table>
-          <thead>
-            <tr>
-              <th rowspan="2" style="border-right:1px solid #cbd5e1;vertical-align:middle;">Dokumen</th>
-              <th colspan="3" style="border-right:1px solid #cbd5e1;border-bottom:1px solid #cbd5e1;">Status</th>
-              <th rowspan="2" style="vertical-align:middle;">Keterangan</th>
-            </tr>
-            <tr>
-              <th style="border-right:1px solid #cbd5e1;font-size:11px;width:54px;">Ada</th>
-              <th style="border-right:1px solid #cbd5e1;font-size:11px;width:58px;">Kurang</th>
-              <th style="border-right:1px solid #cbd5e1;font-size:11px;width:58px;">Sesuai</th>
-            </tr>
-          </thead>
-          <tbody>${rcRowsHtml}</tbody>
-        </table>
+        <div class="card-body">
+          <table>
+            <thead>
+              <tr>
+                <th rowspan="2" style="border-right:1px solid #C7D3E8;vertical-align:middle;">Dokumen</th>
+                <th colspan="3" style="border-right:1px solid #C7D3E8;border-bottom:1px solid #C7D3E8;">Status</th>
+                <th rowspan="2" style="vertical-align:middle;">Keterangan</th>
+              </tr>
+              <tr>
+                <th style="border-right:1px solid #C7D3E8;font-size:11px;width:54px;">Ada</th>
+                <th style="border-right:1px solid #C7D3E8;font-size:11px;width:58px;">Kurang</th>
+                <th style="border-right:1px solid #C7D3E8;font-size:11px;width:58px;">Sesuai</th>
+              </tr>
+            </thead>
+            <tbody>${rcRowsHtml}</tbody>
+          </table>
+        </div>
       </div>
     </div>
+    </div>
+    <div class="batik-strip-bottom"></div>
   </div>
 </body>
 </html>`;
@@ -746,9 +763,9 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-[1320px] max-h-[95vh] flex flex-col overflow-hidden print:max-h-none print:shadow-none print:border-0">
-        {/* Top Utility & Action Bar (Hidden on Print) */}
-        <div className="px-4 sm:px-6 py-3 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden">
+      <div className="bg-white border border-[#C7D3E8] rounded-2xl shadow-2xl w-full max-w-[1320px] max-h-[95vh] flex flex-col overflow-hidden print:max-h-none print:shadow-none print:border-0">
+        {/* Top Utility & Action Bar (Batik PU Theme, Hidden on Print) */}
+        <div className="px-4 sm:px-6 py-3 batik-pu-banner border-b-2 border-[#E89611] text-white flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden">
           <div className="flex items-center gap-2">
             {!isTemplateDemo && proposalsList.length > 1 && (
               <>
@@ -756,26 +773,26 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   type="button"
                   disabled={!hasPrev}
                   onClick={() => hasPrev && onSelectProposal(proposalsList[currentIndex - 1].id)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-[#040E42]/80 hover:bg-[#0A1D6E] border border-white/15 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <ChevronLeft className="w-3.5 h-3.5 text-amber-300" />
                   <span>Sebelumnya</span>
                 </button>
-                <span className="font-mono text-xs text-slate-300 px-1 tabular-nums">
+                <span className="font-mono text-xs text-amber-200 px-1 tabular-nums">
                   {currentIndex + 1} / {proposalsList.length}
                 </span>
                 <button
                   type="button"
                   disabled={!hasNext}
                   onClick={() => hasNext && onSelectProposal(proposalsList[currentIndex + 1].id)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-[#040E42]/80 hover:bg-[#0A1D6E] border border-white/15 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <span>Berikutnya</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-3.5 h-3.5 text-amber-300" />
                 </button>
               </>
             )}
-            <span className="text-xs text-slate-300 font-mono">
+            <span className="text-xs text-indigo-100 font-mono">
               {isTemplateDemo
                 ? 'Contoh Tampilan Template Preview Usulan KEMENPU'
                 : `${proposal.kodeUsulan} · ${formatActiveYears(proposal.pagu)}`}
@@ -795,10 +812,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#040E42]/80 hover:bg-[#0A1D6E] border border-white/15 text-indigo-100 hover:text-white cursor-pointer whitespace-nowrap"
                 title="Unggah gambar skema jaringan atau peta lokasi untuk kartu Gambaran Lokasi Kegiatan"
               >
-                <ImagePlus className="w-3.5 h-3.5" />
+                <ImagePlus className="w-3.5 h-3.5 text-amber-300" />
                 <span>Unggah Gambar Lokasi</span>
               </button>
             )}
@@ -808,9 +825,9 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 <button
                   type="button"
                   onClick={handleDownloadSlideHtml}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 cursor-pointer whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#040E42]/80 hover:bg-[#0A1D6E] border border-white/15 text-indigo-100 hover:text-white cursor-pointer whitespace-nowrap"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-3.5 h-3.5 text-amber-300" />
                   <span className="hidden sm:inline">Unduh HTML</span>
                 </button>
 
@@ -820,17 +837,17 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     const el = document.getElementById('profil-pdf-signatory-panel');
                     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 cursor-pointer whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#040E42]/80 hover:bg-[#0A1D6E] border border-white/15 text-indigo-100 hover:text-white cursor-pointer whitespace-nowrap"
                   title="Isi data Mengesahkan & Menyetujui untuk Cetak PDF"
                 >
-                  <PenLine className="w-3.5 h-3.5" />
+                  <PenLine className="w-3.5 h-3.5 text-amber-300" />
                   <span className="hidden md:inline">Pengesahan PDF</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowPdfPreview(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-400 text-[#051044] cursor-pointer whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#E89611] hover:bg-amber-400 text-[#051044] cursor-pointer whitespace-nowrap shadow-xs"
                   title="Lihat pratinjau hasil Cetak PDF Profil Usulan"
                 >
                   <Eye className="w-3.5 h-3.5" />
@@ -852,7 +869,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                       });
                     })();
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#07165B] hover:bg-[#0A1D6E] text-white cursor-pointer whitespace-nowrap border border-amber-400/50"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#07165B] hover:bg-[#0A1D6E] text-white cursor-pointer whitespace-nowrap border border-amber-400/60"
                   title="Alternatif Cetak PDF langsung ke dalam 1 kertas A4 Landscape"
                 >
                   <Printer className="w-3.5 h-3.5 text-amber-300" />
@@ -862,9 +879,9 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 cursor-pointer whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#040E42]/80 hover:bg-[#0A1D6E] border border-white/15 text-indigo-100 hover:text-white cursor-pointer whitespace-nowrap"
                 >
-                  <Printer className="w-3.5 h-3.5" />
+                  <Printer className="w-3.5 h-3.5 text-amber-300" />
                   <span className="hidden sm:inline">Cetak / PDF</span>
                 </button>
               </>
@@ -889,7 +906,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     onClose();
                     onEditProposal(proposal);
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white cursor-pointer whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1E40AF] hover:bg-blue-600 border border-white/15 text-white cursor-pointer whitespace-nowrap"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>Edit Formulir</span>
@@ -912,7 +929,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer"
+              className="p-1.5 rounded-lg text-indigo-200 hover:text-white hover:bg-white/10 cursor-pointer"
               aria-label="Tutup pratinjau"
             >
               <X className="w-5 h-5" />
@@ -926,24 +943,26 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           </div>
         )}
 
-        {/* KEMENPU Executive Slide Canvas (Matches Batik PU PDF Theme on Print) */}
-        <div className="flex-1 overflow-y-auto bg-white print-batik-watermark p-5 sm:p-8 print:p-5 space-y-4">
-          <div className="hidden print:block h-2.5 w-full batik-pu-strip border-b-2 border-[#E89611] mb-2" />
-          {/* SLIDE HEADER: Left Navy/Gold Bar + Uppercase Title & Subtitle | Right KEMENPU Lockup */}
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-1">
+        {/* KEMENPU Executive Slide Canvas (Batik PU Theme on Screen & Print) */}
+        <div className="flex-1 overflow-y-auto batik-pu-watermark print-batik-watermark print:p-0">
+          <div className="h-2.5 w-full batik-pu-strip border-b-2 border-[#E89611] shrink-0" aria-hidden="true" />
+
+          <div className="p-5 sm:p-8 print:p-5 space-y-4">
+          {/* SLIDE HEADER: Framed Card with Left Navy/Gold Bar + Uppercase Title & Subtitle | Right KEMENPU Wordmark */}
+          <div className="bg-white border border-[#C7D3E8] rounded-2xl px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
             <div className="flex items-stretch gap-3.5 min-w-0">
               <div className="flex shrink-0 select-none" aria-hidden="true">
-                <div className="w-2 bg-[#0b3c7c]" />
-                <div className="w-2.5 bg-[#f5a800]" />
+                <div className="w-2 bg-[#061459]" />
+                <div className="w-2.5 bg-[#E89611]" />
               </div>
               <div className="min-w-0 py-0.5">
                 <h1
                   id="preview-modal-title"
-                  className="font-display text-xl sm:text-2xl font-extrabold tracking-tight text-slate-800 uppercase leading-snug"
+                  className="font-display text-xl sm:text-2xl font-extrabold tracking-tight text-[#061459] uppercase leading-snug"
                 >
                   {proposal.namaProgram}
                 </h1>
-                <div className="mt-0.5 text-sm sm:text-base font-medium text-[#5b7fa6] uppercase tracking-wide">
+                <div className="mt-0.5 text-sm sm:text-base font-semibold text-[#476691] uppercase tracking-wide">
                   {proposal.kabupatenKota} · {details.provinsi}
                 </div>
               </div>
@@ -955,12 +974,12 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           {/* ROW 1: Gambaran Umum (5) | Urgensi Strategis (4) | Lingkup Pekerjaan (3) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
             {/* Card 1: Gambaran Umum */}
-            <div className="lg:col-span-5 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
-              <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-200">
-                <Target className="w-5 h-5 text-[#0284c7] shrink-0" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-800">Gambaran Umum</h2>
+            <div className="lg:col-span-5 bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden flex flex-col shadow-xs">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                <Target className="w-4 h-4 text-[#E89611] shrink-0" />
+                <h2 className="text-sm sm:text-base font-bold text-white">Gambaran Umum</h2>
               </div>
-              <div className="text-xs text-slate-700 leading-relaxed space-y-2">
+              <div className="p-4 text-xs text-slate-700 leading-relaxed space-y-2">
                 <p className="text-slate-600">Informasi umum pelaksanaan kegiatan:</p>
                 <ul className="list-disc pl-4 space-y-1.5">
                   <li>
@@ -976,60 +995,64 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
             </div>
 
             {/* Card 2: Urgensi Strategis */}
-            <div className="lg:col-span-4 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
-              <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-200">
-                <AlertTriangle className="w-5 h-5 text-[#0284c7] shrink-0" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-800">
+            <div className="lg:col-span-4 bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden flex flex-col shadow-xs">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                <AlertTriangle className="w-4 h-4 text-[#E89611] shrink-0" />
+                <h2 className="text-sm sm:text-base font-bold text-white">
                   Urgensi Strategis
                 </h2>
               </div>
-              <ul className="list-disc pl-4 space-y-2 text-xs text-slate-700 leading-relaxed">
-                <li>
-                  <span className="font-semibold text-slate-800">
-                    Dukungan PN / PKPN / Prioritas:{' '}
-                  </span>
-                  <span>{proposal.prioritasNasional}</span>
-                </li>
-                <li>
-                  <span className="font-semibold text-slate-800">Manfaat kegiatan: </span>
-                  <span>{details.manfaatKegiatan}</span>
-                </li>
-              </ul>
+              <div className="p-4">
+                <ul className="list-disc pl-4 space-y-2 text-xs text-slate-700 leading-relaxed">
+                  <li>
+                    <span className="font-semibold text-slate-800">
+                      Dukungan PN / PKPN / Prioritas:{' '}
+                    </span>
+                    <span>{proposal.prioritasNasional}</span>
+                  </li>
+                  <li>
+                    <span className="font-semibold text-slate-800">Manfaat kegiatan: </span>
+                    <span>{details.manfaatKegiatan}</span>
+                  </li>
+                </ul>
+              </div>
             </div>
 
             {/* Card 3: Lingkup Pekerjaan */}
-            <div className="lg:col-span-3 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
-              <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-200">
-                <ListChecks className="w-5 h-5 text-[#0284c7] shrink-0" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-800">
+            <div className="lg:col-span-3 bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden flex flex-col shadow-xs">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                <ListChecks className="w-4 h-4 text-[#E89611] shrink-0" />
+                <h2 className="text-sm sm:text-base font-bold text-white">
                   Lingkup Pekerjaan
                 </h2>
               </div>
-              <ul className="space-y-1.5 text-xs text-slate-700 leading-relaxed">
-                {details.lingkupPekerjaan.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <Square className="w-3.5 h-3.5 text-slate-600 shrink-0 mt-0.5" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="p-4">
+                <ul className="space-y-1.5 text-xs text-slate-700 leading-relaxed">
+                  {details.lingkupPekerjaan.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <Square className="w-3.5 h-3.5 text-[#061459]/70 shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
 
           {/* ROW 2: Kebutuhan Anggaran (6) | Output & Outcome (6) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
             {/* Card 4: Kebutuhan Anggaran */}
-            <div className="lg:col-span-6 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
-              <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-200">
-                <Wallet className="w-5 h-5 text-[#0284c7] shrink-0" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-800">
+            <div className="lg:col-span-6 bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden flex flex-col shadow-xs">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                <Wallet className="w-4 h-4 text-[#E89611] shrink-0" />
+                <h2 className="text-sm sm:text-base font-bold text-white">
                   Kebutuhan Anggaran
                 </h2>
               </div>
-              <div className="text-xs text-slate-700 leading-relaxed space-y-1.5">
+              <div className="p-4 text-xs text-slate-700 leading-relaxed space-y-1.5">
                 <p>
                   Estimasi total kebutuhan anggaran sebesar{' '}
-                  <strong className="font-mono text-slate-900">
+                  <strong className="font-mono text-[#061459]">
                     Rp {formatNumberMiliar(totalPagu)} Miliar
                   </strong>{' '}
                   <span className="text-slate-500">
@@ -1038,7 +1061,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 </p>
                 <div className="space-y-1 pt-0.5">
                   <div className="flex items-start gap-1.5">
-                    <span className="text-slate-700 select-none" aria-hidden="true">
+                    <span className="text-[#E89611] select-none" aria-hidden="true">
                       ❖
                     </span>
                     <span>
@@ -1050,7 +1073,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     </span>
                   </div>
                   <div className="flex items-start gap-1.5">
-                    <span className="text-slate-700 select-none" aria-hidden="true">
+                    <span className="text-[#E89611] select-none" aria-hidden="true">
                       ❖
                     </span>
                     <span>
@@ -1066,19 +1089,19 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
             </div>
 
             {/* Card 5: Output & Outcome */}
-            <div className="lg:col-span-6 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col">
-              <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-200">
-                <PieChart className="w-5 h-5 text-[#0284c7] shrink-0" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-800">
+            <div className="lg:col-span-6 bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden flex flex-col shadow-xs">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                <PieChart className="w-4 h-4 text-[#E89611] shrink-0" />
+                <h2 className="text-sm sm:text-base font-bold text-white">
                   Output &amp; Outcome
                 </h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-700 leading-relaxed">
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-700 leading-relaxed">
                 <div className="space-y-1">
-                  <div className="font-bold text-slate-900">Output</div>
+                  <div className="font-bold text-[#061459]">Output</div>
                   {details.outputTambahan ? (
                     <div className="flex items-start gap-1.5">
-                      <span aria-hidden="true">❖</span>
+                      <span className="text-[#E89611]" aria-hidden="true">❖</span>
                       <span>{details.outputTambahan}</span>
                     </div>
                   ) : (
@@ -1090,10 +1113,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <div className="font-bold text-slate-900">Outcome</div>
+                  <div className="font-bold text-[#061459]">Outcome</div>
                   {details.outcomeTambahan ? (
                     <div className="flex items-start gap-1.5">
-                      <span aria-hidden="true">❖</span>
+                      <span className="text-[#E89611]" aria-hidden="true">❖</span>
                       <span>{details.outcomeTambahan}</span>
                     </div>
                   ) : (
@@ -1110,26 +1133,26 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           {/* ROW 3: Gambaran Lokasi Kegiatan (6) | Status Readiness Criteria (RC) (6) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
             {/* Card 7: Gambaran Lokasi Kegiatan */}
-            <div className="lg:col-span-6 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col justify-between">
+            <div className="lg:col-span-6 bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs">
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-[#061459] text-white border-b-2 border-[#E89611]">
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-5 h-5 text-[#0284c7] shrink-0" />
-                    <h2 className="text-sm sm:text-base font-bold text-slate-800">
+                    <MapPin className="w-4 h-4 text-[#E89611] shrink-0" />
+                    <h2 className="text-sm sm:text-base font-bold text-white">
                       Gambaran Lokasi Kegiatan
                     </h2>
                   </div>
 
                   <div className="flex items-center gap-1.5 print:hidden">
                     {imageDraftUrl && (
-                      <div className="inline-flex bg-slate-100 p-0.5 rounded-lg">
+                      <div className="inline-flex bg-[#040E42]/85 border border-white/15 p-0.5 rounded-lg">
                         <button
                           type="button"
                           onClick={() => setLocationMediaTab('image')}
                           className={`px-2 py-0.5 text-[11px] font-medium rounded-md cursor-pointer ${
                             locationMediaTab === 'image'
-                              ? 'bg-white text-slate-900 shadow-xs'
-                              : 'text-slate-600'
+                              ? 'bg-[#E89611] text-[#051044] font-semibold'
+                              : 'text-indigo-100 hover:text-white'
                           }`}
                         >
                           Gambar
@@ -1139,8 +1162,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           onClick={() => setLocationMediaTab('map')}
                           className={`px-2 py-0.5 text-[11px] font-medium rounded-md cursor-pointer ${
                             locationMediaTab === 'map'
-                              ? 'bg-white text-slate-900 shadow-xs'
-                              : 'text-slate-600'
+                              ? 'bg-[#E89611] text-[#051044] font-semibold'
+                              : 'text-indigo-100 hover:text-white'
                           }`}
                         >
                           Peta GIS
@@ -1149,14 +1172,14 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     )}
 
                     {locationMediaTab === 'map' && (
-                      <div className="inline-flex bg-slate-100 p-0.5 rounded-lg">
+                      <div className="inline-flex bg-[#040E42]/85 border border-white/15 p-0.5 rounded-lg">
                         <button
                           type="button"
                           onClick={() => setMiniMapType('roadmap')}
                           className={`px-2 py-0.5 text-[11px] font-medium rounded-md cursor-pointer ${
                             miniMapType === 'roadmap'
-                              ? 'bg-white text-slate-900 shadow-xs'
-                              : 'text-slate-600'
+                              ? 'bg-[#E89611] text-[#051044] font-semibold'
+                              : 'text-indigo-100 hover:text-white'
                           }`}
                         >
                           Peta
@@ -1166,8 +1189,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           onClick={() => setMiniMapType('hybrid')}
                           className={`px-2 py-0.5 text-[11px] font-medium rounded-md cursor-pointer ${
                             miniMapType === 'hybrid'
-                              ? 'bg-white text-slate-900 shadow-xs'
-                              : 'text-slate-600'
+                              ? 'bg-[#E89611] text-[#051044] font-semibold'
+                              : 'text-indigo-100 hover:text-white'
                           }`}
                         >
                           Satelit
@@ -1182,7 +1205,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           onClose();
                           onFocusMainMap(proposal.id);
                         }}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-[#0284c7] hover:bg-sky-50 rounded-md cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-amber-300 hover:text-amber-200 bg-white/10 hover:bg-white/15 border border-white/15 rounded-md cursor-pointer"
                         title="Fokuskan lokasi pada Peta Utama"
                       >
                         <LocateFixed className="w-3 h-3" />
@@ -1193,26 +1216,28 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 </div>
 
                 {/* Map or Uploaded Schematic Frame */}
-                <div className="h-[285px] w-full rounded-xl border border-slate-200 overflow-hidden bg-slate-100 relative">
-                  {imageDraftUrl && locationMediaTab === 'image' ? (
-                    <img
-                      src={imageDraftUrl}
-                      alt={`Gambaran Lokasi ${proposal.namaProgram}`}
-                      className="w-full h-full object-contain bg-white"
-                    />
-                  ) : (
-                    <PreviewMiniMap
-                      proposal={proposal}
-                      resolvedPlaces={resolvedPlaces}
-                      position={position}
-                      miniMapType={miniMapType}
-                    />
-                  )}
+                <div className="p-4 pb-0">
+                  <div className="h-[285px] w-full rounded-xl border border-[#C7D3E8] overflow-hidden bg-slate-100 relative">
+                    {imageDraftUrl && locationMediaTab === 'image' ? (
+                      <img
+                        src={imageDraftUrl}
+                        alt={`Gambaran Lokasi ${proposal.namaProgram}`}
+                        className="w-full h-full object-contain bg-white"
+                      />
+                    ) : (
+                      <PreviewMiniMap
+                        proposal={proposal}
+                        resolvedPlaces={resolvedPlaces}
+                        position={position}
+                        miniMapType={miniMapType}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-3 flex items-start gap-2 text-xs text-slate-700 leading-relaxed">
-                <span className="shrink-0 select-none" aria-hidden="true">
+              <div className="p-4 pt-3 flex items-start gap-2 text-xs text-slate-700 leading-relaxed">
+                <span className="shrink-0 select-none text-[#E89611]" aria-hidden="true">
                   ❖
                 </span>
                 <span>{details.deskripsiLokasi}</span>
@@ -1220,20 +1245,20 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
             </div>
 
             {/* Card 8: Status Readiness Criteria (RC) */}
-            <div className="lg:col-span-6 bg-white border border-slate-300 rounded-2xl p-4 flex flex-col justify-between">
+            <div className="lg:col-span-6 bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs">
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-[#061459] text-white border-b-2 border-[#E89611]">
                   <div className="flex items-center gap-2">
-                    <FileCheck2 className="w-5 h-5 text-[#0284c7] shrink-0" />
-                    <h2 className="text-sm sm:text-base font-bold text-slate-800">
+                    <FileCheck2 className="w-4 h-4 text-[#E89611] shrink-0" />
+                    <h2 className="text-sm sm:text-base font-bold text-white">
                       Status <span className="italic">Readiness Criteria</span> (RC)
                     </h2>
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-slate-600">Skor RC:</span>
+                    <span className="text-xs font-medium text-indigo-100">Skor RC:</span>
                     {allowManageCurrent ? (
-                      <div className="flex items-center bg-slate-50 border border-slate-300 rounded-md px-2 py-0.5 w-20 focus-within:border-blue-700 focus-within:bg-white">
+                      <div className="flex items-center bg-white border border-[#E89611] rounded-md px-2 py-0.5 w-20 focus-within:ring-2 focus-within:ring-[#E89611]/50">
                         <input
                           type="text"
                           inputMode="decimal"
@@ -1250,12 +1275,12 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                               setRcDraft(String(currentRcVal));
                             }
                           }}
-                          className="w-full text-xs font-mono font-bold tabular-nums text-right text-slate-900 bg-transparent focus:outline-none"
+                          className="w-full text-xs font-mono font-bold tabular-nums text-right text-[#061459] bg-transparent focus:outline-none"
                         />
                         <span className="text-[11px] font-mono text-slate-500 ml-0.5">%</span>
                       </div>
                     ) : (
-                      <span className="font-mono text-xs font-bold tabular-nums text-slate-900">
+                      <span className="font-mono text-xs font-bold tabular-nums px-2 py-0.5 rounded bg-[#E89611] text-[#051044]">
                         {rcDraft}%
                       </span>
                     )}
@@ -1263,19 +1288,19 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 </div>
 
                 {/* Checklist KEMENPU RC Table: Dokumen | Status (Ada, Kurang, Sesuai) | Keterangan */}
-                <div className="overflow-x-auto">
+                <div className="p-4 pb-2 overflow-x-auto">
                   <table className="w-full border-collapse text-xs">
                     <thead>
-                      <tr className="border-b border-slate-300 text-slate-800 bg-slate-50/70">
+                      <tr className="border-b border-[#C7D3E8] text-[#061459] bg-[#EEF2FA]">
                         <th
                           rowSpan={2}
-                          className="py-1.5 px-2.5 text-center font-bold border-r border-slate-300 w-[37%] align-middle"
+                          className="py-1.5 px-2.5 text-center font-bold border-r border-[#C7D3E8] w-[37%] align-middle"
                         >
                           Dokumen
                         </th>
                         <th
                           colSpan={3}
-                          className="py-1 px-2 text-center font-bold border-r border-slate-300 border-b border-slate-300"
+                          className="py-1 px-2 text-center font-bold border-r border-[#C7D3E8] border-b border-[#C7D3E8]"
                         >
                           Status
                         </th>
@@ -1286,19 +1311,19 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           Keterangan
                         </th>
                       </tr>
-                      <tr className="border-b border-slate-300 text-slate-700 bg-slate-50/40 text-[11px]">
-                        <th className="py-1 px-1.5 text-center font-semibold border-r border-slate-300 w-[9%]">
+                      <tr className="border-b border-[#C7D3E8] text-[#061459] bg-[#F6F8FD] text-[11px]">
+                        <th className="py-1 px-1.5 text-center font-semibold border-r border-[#C7D3E8] w-[9%]">
                           Ada
                         </th>
-                        <th className="py-1 px-1.5 text-center font-semibold border-r border-slate-300 w-[9%]">
+                        <th className="py-1 px-1.5 text-center font-semibold border-r border-[#C7D3E8] w-[9%]">
                           Kurang
                         </th>
-                        <th className="py-1 px-1.5 text-center font-semibold border-r border-slate-300 w-[9%]">
+                        <th className="py-1 px-1.5 text-center font-semibold border-r border-[#C7D3E8] w-[9%]">
                           Sesuai
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-300 text-slate-700">
+                    <tbody className="divide-y divide-[#C7D3E8] text-slate-700">
                       {KEMENPU_RC_ROWS.map((row) => {
                         const entry = rcTableDraft[row.key] ?? {
                           status: '',
@@ -1307,8 +1332,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                         const flags = getRcChecklistFlags(entry);
                         const docLabel = entry.customLabel || row.defaultLabel;
                         return (
-                          <tr key={row.key} className="hover:bg-slate-50/60">
-                            <td className="py-2 px-2.5 border-r border-slate-300 align-middle">
+                          <tr key={row.key} className="hover:bg-[#F8FAFE]">
+                            <td className="py-2 px-2.5 border-r border-[#C7D3E8] align-middle">
                               {row.key === 'lainnya' && allowManageCurrent ? (
                                 <input
                                   type="text"
@@ -1317,7 +1342,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                                     handleRcCellChange('lainnya', 'customLabel', e.target.value)
                                   }
                                   placeholder="Lainnya (silakan tambahkan)"
-                                  className="w-full bg-transparent text-xs text-slate-800 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-600 rounded px-1 py-0.5"
+                                  className="w-full bg-transparent text-xs text-slate-800 focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#061459] rounded px-1 py-0.5"
                                 />
                               ) : (
                                 <span>{docLabel}</span>
@@ -1334,7 +1359,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                               return (
                                 <td
                                   key={col.key}
-                                  className="py-1.5 px-1.5 border-r border-slate-300 align-middle text-center"
+                                  className="py-1.5 px-1.5 border-r border-[#C7D3E8] align-middle text-center"
                                 >
                                   {allowManageCurrent ? (
                                     <input
@@ -1365,7 +1390,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                                     handleRcCellChange(row.key, 'keterangan', e.target.value)
                                   }
                                   placeholder="Isi keterangan..."
-                                  className="w-full bg-transparent text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-600 rounded px-1 py-0.5"
+                                  className="w-full bg-transparent text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#061459] rounded px-1 py-0.5"
                                 />
                               ) : (
                                 <span>{entry.keterangan || ''}</span>
@@ -1380,8 +1405,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               </div>
 
               {allowManageCurrent && onSaveProposal && (
-                <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between gap-2 print:hidden">
-                  <span className="text-[11px] text-slate-500">
+                <div className="px-4 py-3 border-t border-[#D7E0F0] bg-[#F8FAFE] flex items-center justify-between gap-2 print:hidden">
+                  <span className="text-[11px] text-slate-600">
                     Centang kolom Status (Ada / Kurang / Sesuai) dan isi Keterangan RC di atas lalu simpan.
                   </span>
                   <button
@@ -1397,26 +1422,26 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
             </div>
           </div>
 
-          {/* Data Pengesahan & Persetujuan Cetak PDF (Mengesahkan Kiri & Menyetujui Kanan) */}
+          {/* Data Pengesahan & Persetujuan Cetak PDF (Mengesahkan 1, Mengesahkan 2, & Menyetujui) */}
           {!isTemplateDemo && (
             <section
               id="profil-pdf-signatory-panel"
               aria-label="Data Pengesahan Cetak PDF Profil Usulan"
-              className="bg-white border border-slate-300 rounded-2xl p-4 sm:p-5 space-y-4 break-inside-avoid print:border-slate-200 print:rounded-xl"
+              className="bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden break-inside-avoid print:border-slate-200 print:rounded-xl shadow-xs"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200 print:hidden">
+              <div className="px-5 py-3 bg-[#061459] text-white border-b-2 border-[#E89611] flex flex-wrap items-center justify-between gap-2 print:hidden">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">
+                  <h3 className="text-sm font-bold text-white">
                     Data Pengesahan &amp; Persetujuan (Cetak PDF)
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-indigo-200 mt-0.5">
                     Ditampilkan di bagian bawah halaman Profil Usulan saat Preview atau Cetak PDF
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSignatories(createEmptyProfilSignatories())}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-200 bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
                   title="Kosongkan nama dan jabatan pengesah"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -1424,9 +1449,9 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 </button>
               </div>
 
-              <div className="print:hidden space-y-4">
+              <div className="p-4 sm:p-5 print:hidden space-y-4">
                 <div className="max-w-xs">
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-[#061459] mb-1">
                     Tempat &amp; Tanggal (Sebelah Kanan)
                   </label>
                   <input
@@ -1439,14 +1464,14 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                       }))
                     }
                     placeholder="Contoh: Mataram, 17 November 2026"
-                    className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
                   {/* Mengesahkan 1 */}
-                  <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-                    <div className="text-xs font-bold text-slate-900">
+                  <div className="space-y-3 border border-[#C7D3E8] rounded-xl p-4 bg-[#F8FAFE]">
+                    <div className="text-xs font-bold text-[#061459]">
                       Mengesahkan 1
                     </div>
                     <div>
@@ -1466,7 +1491,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           }))
                         }
                         placeholder="Contoh: Kepala BPBPK Provinsi NTB"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
                       />
                     </div>
                     <div>
@@ -1486,14 +1511,14 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           }))
                         }
                         placeholder="Nama pejabat yang mengesahkan"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
                       />
                     </div>
                   </div>
 
                   {/* Mengesahkan 2 (kolom tengah) */}
-                  <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-                    <div className="text-xs font-bold text-slate-900">
+                  <div className="space-y-3 border border-[#C7D3E8] rounded-xl p-4 bg-[#F8FAFE]">
+                    <div className="text-xs font-bold text-[#061459]">
                       Mengesahkan 2
                     </div>
                     <div>
@@ -1513,7 +1538,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           }))
                         }
                         placeholder="Contoh: Kepala Bappeda Provinsi NTB"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
                       />
                     </div>
                     <div>
@@ -1533,14 +1558,14 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           }))
                         }
                         placeholder="Nama pejabat yang mengesahkan"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
                       />
                     </div>
                   </div>
 
                   {/* Sebelah Kanan: Menyetujui */}
-                  <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-                    <div className="text-xs font-bold text-slate-900">
+                  <div className="space-y-3 border border-[#C7D3E8] rounded-xl p-4 bg-[#F8FAFE]">
+                    <div className="text-xs font-bold text-[#061459]">
                       Menyetujui (Sebelah Kanan)
                     </div>
                     <div>
@@ -1560,7 +1585,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           }))
                         }
                         placeholder="Contoh: Ketua Tim Sinkronisasi Program"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
                       />
                     </div>
                     <div>
@@ -1580,7 +1605,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                           }))
                         }
                         placeholder="Nama pejabat yang menyetujui"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
                       />
                     </div>
                   </div>
@@ -1588,7 +1613,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               </div>
 
               {/* Print-only Formal Signature Block */}
-              <div className="hidden print:grid print:grid-cols-3 gap-6 py-2 text-center text-xs text-slate-900">
+              <div className="hidden print:grid print:grid-cols-3 gap-6 py-4 px-5 text-center text-xs text-slate-900">
                 {[
                   signatories.mengesahkan,
                   signatories.mengesahkan3 ?? { jabatan: '', nama: '' },
@@ -1636,7 +1661,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               </div>
             </section>
           )}
-          <div className="hidden print:block h-2 w-full batik-pu-strip border-t-2 border-[#E89611] mt-2" />
+          </div>
+          <div className="h-2 w-full batik-pu-strip border-t-2 border-[#E89611] shrink-0" aria-hidden="true" />
         </div>
       </div>
 

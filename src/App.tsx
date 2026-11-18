@@ -17,6 +17,8 @@ import {
   Table2,
   Trash2,
   Undo2,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react';
 import { AccessPortalView } from './components/AccessPortalView';
@@ -42,6 +44,7 @@ import {
   TEMPLATE_DEMO_PROPOSAL,
 } from './data/initialProposals';
 import { useSpatialResolver } from './hooks/useSpatialResolver';
+import { useWelcomeAudio } from './hooks/useWelcomeAudio';
 import {
   db,
   deleteProposalsFromFirestore,
@@ -245,6 +248,8 @@ function DashboardWorkspace() {
     upgradeUrl?: string;
   } | null>(null);
   const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
+
+  const welcomeAudio = useWelcomeAudio();
 
   const [accessMode, setAccessMode] = useState<AccessMode>(() =>
     initialShareParams.isReadOnlyUrl ? 'readonly' : 'account'
@@ -1057,6 +1062,7 @@ function DashboardWorkspace() {
       <AccessPortalView
         totalPackages={proposals.length}
         onEnterAccount={handleEnterAccount}
+        welcomeAudio={welcomeAudio}
       />
     );
   }
@@ -1262,6 +1268,31 @@ function DashboardWorkspace() {
             <span className="hidden xl:inline text-xs text-slate-500 truncate max-w-[200px]">
               {isReadOnlyMode ? 'Tampilan Lihat Saja' : accountProfile.displayName}
             </span>
+
+            <button
+              type="button"
+              data-welcome-audio-control="true"
+              onClick={welcomeAudio.togglePlay}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                welcomeAudio.isPlaying
+                  ? 'bg-[#061459] text-amber-200 border-[#E89611] shadow-xs'
+                  : 'bg-white text-[#061459] border-[#C7D3E8] hover:bg-[#F3F6FB]'
+              }`}
+              title={
+                welcomeAudio.isPlaying
+                  ? 'Hentikan suara pembuka web app'
+                  : 'Putar ulang suara pembuka web app'
+              }
+            >
+              {welcomeAudio.isPlaying ? (
+                <VolumeX className="w-3.5 h-3.5 text-[#E89611]" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-[#E89611]" />
+              )}
+              <span className="hidden md:inline">
+                {welcomeAudio.isPlaying ? 'Hentikan Suara' : 'Suara Pembuka'}
+              </span>
+            </button>
 
             <button
               type="button"
@@ -1850,6 +1881,28 @@ function DashboardWorkspace() {
             showNotice('Link web Lihat Saja (Read-Only) berhasil disalin ke clipboard.')
           }
         />
+      )}
+      {welcomeAudio.needsInteraction && !welcomeAudio.isPlaying && (
+        <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2 bg-[#061459] text-white border border-[#E89611] rounded-xl px-3.5 py-2.5 shadow-xl print:hidden">
+          <button
+            type="button"
+            data-welcome-audio-control="true"
+            onClick={welcomeAudio.togglePlay}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-amber-200 hover:text-white cursor-pointer"
+          >
+            <Volume2 className="w-4 h-4 text-[#E89611] animate-pulse shrink-0" />
+            <span>Putar Suara Pembuka SIMPRA</span>
+          </button>
+          <button
+            type="button"
+            data-welcome-audio-control="true"
+            onClick={welcomeAudio.dismissPrompt}
+            className="p-1 text-indigo-200 hover:text-white rounded cursor-pointer"
+            aria-label="Tutup pemberitahuan suara pembuka"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
     </div>
   );

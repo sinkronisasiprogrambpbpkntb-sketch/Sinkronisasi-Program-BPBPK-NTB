@@ -8,18 +8,24 @@ import {
   MapPin,
   ShieldCheck,
   Sparkles,
+  Volume2,
+  VolumeX,
+  X,
 } from 'lucide-react';
+import { WelcomeAudioControls } from '../hooks/useWelcomeAudio';
 import { verifyPinAndCreateSession } from '../lib/firebase';
 import { AccountSessionProfile } from '../types/ciptaKarya';
 
 interface AccessPortalViewProps {
   totalPackages: number;
   onEnterAccount: (profile: AccountSessionProfile) => void;
+  welcomeAudio?: WelcomeAudioControls;
 }
 
 export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
   totalPackages,
   onEnterAccount,
+  welcomeAudio,
 }) => {
   const [isEntering, setIsEntering] = useState<boolean>(false);
 
@@ -59,8 +65,34 @@ export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
             Tahun Anggaran 2027–2030
           </span>
         </div>
-        <div className="font-mono text-xs tabular-nums text-amber-200">
-          {totalPackages} Paket Usulan Terdaftar
+        <div className="flex items-center gap-3">
+          {welcomeAudio && (
+            <button
+              type="button"
+              data-welcome-audio-control="true"
+              onClick={welcomeAudio.togglePlay}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
+                welcomeAudio.isPlaying
+                  ? 'bg-[#E89611] text-[#051044] border-[#E89611] font-semibold'
+                  : 'bg-[#040E42]/80 hover:bg-[#0A1D6E] text-amber-200 border-white/20'
+              }`}
+              title={
+                welcomeAudio.isPlaying
+                  ? 'Hentikan suara pembuka aplikasi'
+                  : 'Putar suara pembuka aplikasi SIMPRA'
+              }
+            >
+              {welcomeAudio.isPlaying ? (
+                <VolumeX className="w-3.5 h-3.5" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-[#E89611]" />
+              )}
+              <span>{welcomeAudio.isPlaying ? 'Hentikan Suara' : 'Suara Pembuka'}</span>
+            </button>
+          )}
+          <div className="font-mono text-xs tabular-nums text-amber-200">
+            {totalPackages} Paket Usulan Terdaftar
+          </div>
         </div>
       </header>
 
@@ -167,6 +199,29 @@ export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
         </span>
         <span className="text-[#0A1D6E] font-medium">Layanan Peta & Geospasial Terbuka · OpenStreetMap</span>
       </footer>
+
+      {welcomeAudio?.needsInteraction && !welcomeAudio.isPlaying && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-[#061459] text-white border border-[#E89611] rounded-xl px-3.5 py-2.5 shadow-xl">
+          <button
+            type="button"
+            data-welcome-audio-control="true"
+            onClick={welcomeAudio.togglePlay}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-amber-200 hover:text-white cursor-pointer"
+          >
+            <Volume2 className="w-4 h-4 text-[#E89611] animate-pulse shrink-0" />
+            <span>Putar Suara Pembuka SIMPRA</span>
+          </button>
+          <button
+            type="button"
+            data-welcome-audio-control="true"
+            onClick={welcomeAudio.dismissPrompt}
+            className="p-1 text-indigo-200 hover:text-white rounded cursor-pointer"
+            aria-label="Tutup pemberitahuan suara pembuka"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
