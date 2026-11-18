@@ -264,7 +264,6 @@ function createEmptyProfilSignatories(): PdfSignatoriesConfig {
   return {
     tempatTanggal: getDefaultProfilTempatTanggal(),
     mengesahkan: { jabatan: '', nama: '' },
-    mengesahkan2: { jabatan: '', nama: '' },
     mengesahkan3: { jabatan: '', nama: '' },
     menyetujui: { jabatan: '', nama: '' },
   };
@@ -285,10 +284,6 @@ function loadInitialProfilSignatories(): PdfSignatoriesConfig {
       mengesahkan: {
         jabatan: parsed.mengesahkan?.jabatan ?? '',
         nama: parsed.mengesahkan?.nama ?? '',
-      },
-      mengesahkan2: {
-        jabatan: parsed.mengesahkan2?.jabatan ?? '',
-        nama: parsed.mengesahkan2?.nama ?? '',
       },
       mengesahkan3: {
         jabatan: parsed.mengesahkan3?.jabatan ?? '',
@@ -1448,7 +1443,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
                   {/* Mengesahkan 1 */}
                   <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
                     <div className="text-xs font-bold text-slate-900">
@@ -1496,57 +1491,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Mengesahkan 2 */}
+                  {/* Mengesahkan 2 (kolom tengah) */}
                   <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
                     <div className="text-xs font-bold text-slate-900">
                       Mengesahkan 2
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                        Jabatan
-                      </label>
-                      <input
-                        type="text"
-                        value={signatories.mengesahkan2?.jabatan ?? ''}
-                        onChange={(e) =>
-                          setSignatories((prev) => ({
-                            ...prev,
-                            mengesahkan2: {
-                              jabatan: e.target.value,
-                              nama: prev.mengesahkan2?.nama ?? '',
-                            },
-                          }))
-                        }
-                        placeholder="Contoh: Kepala Dinas PUPR Kab./Kota"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                        Nama Lengkap &amp; Gelar
-                      </label>
-                      <input
-                        type="text"
-                        value={signatories.mengesahkan2?.nama ?? ''}
-                        onChange={(e) =>
-                          setSignatories((prev) => ({
-                            ...prev,
-                            mengesahkan2: {
-                              jabatan: prev.mengesahkan2?.jabatan ?? '',
-                              nama: e.target.value,
-                            },
-                          }))
-                        }
-                        placeholder="Nama pejabat yang mengesahkan"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Mengesahkan 3 */}
-                  <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-                    <div className="text-xs font-bold text-slate-900">
-                      Mengesahkan 3
                     </div>
                     <div>
                       <label className="block text-[11px] font-medium text-slate-600 mb-1">
@@ -1640,10 +1588,9 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               </div>
 
               {/* Print-only Formal Signature Block */}
-              <div className="hidden print:grid print:grid-cols-4 gap-4 py-2 text-center text-xs text-slate-900">
+              <div className="hidden print:grid print:grid-cols-3 gap-6 py-2 text-center text-xs text-slate-900">
                 {[
                   signatories.mengesahkan,
-                  signatories.mengesahkan2 ?? { jabatan: '', nama: '' },
                   signatories.mengesahkan3 ?? { jabatan: '', nama: '' },
                 ].map((party, idx) => (
                   <div

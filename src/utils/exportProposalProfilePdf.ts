@@ -612,7 +612,7 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     });
   });
 
-  // SIGNATURE BLOCK AT BOTTOM: 3 Kolom Mengesahkan & 1 Kolom Menyetujui (Sebelah Kanan)
+  // SIGNATURE BLOCK AT BOTTOM: 2 Kolom Mengesahkan & 1 Kolom Menyetujui (Sebelah Kanan)
   const sigY = row3Y + row3H + 2.5;
   const sigH = 34;
   doc.setFillColor(...WHITE);
@@ -627,12 +627,11 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
   const sigConfig: PdfSignatoriesConfig = signatories ?? {
     tempatTanggal: '',
     mengesahkan: { jabatan: '', nama: '' },
-    mengesahkan2: { jabatan: '', nama: '' },
     mengesahkan3: { jabatan: '', nama: '' },
     menyetujui: { jabatan: '', nama: '' },
   };
 
-  const sigColMaxW = contentWidth * 0.22;
+  const sigColMaxW = contentWidth * 0.28;
 
   const drawSignatorySide = (
     centerX: number,
@@ -691,25 +690,19 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
   };
 
   drawSignatorySide(
-    marginX + contentWidth * 0.125,
+    marginX + contentWidth * 0.17,
     'Mengesahkan,',
     '',
     sigConfig.mengesahkan
   );
   drawSignatorySide(
-    marginX + contentWidth * 0.375,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
-  );
-  drawSignatorySide(
-    marginX + contentWidth * 0.625,
+    marginX + contentWidth * 0.5,
     'Mengesahkan,',
     '',
     sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
   );
   drawSignatorySide(
-    marginX + contentWidth * 0.875,
+    marginX + contentWidth * 0.83,
     'Menyetujui,',
     sigConfig.tempatTanggal,
     sigConfig.menyetujui

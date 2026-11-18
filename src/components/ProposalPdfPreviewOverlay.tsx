@@ -580,13 +580,12 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                 </div>
               </div>
 
-              {/* Signature Block: 3 Kolom Mengesahkan & 1 Kolom Menyetujui */}
+              {/* Signature Block: 2 Kolom Mengesahkan & 1 Kolom Menyetujui */}
               <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-xl px-5 py-4 bg-white">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 text-center text-xs text-slate-900">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs text-slate-900">
                   {(
                     [
                       { key: 'm1', party: signatories?.mengesahkan },
-                      { key: 'm2', party: signatories?.mengesahkan2 },
                       { key: 'm3', party: signatories?.mengesahkan3 },
                     ] as const
                   ).map(({ key, party }) => (
