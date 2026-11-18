@@ -111,6 +111,7 @@ export function useWelcomeAudio(): WelcomeAudioControls {
 
     const gestureEvents: Array<keyof WindowEventMap> = [
       'click',
+      'touchstart',
       'touchend',
       'pointerup',
       'mousedown',
