@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export const WELCOME_AUDIO_SRC = '/assets/aistudio/audio_01470164.wav';
+export const WELCOME_AUDIO_SRC = '/assets/aistudio/audio__1__48f1a895.wav';
+const WELCOME_AUDIO_ELEMENT_ID = 'simpra-welcome-audio';
 
 export interface WelcomeAudioControls {
   isPlaying: boolean;
@@ -14,40 +15,76 @@ export function useWelcomeAudio(src: string = WELCOME_AUDIO_SRC): WelcomeAudioCo
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoArmedRef = useRef<boolean>(false);
   const dismissedRef = useRef<boolean>(false);
+  const startedPlaybackRef = useRef<boolean>(false);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [needsInteraction, setNeedsInteraction] = useState<boolean>(false);
   const [hasPlayed, setHasPlayed] = useState<boolean>(false);
 
-  const startPlayback = useCallback(async (fromManualAction: boolean): Promise<boolean> => {
-    const audio = audioRef.current;
-    if (!audio) return false;
+  const startPlayback = useCallback(
+    async (fromManualAction: boolean, restartFromZero: boolean = true): Promise<boolean> => {
+      const audio = audioRef.current;
+      if (!audio) return false;
 
-    if (fromManualAction) {
-      autoArmedRef.current = false;
-      dismissedRef.current = false;
-    }
+      if (fromManualAction) {
+        autoArmedRef.current = false;
+        dismissedRef.current = false;
+      }
 
-    try {
-      audio.currentTime = 0;
-      await audio.play();
-      autoArmedRef.current = false;
-      setIsPlaying(true);
-      setHasPlayed(true);
-      setNeedsInteraction(false);
-      return true;
-    } catch {
-      return false;
-    }
-  }, []);
+      if (!fromManualAction && !audio.paused && !audio.ended) {
+        startedPlaybackRef.current = true;
+        autoArmedRef.current = false;
+        setIsPlaying(true);
+        setHasPlayed(true);
+        setNeedsInteraction(false);
+        return true;
+      }
+
+      try {
+        if (restartFromZero) {
+          audio.currentTime = 0;
+        }
+        await audio.play();
+        startedPlaybackRef.current = true;
+        autoArmedRef.current = false;
+        setIsPlaying(true);
+        setHasPlayed(true);
+        setNeedsInteraction(false);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
 
-    const audio = new Audio(src);
+    const existingEl = document.getElementById(WELCOME_AUDIO_ELEMENT_ID);
+    const audio =
+      existingEl instanceof HTMLAudioElement ? existingEl : new Audio(src);
+
+    if (audio.getAttribute('src') !== src) {
+      audio.src = src;
+    }
     audio.preload = 'auto';
     audio.volume = 1;
     audioRef.current = audio;
+
+    const gestureEvents: Array<keyof WindowEventMap> = [
+      'click',
+      'touchend',
+      'mousedown',
+      'pointerdown',
+      'keydown',
+    ];
+
+    const detachGestureListeners = () => {
+      gestureEvents.forEach((evt) => {
+        window.removeEventListener(evt, handleFirstGesture, true);
+      });
+    };
 
     const handleEnded = () => {
       setIsPlaying(false);
@@ -56,49 +93,87 @@ export function useWelcomeAudio(src: string = WELCOME_AUDIO_SRC): WelcomeAudioCo
       setIsPlaying(false);
     };
     const handlePlay = () => {
+      startedPlaybackRef.current = true;
+      autoArmedRef.current = false;
       setIsPlaying(true);
       setHasPlayed(true);
       setNeedsInteraction(false);
+      detachGestureListeners();
+    };
+
+    function handleFirstGesture(e: Event) {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-welcome-audio-control="true"]')) {
+        return;
+      }
+      if (!autoArmedRef.current || dismissedRef.current || startedPlaybackRef.current) {
+        detachGestureListeners();
+        return;
+      }
+
+      void startPlayback(false, true).then((ok) => {
+        if (ok) {
+          detachGestureListeners();
+        }
+      });
+    }
+
+    const handleCanPlay = () => {
+      if (startedPlaybackRef.current || dismissedRef.current) return;
+      void startPlayback(false, false);
+    };
+
+    const handleVisibilityOrFocus = () => {
+      if (
+        startedPlaybackRef.current ||
+        dismissedRef.current ||
+        document.visibilityState === 'hidden'
+      ) {
+        return;
+      }
+      void startPlayback(false, false);
     };
 
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('play', handlePlay);
+    audio.addEventListener('canplaythrough', handleCanPlay);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
-    const handleFirstGesture = (e: Event) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.closest?.('[data-welcome-audio-control="true"]')) {
-        return;
-      }
-      if (!autoArmedRef.current || dismissedRef.current) {
-        window.removeEventListener('pointerdown', handleFirstGesture, true);
-        window.removeEventListener('keydown', handleFirstGesture, true);
-        return;
-      }
-      autoArmedRef.current = false;
-      window.removeEventListener('pointerdown', handleFirstGesture, true);
-      window.removeEventListener('keydown', handleFirstGesture, true);
-      void startPlayback(false);
-    };
-
-    void (async () => {
-      const ok = await startPlayback(false);
-      if (!ok && !dismissedRef.current) {
-        autoArmedRef.current = true;
-        setNeedsInteraction(true);
-        window.addEventListener('pointerdown', handleFirstGesture, { capture: true });
-        window.addEventListener('keydown', handleFirstGesture, { capture: true });
-      }
-    })();
+    // Sync immediately if the HTML <audio autoplay> tag already started or finished playing
+    if (!audio.paused && !audio.ended) {
+      startedPlaybackRef.current = true;
+      setIsPlaying(true);
+      setHasPlayed(true);
+      setNeedsInteraction(false);
+    } else if (audio.ended) {
+      startedPlaybackRef.current = true;
+      setIsPlaying(false);
+      setHasPlayed(true);
+      setNeedsInteraction(false);
+    } else {
+      void (async () => {
+        const ok = await startPlayback(false, false);
+        if (!ok && !dismissedRef.current && !startedPlaybackRef.current) {
+          autoArmedRef.current = true;
+          setNeedsInteraction(true);
+          gestureEvents.forEach((evt) => {
+            window.addEventListener(evt, handleFirstGesture, { capture: true });
+          });
+        }
+      })();
+    }
 
     return () => {
       autoArmedRef.current = false;
-      window.removeEventListener('pointerdown', handleFirstGesture, true);
-      window.removeEventListener('keydown', handleFirstGesture, true);
+      detachGestureListeners();
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('play', handlePlay);
-      audio.pause();
+      audio.removeEventListener('canplaythrough', handleCanPlay);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       audioRef.current = null;
     };
   }, [src, startPlayback]);
@@ -118,7 +193,7 @@ export function useWelcomeAudio(src: string = WELCOME_AUDIO_SRC): WelcomeAudioCo
       return;
     }
 
-    void startPlayback(true);
+    void startPlayback(true, true);
   }, [startPlayback]);
 
   const dismissPrompt = useCallback(() => {
