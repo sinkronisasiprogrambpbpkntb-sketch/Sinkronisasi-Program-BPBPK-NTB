@@ -18,19 +18,26 @@
   </head>
   <body>
     <audio
-      id="simpra-welcome-audio"
-      src="/assets/aistudio/audio__1__48f1a895.wav"
+      id="simpra-welcome-audio-1"
+      src="/assets/aistudio/audio__2__00467de3.wav"
       preload="auto"
       autoplay
       playsinline
       style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;"
     ></audio>
+    <audio
+      id="simpra-welcome-audio-2"
+      src="/assets/aistudio/audio__1__48f1a895.wav"
+      preload="auto"
+      playsinline
+      style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;"
+    ></audio>
     <script>
       (function () {
-        var el = document.getElementById('simpra-welcome-audio');
-        if (!el || typeof el.play !== 'function') return;
+        var el1 = document.getElementById('simpra-welcome-audio-1');
+        if (!el1 || typeof el1.play !== 'function') return;
         try {
-          var p = el.play();
+          var p = el1.play();
           if (p && typeof p.catch === 'function') {
             p.catch(function () {});
           }
