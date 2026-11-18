@@ -16,6 +16,7 @@ export function useWelcomeAudio(src: string = WELCOME_AUDIO_SRC): WelcomeAudioCo
   const autoArmedRef = useRef<boolean>(false);
   const dismissedRef = useRef<boolean>(false);
   const startedPlaybackRef = useRef<boolean>(false);
+  const isAttemptingRef = useRef<boolean>(false);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [needsInteraction, setNeedsInteraction] = useState<boolean>(false);
@@ -40,8 +41,13 @@ export function useWelcomeAudio(src: string = WELCOME_AUDIO_SRC): WelcomeAudioCo
         return true;
       }
 
+      if (!fromManualAction && isAttemptingRef.current) {
+        return false;
+      }
+
+      isAttemptingRef.current = true;
       try {
-        if (restartFromZero) {
+        if (restartFromZero && (fromManualAction || audio.paused || audio.ended)) {
           audio.currentTime = 0;
         }
         await audio.play();
@@ -53,6 +59,8 @@ export function useWelcomeAudio(src: string = WELCOME_AUDIO_SRC): WelcomeAudioCo
         return true;
       } catch {
         return false;
+      } finally {
+        isAttemptingRef.current = false;
       }
     },
     []
@@ -75,6 +83,7 @@ export function useWelcomeAudio(src: string = WELCOME_AUDIO_SRC): WelcomeAudioCo
     const gestureEvents: Array<keyof WindowEventMap> = [
       'click',
       'touchend',
+      'pointerup',
       'mousedown',
       'pointerdown',
       'keydown',

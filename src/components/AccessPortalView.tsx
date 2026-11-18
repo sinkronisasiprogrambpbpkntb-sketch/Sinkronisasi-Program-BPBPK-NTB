@@ -201,24 +201,31 @@ export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
       </footer>
 
       {welcomeAudio?.needsInteraction && !welcomeAudio.isPlaying && (
-        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-[#061459] text-white border border-[#E89611] rounded-xl px-3.5 py-2.5 shadow-xl">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 batik-pu-banner text-white border-2 border-[#E89611] rounded-xl px-4 py-2.5 shadow-2xl max-w-[92vw]">
           <button
             type="button"
             data-welcome-audio-control="true"
             onClick={welcomeAudio.togglePlay}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-amber-200 hover:text-white cursor-pointer"
+            className="inline-flex items-center gap-2.5 text-xs font-semibold text-white hover:text-amber-200 cursor-pointer"
           >
-            <Volume2 className="w-4 h-4 text-[#E89611] animate-pulse shrink-0" />
-            <span>Putar Suara Pembuka SIMPRA</span>
+            <span className="w-7 h-7 rounded-lg bg-[#E89611] text-[#051044] flex items-center justify-center shrink-0">
+              <Volume2 className="w-4 h-4 animate-pulse" />
+            </span>
+            <span className="text-left leading-snug">
+              <span className="block text-amber-200">Suara Pembuka SIMPRA Siap Diputar</span>
+              <span className="block text-[11px] font-normal text-indigo-100">
+                Ketuk di mana saja atau klik di sini untuk mendengarkan sambutan
+              </span>
+            </span>
           </button>
           <button
             type="button"
             data-welcome-audio-control="true"
             onClick={welcomeAudio.dismissPrompt}
-            className="p-1 text-indigo-200 hover:text-white rounded cursor-pointer"
+            className="p-1 text-indigo-200 hover:text-white rounded cursor-pointer shrink-0"
             aria-label="Tutup pemberitahuan suara pembuka"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}

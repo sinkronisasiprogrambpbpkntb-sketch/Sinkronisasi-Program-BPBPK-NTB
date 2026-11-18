@@ -23,8 +23,20 @@
       preload="auto"
       autoplay
       playsinline
-      hidden
+      style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;"
     ></audio>
+    <script>
+      (function () {
+        var el = document.getElementById('simpra-welcome-audio');
+        if (!el || typeof el.play !== 'function') return;
+        try {
+          var p = el.play();
+          if (p && typeof p.catch === 'function') {
+            p.catch(function () {});
+          }
+        } catch (e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
