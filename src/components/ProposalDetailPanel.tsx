@@ -13,13 +13,17 @@ import {
 } from 'lucide-react';
 import {
   formatActiveYears,
+  formatRcChecklistSummary,
   formatRpMiliar,
+  getRcChecklistFlags,
   getReadinessScore,
   getTotalPaguUsulan,
+  resolveProposalTemplateDetails,
   SEKTOR_SHORT_LABELS,
   tryParseNumberFlexible,
 } from '../data/initialProposals';
 import {
+  CustomRcDocumentEntry,
   ReadinessCriteria,
   ResolvedPlaceInfo,
   UsulanProgram,
@@ -91,11 +95,30 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
     : 0;
   const [rcDraft, setRcDraft] = useState<string>(String(currentRcPercentage));
   const [rcDirty, setRcDirty] = useState<boolean>(false);
+  const [showAddCustomRc, setShowAddCustomRc] = useState<boolean>(false);
+  const [newRcNama, setNewRcNama] = useState<string>('');
+  const [newRcAcuan, setNewRcAcuan] = useState<string>('');
+  const [newRcAda, setNewRcAda] = useState<boolean>(true);
+  const [newRcKurang, setNewRcKurang] = useState<boolean>(false);
+  const [newRcSesuai, setNewRcSesuai] = useState<boolean>(false);
+  const [newRcKeterangan, setNewRcKeterangan] = useState<string>('');
+  const [newRcError, setNewRcError] = useState<string | null>(null);
 
   useEffect(() => {
     setRcDraft(String(currentRcPercentage));
     setRcDirty(false);
   }, [proposal?.id, currentRcPercentage]);
+
+  useEffect(() => {
+    setShowAddCustomRc(false);
+    setNewRcNama('');
+    setNewRcAcuan('');
+    setNewRcAda(true);
+    setNewRcKurang(false);
+    setNewRcSesuai(false);
+    setNewRcKeterangan('');
+    setNewRcError(null);
+  }, [proposal?.id]);
 
   useEffect(() => {
     if (!proposal || !canEdit || proposal.isLocked || !rcDirty) return;
@@ -166,6 +189,67 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
     if (clamped !== rcScore.percentage || proposal.skorRc === undefined) {
       onUpdateSkorRc(proposal.id, clamped);
     }
+  };
+
+  const resolvedDetails = resolveProposalTemplateDetails(proposal);
+  const customRcItems = resolvedDetails.customRcItems;
+
+  const persistCustomRcItems = (nextItems: CustomRcDocumentEntry[]) => {
+    if (!onSaveProposal || !canEdit || !canManageSelected || proposal.isLocked) return;
+    onSaveProposal({
+      ...proposal,
+      templateDetails: {
+        ...proposal.templateDetails,
+        ...resolvedDetails,
+        customRcItems: nextItems,
+      },
+      updatedAt: new Date().toISOString().slice(0, 10),
+    });
+  };
+
+  const handleAddCustomRc = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = newRcNama.trim().slice(0, 200);
+    if (!cleanName) {
+      setNewRcError('Nama dokumen Readiness Criteria wajib diisi.');
+      return;
+    }
+    const flags = { ada: newRcAda, kurang: newRcKurang, sesuai: newRcSesuai };
+    const nextItem: CustomRcDocumentEntry = {
+      id: `rc-custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      namaDokumen: cleanName,
+      acuanStandar: newRcAcuan.trim().slice(0, 240),
+      ...flags,
+      status: formatRcChecklistSummary(flags),
+      keterangan: newRcKeterangan.trim().slice(0, 600),
+    };
+    persistCustomRcItems([...customRcItems, nextItem]);
+    setNewRcNama('');
+    setNewRcAcuan('');
+    setNewRcAda(true);
+    setNewRcKurang(false);
+    setNewRcSesuai(false);
+    setNewRcKeterangan('');
+    setNewRcError(null);
+    setShowAddCustomRc(false);
+  };
+
+  const handleToggleCustomFlag = (id: string, flag: 'ada' | 'kurang' | 'sesuai') => {
+    const nextItems = customRcItems.map((item) => {
+      if (item.id !== id) return item;
+      const currentFlags = getRcChecklistFlags(item);
+      const nextFlags = { ...currentFlags, [flag]: !currentFlags[flag] };
+      return {
+        ...item,
+        ...nextFlags,
+        status: formatRcChecklistSummary(nextFlags),
+      };
+    });
+    persistCustomRcItems(nextItems);
+  };
+
+  const handleRemoveCustomItem = (id: string) => {
+    persistCustomRcItems(customRcItems.filter((item) => item.id !== id));
   };
 
   return (
@@ -460,6 +544,201 @@ export const ProposalDetailPanel: React.FC<ProposalDetailPanelProps> = ({
             );
           })}
         </div>
+
+        {/* Dokumen Readiness Criteria Tambahan & Tombol Isian Baru */}
+        {(customRcItems.length > 0 || (canEdit && canManageSelected && !proposal.isLocked && onSaveProposal)) && (
+          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-slate-700">
+                Dokumen RC Tambahan ({customRcItems.length})
+              </span>
+              {canEdit && canManageSelected && !proposal.isLocked && onSaveProposal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddCustomRc((prev) => !prev);
+                    setNewRcError(null);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>{showAddCustomRc ? 'Tutup Form' : 'Tambah Isian Baru RC'}</span>
+                </button>
+              )}
+            </div>
+
+            {customRcItems.length > 0 && (
+              <div className="space-y-2">
+                {customRcItems.map((item, idx) => {
+                  const flags = getRcChecklistFlags(item);
+                  const canMutateCustom = Boolean(
+                    canEdit && canManageSelected && !proposal.isLocked && onSaveProposal
+                  );
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-2.5 rounded-lg border border-amber-200/80 bg-amber-50/40 text-xs space-y-1.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-900 leading-snug">
+                            {idx + 6}. {item.namaDokumen}
+                          </div>
+                          {item.acuanStandar && (
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Acuan: {item.acuanStandar}
+                            </div>
+                          )}
+                        </div>
+                        {canMutateCustom && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCustomItem(item.id)}
+                            title={`Hapus "${item.namaDokumen}"`}
+                            aria-label={`Hapus ${item.namaDokumen}`}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 text-[11px]">
+                        {(
+                          [
+                            { key: 'ada', label: 'Ada', accent: 'text-emerald-700 accent-emerald-700' },
+                            { key: 'kurang', label: 'Kurang', accent: 'text-amber-700 accent-amber-600' },
+                            { key: 'sesuai', label: 'Sesuai', accent: 'text-blue-700 accent-blue-700' },
+                          ] as const
+                        ).map((col) => (
+                          <label
+                            key={col.key}
+                            className={`inline-flex items-center gap-1 font-medium ${col.accent.split(' ')[0]} ${
+                              canMutateCustom ? 'cursor-pointer' : ''
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={flags[col.key]}
+                              disabled={!canMutateCustom}
+                              onChange={() => handleToggleCustomFlag(item.id, col.key)}
+                              className={`w-3.5 h-3.5 rounded border-slate-300 ${col.accent}`}
+                            />
+                            <span>{col.label}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      {item.keterangan && (
+                        <div className="text-[11px] text-slate-600">{item.keterangan}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {showAddCustomRc && canEdit && canManageSelected && !proposal.isLocked && onSaveProposal && (
+              <form
+                onSubmit={handleAddCustomRc}
+                className="p-3 rounded-lg border border-blue-200 bg-blue-50/40 space-y-2.5"
+              >
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Nama Dokumen Readiness Criteria <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newRcNama}
+                    onChange={(e) => {
+                      setNewRcNama(e.target.value);
+                      if (newRcError) setNewRcError(null);
+                    }}
+                    placeholder="Contoh: Surat Rekomendasi Teknis..."
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:border-blue-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Acuan / Standar Kelengkapan (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newRcAcuan}
+                    onChange={(e) => setNewRcAcuan(e.target.value)}
+                    placeholder="Standar / dasar kelengkapan..."
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:border-blue-700"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-3 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-[11px]">
+                  <label className="inline-flex items-center gap-1 font-medium text-emerald-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRcAda}
+                      onChange={(e) => setNewRcAda(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded accent-emerald-700"
+                    />
+                    <span>Ada</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1 font-medium text-amber-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRcKurang}
+                      onChange={(e) => setNewRcKurang(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded accent-amber-600"
+                    />
+                    <span>Kurang</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1 font-medium text-blue-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRcSesuai}
+                      onChange={(e) => setNewRcSesuai(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded accent-blue-700"
+                    />
+                    <span>Sesuai</span>
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Keterangan Verifikasi (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newRcKeterangan}
+                    onChange={(e) => setNewRcKeterangan(e.target.value)}
+                    placeholder="Keterangan kondisi dokumen..."
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:border-blue-700"
+                  />
+                </div>
+                {newRcError && (
+                  <div className="text-[11px] font-medium text-red-700 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded">
+                    {newRcError}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddCustomRc(false);
+                      setNewRcError(null);
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-100 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Simpan Dokumen RC</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
 
         {proposal.templateDetails?.linkDataRc?.trim() && (() => {
           const rawLink = proposal.templateDetails.linkDataRc.trim();

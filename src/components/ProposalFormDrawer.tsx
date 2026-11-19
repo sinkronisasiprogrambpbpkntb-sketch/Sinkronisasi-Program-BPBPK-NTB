@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ImagePlus, Save, Search, Trash2, X } from 'lucide-react';
+import { CheckCircle2, ImagePlus, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import {
   deriveReadinessFromRcTable,
   formatRcChecklistSummary,
@@ -13,6 +13,7 @@ import {
 } from '../data/initialProposals';
 import { PlaceSuggestionItem, useModernPlaceAutocomplete } from '../hooks/useSpatialResolver';
 import {
+  CustomRcDocumentEntry,
   LatLngPoint,
   ProposalTemplateDetails,
   RcDocKey,
@@ -138,6 +139,15 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
   const [skorRcInput, setSkorRcInput] = useState<string>('80');
   const [readiness, setReadiness] = useState<ReadinessCriteria>(DEFAULT_READINESS);
   const [rcTable, setRcTable] = useState<Record<RcDocKey, RcDocumentEntry>>(createEmptyRcTable);
+  const [customRcItems, setCustomRcItems] = useState<CustomRcDocumentEntry[]>([]);
+  const [showNewCustomRcForm, setShowNewCustomRcForm] = useState<boolean>(false);
+  const [newCustomRcNama, setNewCustomRcNama] = useState<string>('');
+  const [newCustomRcAcuan, setNewCustomRcAcuan] = useState<string>('');
+  const [newCustomRcAda, setNewCustomRcAda] = useState<boolean>(true);
+  const [newCustomRcKurang, setNewCustomRcKurang] = useState<boolean>(false);
+  const [newCustomRcSesuai, setNewCustomRcSesuai] = useState<boolean>(false);
+  const [newCustomRcKeterangan, setNewCustomRcKeterangan] = useState<string>('');
+  const [newCustomRcError, setNewCustomRcError] = useState<string | null>(null);
   const [catatanTeknis, setCatatanTeknis] = useState<string>('');
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -228,6 +238,15 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       );
       setReadiness(editingProposal.readiness);
       setRcTable(tpl.rcDetails);
+      setCustomRcItems(tpl.customRcItems);
+      setShowNewCustomRcForm(false);
+      setNewCustomRcNama('');
+      setNewCustomRcAcuan('');
+      setNewCustomRcAda(true);
+      setNewCustomRcKurang(false);
+      setNewCustomRcSesuai(false);
+      setNewCustomRcKeterangan('');
+      setNewCustomRcError(null);
       setCatatanTeknis(editingProposal.catatanTeknis);
     } else {
       const nextNum = String(totalCount + 1).padStart(3, '0');
@@ -278,6 +297,15 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
       setSkorRcInput('80');
       setReadiness(DEFAULT_READINESS);
       setRcTable(createEmptyRcTable());
+      setCustomRcItems([]);
+      setShowNewCustomRcForm(false);
+      setNewCustomRcNama('');
+      setNewCustomRcAcuan('');
+      setNewCustomRcAda(true);
+      setNewCustomRcKurang(false);
+      setNewCustomRcSesuai(false);
+      setNewCustomRcKeterangan('');
+      setNewCustomRcError(null);
       setCatatanTeknis('');
     }
   }, [isOpen, editingProposal, existingResolvedPosition, totalCount]);
@@ -405,7 +433,17 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
         Math.round(parseNumberFlexible(jumlahPembahasanBpbpk) || 0)
       ),
       rcDetails: rcTable,
-      customRcItems: editingProposal?.templateDetails?.customRcItems,
+      customRcItems: customRcItems.map((item, idx) => {
+        const flags = getRcChecklistFlags(item);
+        return {
+          ...item,
+          namaDokumen: item.namaDokumen.trim().slice(0, 200) || `Dokumen Tambahan ${idx + 1}`,
+          acuanStandar: (item.acuanStandar ?? '').trim().slice(0, 240),
+          ...flags,
+          status: item.status?.trim() || formatRcChecklistSummary(flags),
+          keterangan: (item.keterangan ?? '').trim().slice(0, 600),
+        };
+      }),
     };
 
     const derivedReadiness = deriveReadinessFromRcTable(rcTable, readiness);
@@ -481,6 +519,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
     deskripsiLokasi,
     lokasiGambarUrl,
     rcTable,
+    customRcItems,
     readiness,
     editingProposal,
     kodeUsulan,
@@ -575,6 +614,72 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
         },
       };
     });
+    markFieldEdited();
+  };
+
+  const handleAddCustomRcItem = () => {
+    const cleanName = newCustomRcNama.trim().slice(0, 200);
+    if (!cleanName) {
+      setNewCustomRcError('Nama dokumen Readiness Criteria wajib diisi.');
+      return;
+    }
+    const flags = {
+      ada: newCustomRcAda,
+      kurang: newCustomRcKurang,
+      sesuai: newCustomRcSesuai,
+    };
+    const nextItem: CustomRcDocumentEntry = {
+      id: `rc-custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      namaDokumen: cleanName,
+      acuanStandar: newCustomRcAcuan.trim().slice(0, 240),
+      ...flags,
+      status: formatRcChecklistSummary(flags),
+      keterangan: newCustomRcKeterangan.trim().slice(0, 600),
+    };
+    setCustomRcItems((prev) => [...prev, nextItem]);
+    setNewCustomRcNama('');
+    setNewCustomRcAcuan('');
+    setNewCustomRcAda(true);
+    setNewCustomRcKurang(false);
+    setNewCustomRcSesuai(false);
+    setNewCustomRcKeterangan('');
+    setNewCustomRcError(null);
+    setShowNewCustomRcForm(false);
+    markFieldEdited();
+  };
+
+  const updateCustomRcField = (
+    id: string,
+    field: 'namaDokumen' | 'acuanStandar' | 'keterangan',
+    value: string
+  ) => {
+    setCustomRcItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+    markFieldEdited();
+  };
+
+  const toggleCustomRcFlag = (id: string, flag: 'ada' | 'kurang' | 'sesuai') => {
+    setCustomRcItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const currentFlags = getRcChecklistFlags(item);
+        const nextFlags = {
+          ...currentFlags,
+          [flag]: !currentFlags[flag],
+        };
+        return {
+          ...item,
+          ...nextFlags,
+          status: formatRcChecklistSummary(nextFlags),
+        };
+      })
+    );
+    markFieldEdited();
+  };
+
+  const removeCustomRcItem = (id: string) => {
+    setCustomRcItems((prev) => prev.filter((item) => item.id !== id));
     markFieldEdited();
   };
 
@@ -1205,10 +1310,10 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
           <section className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-1.5">
               <div className="text-xs font-bold uppercase tracking-wide text-[#0b3c7c]">
-                5. Status Readiness Criteria (RC) — 6 Dokumen Standar KEMENPU
+                5. Status Readiness Criteria (RC) — Dokumen Standar &amp; Isian Baru
               </div>
               <span className="text-[11px] text-slate-500">
-                Centang Status (Ada / Kurang / Sesuai) & isi Keterangan
+                Centang Status (Ada / Kurang / Sesuai), isi Keterangan, atau tambah dokumen RC baru
               </span>
             </div>
 
@@ -1360,8 +1465,255 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                       </tr>
                     );
                   })}
+
+                  {customRcItems.map((item, customIdx) => {
+                    const flags = getRcChecklistFlags(item);
+                    const rowNum = KEMENPU_RC_ROWS.length + customIdx + 1;
+                    return (
+                      <tr key={item.id} className="bg-amber-50/35">
+                        <td className="py-2 px-3 text-slate-800 align-top">
+                          <div className="flex items-start gap-1.5">
+                            <span className="font-mono text-[11px] font-semibold text-slate-500 mt-1.5 shrink-0">
+                              {rowNum}.
+                            </span>
+                            <div className="flex-1 space-y-1 min-w-0">
+                              <input
+                                type="text"
+                                value={item.namaDokumen}
+                                onChange={(e) =>
+                                  updateCustomRcField(item.id, 'namaDokumen', e.target.value)
+                                }
+                                placeholder="Nama dokumen RC..."
+                                className="w-full px-2 py-1 text-xs font-medium text-slate-900 bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-700"
+                              />
+                              <input
+                                type="text"
+                                value={item.acuanStandar ?? ''}
+                                onChange={(e) =>
+                                  updateCustomRcField(item.id, 'acuanStandar', e.target.value)
+                                }
+                                placeholder="Acuan / standar kelengkapan (opsional)..."
+                                className="w-full px-2 py-1 text-[11px] text-slate-600 bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-700"
+                              />
+                              <span className="inline-block text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded">
+                                Isian Tambahan
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        {(
+                          [
+                            { key: 'ada', label: 'Ada', accent: 'accent-emerald-700' },
+                            { key: 'kurang', label: 'Kurang', accent: 'accent-amber-600' },
+                            { key: 'sesuai', label: 'Sesuai', accent: 'accent-blue-700' },
+                          ] as const
+                        ).map((col) => (
+                          <td
+                            key={col.key}
+                            className="py-2 px-2 border-l border-slate-200 align-middle text-center"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={flags[col.key]}
+                              onChange={() => toggleCustomRcFlag(item.id, col.key)}
+                              aria-label={`${item.namaDokumen} - ${col.label}`}
+                              className={`w-4 h-4 rounded border-slate-300 cursor-pointer align-middle ${col.accent}`}
+                            />
+                          </td>
+                        ))}
+                        <td className="py-2 px-2 border-l border-slate-200 align-top">
+                          <div className="flex items-start gap-1.5">
+                            <input
+                              type="text"
+                              value={item.keterangan}
+                              onChange={(e) =>
+                                updateCustomRcField(item.id, 'keterangan', e.target.value)
+                              }
+                              placeholder="Keterangan dokumen tambahan..."
+                              className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-700"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeCustomRcItem(item.id)}
+                              title={`Hapus dokumen "${item.namaDokumen}"`}
+                              aria-label={`Hapus dokumen ${item.namaDokumen}`}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded cursor-pointer shrink-0"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Tambah Isian Baru Dokumen Readiness Criteria */}
+            <div>
+              {!showNewCustomRcForm ? (
+                <div className="px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs text-slate-600">
+                    {customRcItems.length > 0
+                      ? `Terdapat ${customRcItems.length} isian dokumen RC tambahan.`
+                      : 'Perlu menambah dokumen Readiness Criteria selain 6 item standar?'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewCustomRcForm(true);
+                      setNewCustomRcError(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#0b3c7c] hover:bg-blue-900 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Isian Baru Dokumen RC</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/40 space-y-3">
+                  <div className="flex items-center justify-between gap-2 border-b border-blue-100 pb-2">
+                    <span className="text-xs font-bold text-[#0b3c7c]">
+                      Isian Baru Dokumen Readiness Criteria (RC)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewCustomRcForm(false);
+                        setNewCustomRcError(null);
+                      }}
+                      className="text-xs text-slate-500 hover:text-slate-700 cursor-pointer"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Nama Dokumen Readiness Criteria <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newCustomRcNama}
+                        onChange={(e) => {
+                          setNewCustomRcNama(e.target.value);
+                          if (newCustomRcError) setNewCustomRcError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomRcItem();
+                          }
+                        }}
+                        placeholder="Contoh: Surat Rekomendasi Teknis / Berita Acara Lahan"
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Acuan / Standar Kelengkapan (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        value={newCustomRcAcuan}
+                        onChange={(e) => setNewCustomRcAcuan(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomRcItem();
+                          }
+                        }}
+                        placeholder="Contoh: Disahkan pejabat berwenang..."
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                    <div className="sm:col-span-5">
+                      <span className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Status Checklist
+                      </span>
+                      <div className="flex flex-wrap items-center gap-3 px-3 py-2 bg-white border border-slate-300 rounded-lg">
+                        <label className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-800 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newCustomRcAda}
+                            onChange={(e) => setNewCustomRcAda(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 accent-emerald-700 cursor-pointer"
+                          />
+                          <span>Ada</span>
+                        </label>
+                        <label className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newCustomRcKurang}
+                            onChange={(e) => setNewCustomRcKurang(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 accent-amber-600 cursor-pointer"
+                          />
+                          <span>Kurang</span>
+                        </label>
+                        <label className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-800 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newCustomRcSesuai}
+                            onChange={(e) => setNewCustomRcSesuai(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 accent-blue-700 cursor-pointer"
+                          />
+                          <span>Sesuai</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div className="sm:col-span-7">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Keterangan &amp; Catatan Verifikasi
+                      </label>
+                      <input
+                        type="text"
+                        value={newCustomRcKeterangan}
+                        onChange={(e) => setNewCustomRcKeterangan(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomRcItem();
+                          }
+                        }}
+                        placeholder="Catatan kondisi dokumen atau tindak lanjut..."
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-700"
+                      />
+                    </div>
+                  </div>
+
+                  {newCustomRcError && (
+                    <div className="text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+                      {newCustomRcError}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewCustomRcForm(false);
+                        setNewCustomRcError(null);
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomRcItem}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambahkan ke Tabel RC</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
