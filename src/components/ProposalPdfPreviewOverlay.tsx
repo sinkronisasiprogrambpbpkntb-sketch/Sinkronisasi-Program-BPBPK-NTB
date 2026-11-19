@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  CheckCircle2,
+  Circle,
   Download,
+  ExternalLink,
   Eye,
   FileCheck2,
   FileText,
@@ -22,6 +25,7 @@ import {
   getRcChecklistFlags,
   KEMENPU_RC_ROWS,
 } from '../data/initialProposals';
+import { ReadinessCriteria } from '../types/ciptaKarya';
 import {
   createProposalProfilePdfPreview,
   ProposalProfilePdfInput,
@@ -39,10 +43,81 @@ interface ProposalPdfPreviewOverlayProps {
   onDownloadPdf: () => void;
   onPrintDirect: () => void;
   onEditSignatories?: () => void;
+  onToggleIncludeDetailRc?: (nextVal: boolean) => void;
   pdfInput: ProposalProfilePdfInput;
 }
 
 type PreviewMode = 'sheet' | 'pdf';
+
+const CORE_READINESS_PREVIEW_META: Array<{
+  key: keyof ReadinessCriteria;
+  label: string;
+  desc: string;
+}> = [
+  {
+    key: 'dokumenPerencanaan',
+    label: 'Dokumen Perencanaan',
+    desc: 'RISPAM / RIPS / RISPAL / RIPKS / Masterplan',
+  },
+  {
+    key: 'dedRab',
+    label: 'DED & RAB',
+    desc: 'FS, Detailed Engineering Design & RAB',
+  },
+  {
+    key: 'kesiapanLahan',
+    label: 'Kesiapan Lahan',
+    desc: 'Sertifikat / Status Lahan Clean & Clear',
+  },
+  {
+    key: 'dokumenLingkungan',
+    label: 'Dokumen Lingkungan',
+    desc: 'AMDAL / UKL-UPL / SPPL',
+  },
+  {
+    key: 'lembagaPengelola',
+    label: 'Lembaga Pengelola',
+    desc: 'Surat Minat & Komitmen Pemda / UPTD / BUMD',
+  },
+];
+
+function getRcDetailStatusMeta(flags: {
+  ada: boolean;
+  kurang: boolean;
+  sesuai: boolean;
+}): {
+  label: string;
+  badgeClass: string;
+} {
+  if (flags.sesuai && !flags.kurang) {
+    return {
+      label: 'Sesuai & Lengkap',
+      badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    };
+  }
+  if (flags.ada && flags.kurang) {
+    return {
+      label: 'Ada · Perlu Dilengkapi',
+      badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+    };
+  }
+  if (flags.kurang) {
+    return {
+      label: 'Kurang / Revisi',
+      badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+    };
+  }
+  if (flags.ada) {
+    return {
+      label: 'Ada (Dalam Reviu)',
+      badgeClass: 'bg-blue-50 text-blue-800 border-blue-200',
+    };
+  }
+  return {
+    label: 'Belum Tersedia',
+    badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+  };
+}
 
 function formatNumberMiliar(val: number): string {
   return val.toLocaleString('id-ID', {
@@ -57,6 +132,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
   onDownloadPdf,
   onPrintDirect,
   onEditSignatories,
+  onToggleIncludeDetailRc,
   pdfInput,
 }) => {
   const [mode, setMode] = useState<PreviewMode>('sheet');
@@ -110,8 +186,6 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
     [isOpen]
   );
 
-  if (!isOpen) return null;
-
   const {
     proposal,
     details,
@@ -122,6 +196,86 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
     imageDataUrl,
     signatories,
   } = pdfInput;
+
+  const includeDetailRc = pdfInput.includeDetailRc !== false;
+  const customRcItems = useMemo(
+    () => pdfInput.customRcItems ?? details.customRcItems ?? [],
+    [pdfInput.customRcItems, details.customRcItems]
+  );
+  const totalDetailDocs = KEMENPU_RC_ROWS.length + customRcItems.length;
+  const detailSummaryCounts = useMemo(() => {
+    let ada = 0;
+    let kurang = 0;
+    let sesuai = 0;
+    KEMENPU_RC_ROWS.forEach((row) => {
+      const f = getRcChecklistFlags(rcTable[row.key]);
+      if (f.ada) ada += 1;
+      if (f.kurang) kurang += 1;
+      if (f.sesuai) sesuai += 1;
+    });
+    customRcItems.forEach((item) => {
+      const f = getRcChecklistFlags(item);
+      if (f.ada) ada += 1;
+      if (f.kurang) kurang += 1;
+      if (f.sesuai) sesuai += 1;
+    });
+    return { ada, kurang, sesuai, total: totalDetailDocs };
+  }, [rcTable, customRcItems, totalDetailDocs]);
+
+  if (!isOpen) return null;
+
+  const signatureBlockNode = (
+    <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-xl px-5 py-4 bg-white">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs text-slate-900">
+        {(
+          [
+            { key: 'm1', party: signatories?.mengesahkan },
+            { key: 'm3', party: signatories?.mengesahkan3 },
+          ] as const
+        ).map(({ key, party }) => (
+          <div
+            key={key}
+            className="flex flex-col items-center justify-between min-h-[100px]"
+          >
+            <div>
+              <div className="h-4" />
+              <div className="font-bold">Mengesahkan,</div>
+              {party?.jabatan?.trim() && (
+                <div className="text-[11px] text-slate-600 mt-0.5 max-w-[200px]">
+                  {party.jabatan.trim()}
+                </div>
+              )}
+            </div>
+            <div className="pt-9">
+              <div className="font-bold underline underline-offset-4">
+                {party?.nama?.trim() || '( .............................. )'}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div className="flex flex-col items-center justify-between min-h-[100px]">
+          <div>
+            <div className="text-[11px] text-slate-600 h-4">
+              {signatories?.tempatTanggal.trim()}
+            </div>
+            <div className="font-bold">Menyetujui,</div>
+            {signatories?.menyetujui.jabatan.trim() && (
+              <div className="text-[11px] text-slate-600 mt-0.5 max-w-[200px]">
+                {signatories.menyetujui.jabatan.trim()}
+              </div>
+            )}
+          </div>
+          <div className="pt-9">
+            <div className="font-bold underline underline-offset-4">
+              {signatories?.menyetujui.nama.trim() ||
+                '( .............................. )'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -211,6 +365,22 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
             </div>
           )}
 
+          {onToggleIncludeDetailRc && (
+            <button
+              type="button"
+              onClick={() => onToggleIncludeDetailRc(!includeDetailRc)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
+                includeDetailRc
+                  ? 'bg-emerald-700/90 hover:bg-emerald-700 text-white border-emerald-400/50'
+                  : 'bg-white/10 hover:bg-white/15 text-indigo-100 border-white/15'
+              }`}
+              title="Sertakan halaman Detail Status Readiness Criteria (RC) ke dalam PDF"
+            >
+              <FileCheck2 className="w-3.5 h-3.5 text-amber-300" />
+              <span>Detail RC: {includeDetailRc ? 'Disertakan' : 'Tidak Disertakan'}</span>
+            </button>
+          )}
+
           {onEditSignatories && (
             <button
               type="button"
@@ -284,7 +454,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
             />
           </div>
         ) : (
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-6">
             <div
               className="batik-pu-watermark text-slate-900 shadow-2xl rounded-sm border border-[#C7D3E8] w-full max-w-[1122px] overflow-hidden origin-top transition-transform"
               style={
@@ -580,70 +750,315 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                 </div>
               </div>
 
-              {/* Signature Block: 2 Kolom Mengesahkan & 1 Kolom Menyetujui */}
-              <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-xl px-5 py-4 bg-white">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs text-slate-900">
-                  {(
-                    [
-                      { key: 'm1', party: signatories?.mengesahkan },
-                      { key: 'm3', party: signatories?.mengesahkan3 },
-                    ] as const
-                  ).map(({ key, party }) => (
-                    <div
-                      key={key}
-                      className="flex flex-col items-center justify-between min-h-[100px]"
-                    >
-                      <div>
-                        <div className="h-4" />
-                        <div className="font-bold">Mengesahkan,</div>
-                        {party?.jabatan?.trim() && (
-                          <div className="text-[11px] text-slate-600 mt-0.5 max-w-[200px]">
-                            {party.jabatan.trim()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="pt-9">
-                        <div className="font-bold underline underline-offset-4">
-                          {party?.nama?.trim() || '( .............................. )'}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  <div className="flex flex-col items-center justify-between min-h-[100px]">
-                    <div>
-                      <div className="text-[11px] text-slate-600 h-4">
-                        {signatories?.tempatTanggal.trim()}
-                      </div>
-                      <div className="font-bold">Menyetujui,</div>
-                      {signatories?.menyetujui.jabatan.trim() && (
-                        <div className="text-[11px] text-slate-600 mt-0.5 max-w-[200px]">
-                          {signatories.menyetujui.jabatan.trim()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="pt-9">
-                      <div className="font-bold underline underline-offset-4">
-                        {signatories?.menyetujui.nama.trim() ||
-                          '( .............................. )'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* Fallback Signature Block on Halaman 1 only when Detail Status RC is excluded */}
+              {!includeDetailRc && signatureBlockNode}
 
               {/* Footer */}
               <div className="pt-2 border-t border-[#C7D3E8] flex items-center justify-between text-[10px] text-slate-500">
                 <span>
                   SIMPRA BPBPK NTB · Profil Usulan Program ({proposal.kodeUsulan})
                 </span>
-                <span>Dicetak: {printTimestamp} · Halaman 1 dari 1</span>
+                <span>
+                  Dicetak: {printTimestamp} · Halaman 1 dari{' '}
+                  {pdfPayload?.pageCount ?? (includeDetailRc ? 2 : 1)}
+                </span>
               </div>
               </div>
 
               {/* Bottom Batik PU Ornamental Ribbon */}
               <div className="h-2 w-full batik-pu-strip border-t-2 border-[#E89611]" />
             </div>
+
+            {/* HALAMAN 2+: DETAIL STATUS READINESS CRITERIA (RC) */}
+            {includeDetailRc && (
+              <div
+                className="batik-pu-watermark text-slate-900 shadow-2xl rounded-sm border border-[#C7D3E8] w-full max-w-[1122px] overflow-hidden origin-top transition-transform"
+                style={
+                  zoomPct !== 100
+                    ? {
+                        transform: `scale(${zoomPct / 100})`,
+                        marginBottom: `${Math.max(0, (zoomPct - 100) * 6)}px`,
+                      }
+                    : undefined
+                }
+              >
+                <div className="h-2.5 w-full batik-pu-strip border-b-2 border-[#E89611]" />
+
+                <div className="p-6 sm:p-7 space-y-4">
+                  {/* Header Detail Status RC */}
+                  <div className="bg-white border border-[#C7D3E8] rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-stretch gap-3 min-w-0">
+                      <div className="flex shrink-0 select-none" aria-hidden="true">
+                        <div className="w-2 bg-[#061459]" />
+                        <div className="w-2.5 bg-[#E89611]" />
+                      </div>
+                      <div className="min-w-0 py-0.5">
+                        <h3 className="text-base sm:text-lg font-extrabold tracking-tight text-[#061459] uppercase leading-snug">
+                          Detail Status Readiness Criteria (RC) — {proposal.namaProgram}
+                        </h3>
+                        <div className="mt-0.5 text-xs font-semibold text-[#476691] uppercase tracking-wide">
+                          {proposal.kodeUsulan} · {proposal.kabupatenKota} · Skor RC:{' '}
+                          {rcPercentage}% · Total {detailSummaryCounts.total} Dokumen RC
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end shrink-0 select-none">
+                      <img
+                        src={PU_WORDMARK_SRC}
+                        alt="Kementerian Pekerjaan Umum"
+                        className="h-11 sm:h-12 w-auto object-contain"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Metadata Verifikasi RC */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
+                      <div className="text-[11px] font-medium text-slate-500">
+                        Status Verifikasi / Matriks
+                      </div>
+                      <div className="mt-0.5 text-xs font-bold text-[#061459]">
+                        {details.statusManual?.trim() || proposal.statusVerifikasi}
+                      </div>
+                    </div>
+
+                    <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
+                      <div className="text-[11px] font-medium text-slate-500">
+                        Pembahasan BPBPK NTB
+                      </div>
+                      <div className="mt-0.5 font-mono text-xs font-bold text-[#061459] tabular-nums">
+                        {details.jumlahPembahasanBpbpk ?? 0} Kali Pembahasan
+                      </div>
+                    </div>
+
+                    <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
+                      <div className="text-[11px] font-medium text-slate-500">
+                        Kelengkapan Dokumen RC
+                      </div>
+                      <div className="mt-0.5 text-xs font-bold text-slate-800 font-mono tabular-nums">
+                        Ada {detailSummaryCounts.ada}/{detailSummaryCounts.total} · Sesuai{' '}
+                        {detailSummaryCounts.sesuai}/{detailSummaryCounts.total} · Kurang{' '}
+                        {detailSummaryCounts.kurang}/{detailSummaryCounts.total}
+                      </div>
+                    </div>
+
+                    <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
+                      <div className="text-[11px] font-medium text-slate-500">
+                        Tautan Berkas / Data RC
+                      </div>
+                      <div className="mt-0.5 text-xs font-medium text-slate-700 truncate">
+                        {details.linkDataRc?.trim() ? (
+                          <span className="inline-flex items-center gap-1 text-blue-700">
+                            <span className="truncate">{details.linkDataRc.trim()}</span>
+                            <ExternalLink className="w-3 h-3 shrink-0" />
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Belum diisi</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tabel Rincian Detail Status RC */}
+                  <div className="bg-white border border-[#C7D3E8] rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                      <div className="flex items-center gap-2">
+                        <FileCheck2 className="w-4 h-4 text-[#E89611] shrink-0" />
+                        <h4 className="text-xs sm:text-sm font-bold text-white">
+                          Rincian Lengkap Status <span className="italic">Readiness Criteria</span>{' '}
+                          (RC)
+                        </h4>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-amber-200">
+                        {detailSummaryCounts.total} Dokumen · Skor RC: {rcPercentage}%
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-[11px]">
+                        <thead>
+                          <tr className="bg-[#EEF2FA] border-b border-[#C7D3E8] text-[#061459]">
+                            <th className="py-2 px-2 text-center font-bold border-r border-[#C7D3E8] w-9">
+                              No
+                            </th>
+                            <th className="py-2 px-2.5 text-left font-bold border-r border-[#C7D3E8] w-[22%]">
+                              Dokumen Readiness Criteria
+                            </th>
+                            <th className="py-2 px-2.5 text-left font-bold border-r border-[#C7D3E8] w-[21%]">
+                              Acuan / Standar Kelengkapan
+                            </th>
+                            <th className="py-2 px-1.5 text-center font-bold border-r border-[#C7D3E8] w-10">
+                              Ada
+                            </th>
+                            <th className="py-2 px-1.5 text-center font-bold border-r border-[#C7D3E8] w-12">
+                              Kurang
+                            </th>
+                            <th className="py-2 px-1.5 text-center font-bold border-r border-[#C7D3E8] w-12">
+                              Sesuai
+                            </th>
+                            <th className="py-2 px-2 text-center font-bold border-r border-[#C7D3E8] w-[13%]">
+                              Status Detail
+                            </th>
+                            <th className="py-2 px-2.5 text-left font-bold">
+                              Keterangan &amp; Catatan Verifikasi Lengkap
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#C7D3E8] text-slate-700">
+                          {KEMENPU_RC_ROWS.map((row, idx) => {
+                            const entry = rcTable[row.key] ?? { status: '', keterangan: '' };
+                            const flags = getRcChecklistFlags(entry);
+                            const statusMeta = getRcDetailStatusMeta(flags);
+                            const docLabel =
+                              row.key === 'lainnya' && entry.customLabel?.trim()
+                                ? entry.customLabel
+                                : row.defaultLabel;
+                            return (
+                              <tr key={`sheet-detail-${row.key}`}>
+                                <td className="py-2 px-2 border-r border-[#C7D3E8] text-center font-mono font-semibold text-slate-500 align-top">
+                                  {idx + 1}
+                                </td>
+                                <td className="py-2 px-2.5 border-r border-[#C7D3E8] font-semibold text-[#061459] align-top">
+                                  {docLabel}
+                                </td>
+                                <td className="py-2 px-2.5 border-r border-[#C7D3E8] text-[10px] text-slate-600 align-top">
+                                  {row.placeholderNote}
+                                </td>
+                                <td className="py-2 px-1.5 border-r border-[#C7D3E8] text-center font-bold text-emerald-700 align-top">
+                                  {flags.ada ? '✓' : '—'}
+                                </td>
+                                <td className="py-2 px-1.5 border-r border-[#C7D3E8] text-center font-bold text-amber-700 align-top">
+                                  {flags.kurang ? '✓' : '—'}
+                                </td>
+                                <td className="py-2 px-1.5 border-r border-[#C7D3E8] text-center font-bold text-blue-700 align-top">
+                                  {flags.sesuai ? '✓' : '—'}
+                                </td>
+                                <td className="py-2 px-2 border-r border-[#C7D3E8] text-center align-top">
+                                  <span
+                                    className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded border whitespace-nowrap ${statusMeta.badgeClass}`}
+                                  >
+                                    {statusMeta.label}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-2.5 align-top whitespace-pre-wrap">
+                                  {entry.keterangan || 'Belum ada keterangan tambahan.'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                          {customRcItems.map((item, customIdx) => {
+                            const flags = getRcChecklistFlags(item);
+                            const statusMeta = getRcDetailStatusMeta(flags);
+                            return (
+                              <tr key={`sheet-detail-custom-${item.id}`} className="bg-amber-50/35">
+                                <td className="py-2 px-2 border-r border-[#C7D3E8] text-center font-mono font-semibold text-[#061459] align-top">
+                                  {KEMENPU_RC_ROWS.length + customIdx + 1}
+                                </td>
+                                <td className="py-2 px-2.5 border-r border-[#C7D3E8] align-top">
+                                  <div className="font-semibold text-[#061459]">
+                                    {item.namaDokumen}
+                                  </div>
+                                  <span className="inline-block mt-0.5 text-[9px] font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.5 rounded">
+                                    Isian Tambahan
+                                  </span>
+                                </td>
+                                <td className="py-2 px-2.5 border-r border-[#C7D3E8] text-[10px] text-slate-600 align-top">
+                                  {item.acuanStandar ||
+                                    'Dokumen pendukung tambahan sesuai kebutuhan verifikasi.'}
+                                </td>
+                                <td className="py-2 px-1.5 border-r border-[#C7D3E8] text-center font-bold text-emerald-700 align-top">
+                                  {flags.ada ? '✓' : '—'}
+                                </td>
+                                <td className="py-2 px-1.5 border-r border-[#C7D3E8] text-center font-bold text-amber-700 align-top">
+                                  {flags.kurang ? '✓' : '—'}
+                                </td>
+                                <td className="py-2 px-1.5 border-r border-[#C7D3E8] text-center font-bold text-blue-700 align-top">
+                                  {flags.sesuai ? '✓' : '—'}
+                                </td>
+                                <td className="py-2 px-2 border-r border-[#C7D3E8] text-center align-top">
+                                  <span
+                                    className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded border whitespace-nowrap ${statusMeta.badgeClass}`}
+                                  >
+                                    {statusMeta.label}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-2.5 align-top whitespace-pre-wrap">
+                                  {item.keterangan || 'Belum ada keterangan tambahan.'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 5 Indikator Inti & Catatan Teknis Balai */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+                    <div className="lg:col-span-7 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                        <h4 className="text-xs font-bold text-white">
+                          5 Indikator Inti Readiness Criteria (RC)
+                        </h4>
+                      </div>
+                      <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {CORE_READINESS_PREVIEW_META.map((item) => {
+                          const checked = Boolean(proposal.readiness[item.key]);
+                          return (
+                            <div
+                              key={`sheet-core-${item.key}`}
+                              className="flex items-start gap-2 p-2 rounded-lg bg-[#F8FAFE] border border-[#C7D3E8]"
+                            >
+                              {checked ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              ) : (
+                                <Circle className="w-3.5 h-3.5 text-slate-300 shrink-0 mt-0.5" />
+                              )}
+                              <div className="min-w-0">
+                                <div className="text-[11px] font-semibold text-slate-800">
+                                  {item.label}
+                                </div>
+                                <div className="text-[10px] text-slate-500">{item.desc}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="lg:col-span-5 bg-white border border-[#C7D3E8] rounded-xl overflow-hidden flex flex-col">
+                      <div className="flex items-center gap-2 px-3.5 py-2 bg-[#061459] text-white border-b-2 border-[#E89611]">
+                        <h4 className="text-xs font-bold text-white">
+                          Catatan Teknis &amp; Tindak Lanjut Verifikasi Balai
+                        </h4>
+                      </div>
+                      <div className="p-3.5 text-[11px] text-slate-700 leading-relaxed whitespace-pre-wrap">
+                        {proposal.catatanTeknis?.trim() ||
+                          'Belum ada catatan teknis tambahan untuk usulan ini.'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pengesahan di Bagian Bawah Detail Status RC (di bawah 5 Indikator Inti RC) */}
+                  {signatureBlockNode}
+
+                  {/* Footer Halaman 2 */}
+                  <div className="pt-2 border-t border-[#C7D3E8] flex items-center justify-between text-[10px] text-slate-500">
+                    <span>
+                      SIMPRA BPBPK NTB · Detail Status Readiness Criteria (RC) (
+                      {proposal.kodeUsulan})
+                    </span>
+                    <span>
+                      Dicetak: {printTimestamp} · Halaman 2 dari {pdfPayload?.pageCount ?? 2}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="h-2 w-full batik-pu-strip border-t-2 border-[#E89611]" />
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -443,6 +443,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   const [imageDraftUrl, setImageDraftUrl] = useState<string | undefined>(undefined);
   const [uploadAlert, setUploadAlert] = useState<string | null>(null);
   const [showPdfPreview, setShowPdfPreview] = useState<boolean>(false);
+  const [includeDetailRcInPdf, setIncludeDetailRcInPdf] = useState<boolean>(true);
   const [showDetailedRc, setShowDetailedRc] = useState<boolean>(false);
   const [showNewRcForm, setShowNewRcForm] = useState<boolean>(false);
   const [newRcNama, setNewRcNama] = useState<string>('');
@@ -573,11 +574,23 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       totalPagu: getTotalPaguUsulan(proposal.pagu),
       rcPercentage: activeRcPercentage,
       rcTable: rcTableDraft,
+      customRcItems: customRcDraft,
+      includeDetailRc: includeDetailRcInPdf,
       position: activePos,
       imageDataUrl: imageDraftUrl,
       signatories,
     };
-  }, [proposal, rcDraft, currentRcVal, resolvedPlaces, rcTableDraft, imageDraftUrl, signatories]);
+  }, [
+    proposal,
+    rcDraft,
+    currentRcVal,
+    resolvedPlaces,
+    rcTableDraft,
+    customRcDraft,
+    includeDetailRcInPdf,
+    imageDraftUrl,
+    signatories,
+  ]);
 
   if (!proposal || !pdfPreviewInput) return null;
 
@@ -1081,11 +1094,14 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const el = document.getElementById('profil-pdf-signatory-panel');
-                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setShowDetailedRc(true);
+                    window.setTimeout(() => {
+                      const el = document.getElementById('profil-pdf-signatory-panel');
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 80);
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#040E42]/80 hover:bg-[#0A1D6E] border border-white/15 text-indigo-100 hover:text-white cursor-pointer whitespace-nowrap"
-                  title="Isi data Mengesahkan & Menyetujui untuk Cetak PDF"
+                  title="Isi data Mengesahkan & Menyetujui di bagian bawah Detail Status RC"
                 >
                   <PenLine className="w-3.5 h-3.5 text-amber-300" />
                   <span className="hidden md:inline">Pengesahan PDF</span>
@@ -1117,10 +1133,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     })();
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#07165B] hover:bg-[#0A1D6E] text-white cursor-pointer whitespace-nowrap border border-amber-400/60"
-                  title="Alternatif Cetak PDF langsung ke dalam 1 kertas A4 Landscape"
+                  title="Cetak PDF Profil Usulan beserta Detail Status Readiness Criteria (RC)"
                 >
                   <Printer className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Cetak PDF (1 Kertas)</span>
+                  <span>Cetak PDF (+ Detail RC)</span>
                 </button>
 
                 <button
@@ -1727,12 +1743,13 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           </div>
 
           {/* Tabel Fitur Lihat Lebih Detail Status Readiness Criteria (RC) di Bawah Tabel Status RC */}
-          {showDetailedRc && (
-            <section
-              id="profil-rc-detail-table-section"
-              aria-label="Detail Lengkap Status Readiness Criteria (RC)"
-              className="bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden shadow-xs"
-            >
+          <section
+            id="profil-rc-detail-table-section"
+            aria-label="Detail Lengkap Status Readiness Criteria (RC)"
+            className={`${
+              showDetailedRc ? 'block' : 'hidden print:block'
+            } bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden shadow-xs print:break-before-page`}
+          >
               <div className="px-4 sm:px-5 py-3 bg-[#061459] text-white border-b-2 border-[#E89611] flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
                   <FileCheck2 className="w-4 h-4 text-[#E89611] shrink-0" />
@@ -2403,36 +2420,32 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     )}
                   </div>
                 </div>
-              </div>
-            </section>
-          )}
-
-          {/* Data Pengesahan & Persetujuan Cetak PDF (Mengesahkan 1, Mengesahkan 2, & Menyetujui) */}
-          {!isTemplateDemo && (
-            <section
-              id="profil-pdf-signatory-panel"
-              aria-label="Data Pengesahan Cetak PDF Profil Usulan"
-              className="bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden break-inside-avoid print:border-slate-200 print:rounded-xl shadow-xs"
-            >
-              <div className="px-5 py-3 bg-[#061459] text-white border-b-2 border-[#E89611] flex flex-wrap items-center justify-between gap-2 print:hidden">
-                <div>
-                  <h3 className="text-sm font-bold text-white">
-                    Data Pengesahan &amp; Persetujuan (Cetak PDF)
-                  </h3>
-                  <p className="text-xs text-indigo-200 mt-0.5">
-                    Ditampilkan di bagian bawah halaman Profil Usulan saat Preview atau Cetak PDF
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSignatories(createEmptyProfilSignatories())}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-200 bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                  title="Kosongkan nama dan jabatan pengesah"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset Kolom</span>
-                </button>
-              </div>
+                {/* Data Pengesahan & Persetujuan di Bagian Bawah Detail Status RC (di bawah 5 Indikator Inti RC) */}
+                {!isTemplateDemo && (
+                  <div
+                    id="profil-pdf-signatory-panel"
+                    aria-label="Data Pengesahan Cetak PDF Profil Usulan"
+                    className="bg-white border border-[#C7D3E8] rounded-xl overflow-hidden break-inside-avoid print:border-slate-200"
+                  >
+                    <div className="px-4 py-2.5 bg-[#061459] text-white border-b-2 border-[#E89611] flex flex-wrap items-center justify-between gap-2 print:hidden">
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white">
+                          Pengesahan &amp; Persetujuan (Cetak PDF)
+                        </h4>
+                        <p className="text-[11px] text-indigo-200 mt-0.5">
+                          Ditampilkan di bagian bawah Detail Status Readiness Criteria (RC) di bawah 5 Indikator Inti RC saat Preview atau Cetak PDF
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSignatories(createEmptyProfilSignatories())}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-200 bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        title="Kosongkan nama dan jabatan pengesah"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reset Kolom</span>
+                      </button>
+                    </div>
 
               <div className="p-4 sm:p-5 print:hidden space-y-4">
                 <div className="max-w-xs">
@@ -2636,16 +2649,18 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                       </div>
                     )}
                   </div>
-                  <div className="pt-10">
-                    <div className="font-bold underline underline-offset-4">
-                      {signatories.menyetujui.nama.trim() ||
-                        '( .............................. )'}
+                    <div className="pt-10">
+                      <div className="font-bold underline underline-offset-4">
+                        {signatories.menyetujui.nama.trim() ||
+                          '( .............................. )'}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
+                )}
+              </div>
             </section>
-          )}
           </div>
           <div className="h-2 w-full batik-pu-strip border-t-2 border-[#E89611] shrink-0" aria-hidden="true" />
         </div>
@@ -2669,11 +2684,13 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         }}
         onPrintDirect={() => window.print()}
         onEditSignatories={() => {
+          setShowDetailedRc(true);
           window.setTimeout(() => {
             const el = document.getElementById('profil-pdf-signatory-panel');
             el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }, 80);
         }}
+        onToggleIncludeDetailRc={(nextVal) => setIncludeDetailRcInPdf(nextVal)}
         pdfInput={pdfPreviewInput}
       />
     </div>

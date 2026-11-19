@@ -5,10 +5,12 @@ import {
   KEMENPU_RC_ROWS,
 } from '../data/initialProposals';
 import {
+  CustomRcDocumentEntry,
   LatLngPoint,
   ProposalTemplateDetails,
   RcDocKey,
   RcDocumentEntry,
+  ReadinessCriteria,
   UsulanProgram,
 } from '../types/ciptaKarya';
 import { PdfSignatoriesConfig, PdfSignatoryParty } from './exportRcInfographicPdf';
@@ -24,6 +26,8 @@ export interface ProposalProfilePdfInput {
   totalPagu: number;
   rcPercentage: number;
   rcTable: Record<RcDocKey, RcDocumentEntry>;
+  customRcItems?: CustomRcDocumentEntry[];
+  includeDetailRc?: boolean;
   position: LatLngPoint;
   imageDataUrl?: string;
   signatories?: PdfSignatoriesConfig;
@@ -129,35 +133,94 @@ function drawCardFrame(
   }
 }
 
-function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
-  doc: jsPDF;
-  fileName: string;
+const CORE_READINESS_PDF_META: Array<{
+  key: keyof ReadinessCriteria;
+  label: string;
+  desc: string;
+}> = [
+  {
+    key: 'dokumenPerencanaan',
+    label: 'Dokumen Perencanaan',
+    desc: 'RISPAM / RIPS / RISPAL / RIPKS / Masterplan',
+  },
+  {
+    key: 'dedRab',
+    label: 'DED & RAB',
+    desc: 'FS, Detailed Engineering Design & RAB',
+  },
+  {
+    key: 'kesiapanLahan',
+    label: 'Kesiapan Lahan',
+    desc: 'Sertifikat / Status Lahan Clean & Clear',
+  },
+  {
+    key: 'dokumenLingkungan',
+    label: 'Dokumen Lingkungan',
+    desc: 'AMDAL / UKL-UPL / SPPL',
+  },
+  {
+    key: 'lembagaPengelola',
+    label: 'Lembaga Pengelola',
+    desc: 'Surat Minat & Komitmen Pemda / UPTD / BUMD',
+  },
+];
+
+function getRcDetailStatusPdfStyle(flags: {
+  ada: boolean;
+  kurang: boolean;
+  sesuai: boolean;
+}): {
+  label: string;
+  fill: RgbTuple;
+  border: RgbTuple;
+  text: RgbTuple;
 } {
-  const {
-    proposal,
-    details,
-    totalPagu,
-    rcPercentage,
-    rcTable,
-    position,
-    imageDataUrl,
-    signatories,
-  } = input;
+  if (flags.sesuai && !flags.kurang) {
+    return {
+      label: 'Sesuai & Lengkap',
+      fill: [236, 253, 245],
+      border: [167, 243, 208],
+      text: [6, 95, 70],
+    };
+  }
+  if (flags.ada && flags.kurang) {
+    return {
+      label: 'Ada | Perlu Dilengkapi',
+      fill: [255, 251, 235],
+      border: [253, 230, 138],
+      text: [146, 64, 14],
+    };
+  }
+  if (flags.kurang) {
+    return {
+      label: 'Kurang / Revisi',
+      fill: [255, 251, 235],
+      border: [253, 230, 138],
+      text: [146, 64, 14],
+    };
+  }
+  if (flags.ada) {
+    return {
+      label: 'Ada (Dalam Reviu)',
+      fill: [239, 246, 255],
+      border: [191, 219, 254],
+      text: [30, 64, 175],
+    };
+  }
+  return {
+    label: 'Belum Tersedia',
+    fill: [241, 245, 249],
+    border: [203, 213, 225],
+    text: [71, 85, 105],
+  };
+}
 
-  const doc = new jsPDF({
-    orientation: 'landscape',
-    unit: 'mm',
-    format: 'a4',
-    compress: true,
-  });
-
-  const pageWidth = doc.internal.pageSize.getWidth(); // 297
-  const pageHeight = doc.internal.pageSize.getHeight(); // 210
-  const marginX = 11;
-  const contentWidth = pageWidth - marginX * 2; // 275
-  const batikAssets = input.batikAssets ?? getCachedPuBatikAssets();
-
-  // Subtle A4 Batik PU Paper Watermark + Top & Bottom Ornamental Ribbons
+function drawBatikPageChrome(
+  doc: jsPDF,
+  pageWidth: number,
+  pageHeight: number,
+  batikAssets: PuBatikPdfAssets | null | undefined
+) {
   if (batikAssets?.watermarkDataUrl?.startsWith('data:image/')) {
     try {
       doc.addImage(
@@ -211,6 +274,140 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     doc.setFillColor(...PU_NAVY);
     doc.rect(0, pageHeight - 2.2, pageWidth, 2.2, 'F');
   }
+}
+
+function drawSignatureBlock(
+  doc: jsPDF,
+  marginX: number,
+  sigY: number,
+  contentWidth: number,
+  sigH: number,
+  signatories?: PdfSignatoriesConfig
+) {
+  doc.setFillColor(...WHITE);
+  doc.setDrawColor(...PU_BORDER);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(marginX, sigY, contentWidth, sigH, 2, 2, 'FD');
+  doc.setFillColor(...PU_NAVY);
+  doc.rect(marginX + 1, sigY, contentWidth - 2, 1.1, 'F');
+  doc.setFillColor(...PU_GOLD);
+  doc.rect(marginX + 1, sigY, 32, 1.1, 'F');
+
+  const sigConfig: PdfSignatoriesConfig = signatories ?? {
+    tempatTanggal: '',
+    mengesahkan: { jabatan: '', nama: '' },
+    mengesahkan3: { jabatan: '', nama: '' },
+    menyetujui: { jabatan: '', nama: '' },
+  };
+
+  const sigColMaxW = contentWidth * 0.28;
+  const nameY = sigY + sigH - 4.0;
+
+  const drawSignatorySide = (
+    centerX: number,
+    headingLabel: string,
+    topMeta: string,
+    party: PdfSignatoryParty
+  ) => {
+    const cleanTop = sanitizePdfText(topMeta);
+    if (cleanTop) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.6);
+      doc.setTextColor(...SLATE_700);
+      doc.text(truncateLine(doc, cleanTop, sigColMaxW), centerX, sigY + 4.2, {
+        align: 'center',
+      });
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.6);
+    doc.setTextColor(...SLATE_900);
+    doc.text(headingLabel, centerX, sigY + 8.0, { align: 'center' });
+
+    const cleanJabatan = sanitizePdfText(party.jabatan);
+    if (cleanJabatan) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.8);
+      doc.setTextColor(...SLATE_700);
+      const jabLines = doc.splitTextToSize(cleanJabatan, sigColMaxW).slice(0, 2) as string[];
+      jabLines.forEach((line, lIdx) => {
+        doc.text(line, centerX, sigY + 11.6 + lIdx * 3.1, { align: 'center' });
+      });
+    }
+
+    const cleanNama = sanitizePdfText(party.nama);
+    if (cleanNama) {
+      const displayNama = truncateLine(doc, cleanNama, sigColMaxW);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.6);
+      doc.setTextColor(...SLATE_900);
+      doc.text(displayNama, centerX, nameY, { align: 'center' });
+
+      const namaWidth = doc.getTextWidth(displayNama);
+      doc.setDrawColor(...SLATE_900);
+      doc.setLineWidth(0.25);
+      doc.line(centerX - namaWidth / 2, nameY + 0.9, centerX + namaWidth / 2, nameY + 0.9);
+      doc.setLineWidth(0.2);
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.2);
+      doc.setTextColor(...SLATE_400);
+      doc.text('( .............................. )', centerX, nameY, {
+        align: 'center',
+      });
+    }
+  };
+
+  drawSignatorySide(
+    marginX + contentWidth * 0.17,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan
+  );
+  drawSignatorySide(
+    marginX + contentWidth * 0.5,
+    'Mengesahkan,',
+    '',
+    sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
+  );
+  drawSignatorySide(
+    marginX + contentWidth * 0.83,
+    'Menyetujui,',
+    sigConfig.tempatTanggal,
+    sigConfig.menyetujui
+  );
+}
+
+function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
+  doc: jsPDF;
+  fileName: string;
+} {
+  const {
+    proposal,
+    details,
+    totalPagu,
+    rcPercentage,
+    rcTable,
+    position,
+    imageDataUrl,
+    signatories,
+  } = input;
+
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+    compress: true,
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth(); // 297
+  const pageHeight = doc.internal.pageSize.getHeight(); // 210
+  const marginX = 11;
+  const contentWidth = pageWidth - marginX * 2; // 275
+  const batikAssets = input.batikAssets ?? getCachedPuBatikAssets();
+
+  // Subtle A4 Batik PU Paper Watermark + Top & Bottom Ornamental Ribbons
+  drawBatikPageChrome(doc, pageWidth, pageHeight, batikAssets);
 
   // HEADER (framed on clean white surface so PU wordmark stays razor-sharp)
   const headerY = 5.4;
@@ -398,9 +595,11 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     doc.text(line, r2X2 + 3.5 + ooColW + 3, row2Y + 15.6 + idx * 3.1);
   });
 
+  const shouldIncludeDetailRc = input.includeDetailRc !== false;
+
   // ROW 3: Gambaran Lokasi Kegiatan (47%) | Status Readiness Criteria (RC) (53%)
   const row3Y = row2Y + row2H + 2.5;
-  const row3H = 71;
+  const row3H = shouldIncludeDetailRc ? 108 : 71;
   const r3W1 = contentWidth * 0.47;
   const r3W2 = contentWidth - r3W1 - gap;
   const r3X1 = marginX;
@@ -410,7 +609,7 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
   const locBoxX = r3X1 + 3.5;
   const locBoxY = row3Y + 10.5;
   const locBoxW = r3W1 - 7;
-  const locBoxH = 44.5;
+  const locBoxH = shouldIncludeDetailRc ? 78 : 44.5;
 
   doc.setFillColor(...SLATE_100);
   doc.setDrawColor(...SLATE_200);
@@ -552,7 +751,10 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
 
   // Table rows (KEMENPU 6 standard rows)
   const availableBodyH = row3H - 22;
-  const rowH = Math.min(8.2, Math.max(7.2, availableBodyH / KEMENPU_RC_ROWS.length));
+  const rowH = Math.min(
+    shouldIncludeDetailRc ? 12.5 : 8.2,
+    Math.max(7.2, availableBodyH / KEMENPU_RC_ROWS.length)
+  );
 
   KEMENPU_RC_ROWS.forEach((row, rIdx) => {
     const ry = tblY + hdrTotalH + rIdx * rowH;
@@ -612,109 +814,525 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     });
   });
 
-  // SIGNATURE BLOCK AT BOTTOM: 2 Kolom Mengesahkan & 1 Kolom Menyetujui (Sebelah Kanan)
-  const sigY = row3Y + row3H + 2.5;
-  const sigH = 34;
-  doc.setFillColor(...WHITE);
-  doc.setDrawColor(...PU_BORDER);
-  doc.setLineWidth(0.25);
-  doc.roundedRect(marginX, sigY, contentWidth, sigH, 2, 2, 'FD');
-  doc.setFillColor(...PU_NAVY);
-  doc.rect(marginX + 1, sigY, contentWidth - 2, 1.1, 'F');
-  doc.setFillColor(...PU_GOLD);
-  doc.rect(marginX + 1, sigY, 32, 1.1, 'F');
+  if (!shouldIncludeDetailRc) {
+    // Fallback Signature Block on Page 1 only when Detail Status RC is excluded
+    drawSignatureBlock(doc, marginX, row3Y + row3H + 2.5, contentWidth, 34, signatories);
+  }
 
-  const sigConfig: PdfSignatoriesConfig = signatories ?? {
-    tempatTanggal: '',
-    mengesahkan: { jabatan: '', nama: '' },
-    mengesahkan3: { jabatan: '', nama: '' },
-    menyetujui: { jabatan: '', nama: '' },
-  };
+  // PAGE 2+: Detail Status Readiness Criteria (RC)
+  if (shouldIncludeDetailRc) {
+    const customRcList = input.customRcItems ?? details.customRcItems ?? [];
+    const totalDocsCount = KEMENPU_RC_ROWS.length + customRcList.length;
 
-  const sigColMaxW = contentWidth * 0.28;
-
-  const drawSignatorySide = (
-    centerX: number,
-    headingLabel: string,
-    topMeta: string,
-    party: PdfSignatoryParty
-  ) => {
-    const cleanTop = sanitizePdfText(topMeta);
-    if (cleanTop) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.6);
-      doc.setTextColor(...SLATE_700);
-      doc.text(truncateLine(doc, cleanTop, sigColMaxW), centerX, sigY + 4.4, {
-        align: 'center',
-      });
+    interface DetailPdfRow {
+      no: number;
+      docLabel: string;
+      isCustom: boolean;
+      subNotes: string[];
+      acuan: string;
+      flags: { ada: boolean; kurang: boolean; sesuai: boolean };
+      keterangan: string;
     }
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.6);
-    doc.setTextColor(...SLATE_900);
-    doc.text(headingLabel, centerX, sigY + 8.4, { align: 'center' });
+    const detailRows: DetailPdfRow[] = KEMENPU_RC_ROWS.map((row, idx) => {
+      const entry = rcTable[row.key] ?? { status: '', keterangan: '' };
+      const flags = getRcChecklistFlags(entry);
+      const docLabel =
+        row.key === 'lainnya' && entry.customLabel?.trim()
+          ? entry.customLabel
+          : row.defaultLabel;
+      const rawLegacy = proposal.templateDetails?.rcDetails;
+      const subNotes: string[] = [];
+      if (row.key === 'fsDedRab' && rawLegacy) {
+        if (rawLegacy.studiKelayakan) {
+          subNotes.push(
+            `Studi Kelayakan (FS): ${rawLegacy.studiKelayakan.status || '-'}${
+              rawLegacy.studiKelayakan.keterangan ? ` (${rawLegacy.studiKelayakan.keterangan})` : ''
+            }`
+          );
+        }
+        if (rawLegacy.ded) {
+          subNotes.push(
+            `DED Teknis: ${rawLegacy.ded.status || '-'}${
+              rawLegacy.ded.keterangan ? ` (${rawLegacy.ded.keterangan})` : ''
+            }`
+          );
+        }
+        if (rawLegacy.rab) {
+          subNotes.push(
+            `RAB: ${rawLegacy.rab.status || '-'}${
+              rawLegacy.rab.keterangan ? ` (${rawLegacy.rab.keterangan})` : ''
+            }`
+          );
+        }
+      }
+      return {
+        no: idx + 1,
+        docLabel,
+        isCustom: false,
+        subNotes,
+        acuan: row.placeholderNote,
+        flags,
+        keterangan: entry.keterangan?.trim() || 'Belum ada keterangan tambahan.',
+      };
+    });
 
-    const cleanJabatan = sanitizePdfText(party.jabatan);
-    if (cleanJabatan) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.8);
-      doc.setTextColor(...SLATE_700);
-      const jabLines = doc.splitTextToSize(cleanJabatan, sigColMaxW).slice(0, 2) as string[];
-      jabLines.forEach((line, lIdx) => {
-        doc.text(line, centerX, sigY + 12.2 + lIdx * 3.1, { align: 'center' });
+    customRcList.forEach((item, customIdx) => {
+      detailRows.push({
+        no: KEMENPU_RC_ROWS.length + customIdx + 1,
+        docLabel: item.namaDokumen,
+        isCustom: true,
+        subNotes: [],
+        acuan:
+          item.acuanStandar?.trim() ||
+          'Dokumen pendukung tambahan sesuai kebutuhan verifikasi.',
+        flags: getRcChecklistFlags(item),
+        keterangan: item.keterangan?.trim() || 'Belum ada keterangan tambahan.',
       });
-    }
+    });
 
-    const cleanNama = sanitizePdfText(party.nama);
-    const nameY = sigY + 29.8;
-    if (cleanNama) {
-      const displayNama = truncateLine(doc, cleanNama, sigColMaxW);
+    const summaryCounts = detailRows.reduce(
+      (acc, r) => {
+        if (r.flags.ada) acc.ada += 1;
+        if (r.flags.kurang) acc.kurang += 1;
+        if (r.flags.sesuai) acc.sesuai += 1;
+        return acc;
+      },
+      { ada: 0, kurang: 0, sesuai: 0 }
+    );
+
+    const drawDetailPageHeader = (isContinuation: boolean) => {
+      doc.addPage();
+      drawBatikPageChrome(doc, pageWidth, pageHeight, batikAssets);
+
+      const dHeaderY = 5.4;
+      const dHeaderH = 14.5;
+      doc.setFillColor(...WHITE);
+      doc.setDrawColor(...PU_BORDER);
+      doc.setLineWidth(0.28);
+      doc.roundedRect(marginX, dHeaderY, contentWidth, dHeaderH, 2, 2, 'FD');
+
+      doc.setFillColor(...PU_NAVY);
+      doc.rect(marginX + 1.8, dHeaderY + 1.6, 2.2, dHeaderH - 3.2, 'F');
+      doc.setFillColor(...GOLD_ACCENT);
+      doc.rect(marginX + 4.0, dHeaderY + 1.6, 2.2, dHeaderH - 3.2, 'F');
+
+      const dTitleMaxW = contentWidth - 62;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.0);
+      doc.setTextColor(...PU_NAVY);
+      doc.text(
+        truncateLine(
+          doc,
+          `DETAIL STATUS READINESS CRITERIA (RC)${isContinuation ? ' (LANJUTAN)' : ''} - ${proposal.namaProgram.toUpperCase()}`,
+          dTitleMaxW
+        ),
+        marginX + 8.5,
+        dHeaderY + 5.6
+      );
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7.6);
-      doc.setTextColor(...SLATE_900);
-      doc.text(displayNama, centerX, nameY, { align: 'center' });
+      doc.setTextColor(...STEEL_SUBTITLE);
+      doc.text(
+        truncateLine(
+          doc,
+          `${proposal.kodeUsulan} | ${proposal.kabupatenKota} | Skor RC: ${rcPercentage}% | Total ${totalDocsCount} Dokumen RC`,
+          dTitleMaxW
+        ),
+        marginX + 8.5,
+        dHeaderY + 10.6
+      );
 
-      const namaWidth = doc.getTextWidth(displayNama);
-      doc.setDrawColor(...SLATE_900);
+      if (wordmarkDataUrl && wordmarkDataUrl.startsWith('data:image/')) {
+        try {
+          const logoH = 10.8;
+          const logoW = logoH * (262 / 64);
+          doc.addImage(
+            wordmarkDataUrl,
+            'PNG',
+            pageWidth - marginX - logoW - 3,
+            dHeaderY + 1.8,
+            logoW,
+            logoH,
+            undefined,
+            'FAST'
+          );
+        } catch {
+          // ignore logo error
+        }
+      }
+    };
+
+    drawDetailPageHeader(false);
+
+    // 4 Verification Metadata Summary Cards
+    const metaY = 22.2;
+    const metaH = 13.0;
+    const metaGap = 3.0;
+    const metaCardW = (contentWidth - metaGap * 3) / 4;
+    const metaItems = [
+      {
+        label: 'Status Verifikasi / Matriks',
+        value: details.statusManual?.trim() || proposal.statusVerifikasi,
+      },
+      {
+        label: 'Pembahasan BPBPK NTB',
+        value: `${details.jumlahPembahasanBpbpk ?? 0} Kali Pembahasan`,
+      },
+      {
+        label: 'Kelengkapan Dokumen RC',
+        value: `Ada ${summaryCounts.ada}/${totalDocsCount} | Sesuai ${summaryCounts.sesuai}/${totalDocsCount} | Kurang ${summaryCounts.kurang}/${totalDocsCount}`,
+      },
+      {
+        label: 'Tautan Berkas / Data RC',
+        value: details.linkDataRc?.trim() || 'Belum diisi',
+      },
+    ];
+
+    metaItems.forEach((m, idx) => {
+      const mx = marginX + idx * (metaCardW + metaGap);
+      doc.setFillColor(248, 250, 254);
+      doc.setDrawColor(...PU_BORDER);
       doc.setLineWidth(0.25);
-      doc.line(centerX - namaWidth / 2, nameY + 0.9, centerX + namaWidth / 2, nameY + 0.9);
-      doc.setLineWidth(0.2);
-    } else {
+      doc.roundedRect(mx, metaY, metaCardW, metaH, 1.5, 1.5, 'FD');
+
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...SLATE_500);
+      doc.text(sanitizePdfText(m.label), mx + 3, metaY + 4.4);
+
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(7.2);
-      doc.setTextColor(...SLATE_400);
-      doc.text('( .............................. )', centerX, nameY, {
+      doc.setTextColor(...PU_NAVY);
+      doc.text(truncateLine(doc, m.value, metaCardW - 6), mx + 3, metaY + 9.4);
+    });
+
+    // Detail Table Column Geometry across 275mm
+    const dTblX = marginX;
+    const colNoW = 9;
+    const colNamaW = 54;
+    const colAcuanW = 52;
+    const colAdaW = 11;
+    const colKurangW = 13;
+    const colSesuaiW = 13;
+    const colStatW = 32;
+    const colKetDetailW =
+      contentWidth -
+      colNoW -
+      colNamaW -
+      colAcuanW -
+      colAdaW -
+      colKurangW -
+      colSesuaiW -
+      colStatW; // 91mm
+
+    const drawDetailTableHeader = (startY: number): number => {
+      // Top dark navy banner
+      doc.setFillColor(...PU_NAVY);
+      doc.setDrawColor(...PU_BORDER);
+      doc.rect(dTblX, startY, contentWidth, 7.2, 'FD');
+      doc.setFillColor(...PU_GOLD);
+      doc.rect(dTblX, startY + 6.7, contentWidth, 0.5, 'F');
+      doc.setFillColor(...PU_GOLD);
+      doc.circle(dTblX + 3.5, startY + 3.5, 0.95, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.0);
+      doc.setTextColor(...WHITE);
+      doc.text(
+        'Rincian Lengkap Status Readiness Criteria (RC)',
+        dTblX + 6.2,
+        startY + 4.6
+      );
+      doc.setFontSize(7.4);
+      doc.setTextColor(...PU_GOLD_LIGHT);
+      doc.text(
+        `${totalDocsCount} Dokumen | Skor RC: ${rcPercentage}%`,
+        dTblX + contentWidth - 3,
+        startY + 4.6,
+        { align: 'right' }
+      );
+
+      // Column headers
+      const chY = startY + 7.2;
+      const chH = 7.4;
+      doc.setFillColor(...PU_TINT);
+      doc.setDrawColor(...PU_BORDER);
+      doc.setLineWidth(0.2);
+      doc.rect(dTblX, chY, contentWidth, chH, 'FD');
+
+      const dividers = [
+        colNoW,
+        colNoW + colNamaW,
+        colNoW + colNamaW + colAcuanW,
+        colNoW + colNamaW + colAcuanW + colAdaW,
+        colNoW + colNamaW + colAcuanW + colAdaW + colKurangW,
+        colNoW + colNamaW + colAcuanW + colAdaW + colKurangW + colSesuaiW,
+        colNoW + colNamaW + colAcuanW + colAdaW + colKurangW + colSesuaiW + colStatW,
+      ];
+      dividers.forEach((dx) => {
+        doc.line(dTblX + dx, chY, dTblX + dx, chY + chH);
+      });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.9);
+      doc.setTextColor(...PU_NAVY);
+      doc.text('No', dTblX + colNoW / 2, chY + 4.8, { align: 'center' });
+      doc.text('Dokumen Readiness Criteria', dTblX + colNoW + 2.5, chY + 4.8);
+      doc.text('Acuan / Standar Kelengkapan', dTblX + colNoW + colNamaW + 2.5, chY + 4.8);
+      doc.text('Ada', dTblX + dividers[2] + colAdaW / 2, chY + 4.8, { align: 'center' });
+      doc.text('Kurang', dTblX + dividers[3] + colKurangW / 2, chY + 4.8, { align: 'center' });
+      doc.text('Sesuai', dTblX + dividers[4] + colSesuaiW / 2, chY + 4.8, { align: 'center' });
+      doc.text('Status Detail', dTblX + dividers[5] + colStatW / 2, chY + 4.8, { align: 'center' });
+      doc.text('Keterangan & Catatan Verifikasi Lengkap', dTblX + dividers[6] + 2.5, chY + 4.8);
+
+      return chY + chH;
+    };
+
+    let cursorY = drawDetailTableHeader(37.6);
+    const tableMaxY = pageHeight - 13;
+
+    detailRows.forEach((row) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
+      const nameLines = doc.splitTextToSize(
+        sanitizePdfText(row.docLabel),
+        colNamaW - 4.5
+      ) as string[];
+
+      const subNoteWrapped: string[] = [];
+      if (row.subNotes.length > 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.9);
+        row.subNotes.forEach((s) => {
+          const wLines = doc.splitTextToSize(sanitizePdfText(s), colNamaW - 5) as string[];
+          subNoteWrapped.push(...wLines.slice(0, 2));
+        });
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.4);
+      const acuanLines = doc.splitTextToSize(
+        sanitizePdfText(row.acuan),
+        colAcuanW - 4.5
+      ) as string[];
+      const ketLines = doc.splitTextToSize(
+        sanitizePdfText(row.keterangan),
+        colKetDetailW - 4.5
+      ) as string[];
+
+      const nameBlockH =
+        nameLines.length * 3.1 +
+        (row.isCustom ? 3.5 : 0) +
+        (subNoteWrapped.length > 0 ? 1.5 + subNoteWrapped.length * 2.7 : 0);
+      const acuanBlockH = acuanLines.length * 3.0;
+      const ketBlockH = ketLines.length * 3.0;
+      const rowH = Math.max(9.5, Math.max(nameBlockH, acuanBlockH, ketBlockH) + 3.6);
+
+      if (cursorY + rowH > tableMaxY) {
+        drawDetailPageHeader(true);
+        cursorY = drawDetailTableHeader(22.2);
+      }
+
+      const rowFill: RgbTuple = row.isCustom ? [255, 251, 235] : WHITE;
+      doc.setFillColor(...rowFill);
+      doc.setDrawColor(...PU_BORDER);
+      doc.setLineWidth(0.2);
+      doc.rect(dTblX, cursorY, contentWidth, rowH, 'FD');
+
+      const dividers = [
+        colNoW,
+        colNoW + colNamaW,
+        colNoW + colNamaW + colAcuanW,
+        colNoW + colNamaW + colAcuanW + colAdaW,
+        colNoW + colNamaW + colAcuanW + colAdaW + colKurangW,
+        colNoW + colNamaW + colAcuanW + colAdaW + colKurangW + colSesuaiW,
+        colNoW + colNamaW + colAcuanW + colAdaW + colKurangW + colSesuaiW + colStatW,
+      ];
+      dividers.forEach((dx) => {
+        doc.line(dTblX + dx, cursorY, dTblX + dx, cursorY + rowH);
+      });
+
+      // No
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(7.2);
+      doc.setTextColor(...SLATE_500);
+      doc.text(String(row.no), dTblX + colNoW / 2, cursorY + 4.4, { align: 'center' });
+
+      // Nama Dokumen + custom badge / subNotes
+      let nameY = cursorY + 4.2;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
+      doc.setTextColor(...PU_NAVY);
+      nameLines.forEach((l) => {
+        doc.text(l, dTblX + colNoW + 2.2, nameY);
+        nameY += 3.1;
+      });
+      if (row.isCustom) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(5.7);
+        doc.setTextColor(...AMBER_700);
+        doc.text('[Isian Tambahan]', dTblX + colNoW + 2.2, nameY + 0.3);
+        nameY += 3.2;
+      }
+      if (subNoteWrapped.length > 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.9);
+        doc.setTextColor(...SLATE_500);
+        nameY += 0.8;
+        subNoteWrapped.forEach((l) => {
+          doc.text(l, dTblX + colNoW + 2.2, nameY);
+          nameY += 2.7;
+        });
+      }
+
+      // Acuan
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.4);
+      doc.setTextColor(...SLATE_700);
+      acuanLines.forEach((l, i) => {
+        doc.text(l, dTblX + dividers[1] + 2.2, cursorY + 4.2 + i * 3.0);
+      });
+
+      // Checklist V marks
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.0);
+      if (row.flags.ada) {
+        doc.setTextColor(...EMERALD_700);
+        doc.text('V', dTblX + dividers[2] + colAdaW / 2, cursorY + 5.2, { align: 'center' });
+      }
+      if (row.flags.kurang) {
+        doc.setTextColor(...AMBER_700);
+        doc.text('V', dTblX + dividers[3] + colKurangW / 2, cursorY + 5.2, { align: 'center' });
+      }
+      if (row.flags.sesuai) {
+        doc.setTextColor(...BLUE_700);
+        doc.text('V', dTblX + dividers[4] + colSesuaiW / 2, cursorY + 5.2, { align: 'center' });
+      }
+
+      // Status Detail badge
+      const statStyle = getRcDetailStatusPdfStyle(row.flags);
+      const pillW = colStatW - 3.6;
+      const pillX = dTblX + dividers[5] + 1.8;
+      const pillY = cursorY + 1.8;
+      doc.setFillColor(...statStyle.fill);
+      doc.setDrawColor(...statStyle.border);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(pillX, pillY, pillW, 4.8, 0.9, 0.9, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5.8);
+      doc.setTextColor(...statStyle.text);
+      doc.text(truncateLine(doc, statStyle.label, pillW - 1.5), pillX + pillW / 2, pillY + 3.2, {
         align: 'center',
       });
+
+      // Keterangan Lengkap
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.4);
+      doc.setTextColor(...SLATE_700);
+      ketLines.forEach((l, i) => {
+        doc.text(l, dTblX + dividers[6] + 2.2, cursorY + 4.2 + i * 3.0);
+      });
+
+      cursorY += rowH;
+    });
+
+    // Bottom Cards: 5 Indikator Inti (57%) & Catatan Teknis Balai (43%)
+    const bottomCardsH = 38;
+    const bottomGapY = 3.0;
+    if (cursorY + bottomGapY + bottomCardsH > tableMaxY) {
+      drawDetailPageHeader(true);
+      cursorY = 22.2;
+    } else {
+      cursorY += bottomGapY;
     }
-  };
 
-  drawSignatorySide(
-    marginX + contentWidth * 0.17,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan
-  );
-  drawSignatorySide(
-    marginX + contentWidth * 0.5,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
-  );
-  drawSignatorySide(
-    marginX + contentWidth * 0.83,
-    'Menyetujui,',
-    sigConfig.tempatTanggal,
-    sigConfig.menyetujui
-  );
+    const leftCardW = contentWidth * 0.57;
+    const rightCardW = contentWidth - leftCardW - gap;
+    const rightCardX = marginX + leftCardW + gap;
 
-  // Footer
+    drawCardFrame(
+      doc,
+      marginX,
+      cursorY,
+      leftCardW,
+      bottomCardsH,
+      '5 Indikator Inti Readiness Criteria (RC)'
+    );
+
+    const indCols = 2;
+    const indCardGap = 2.5;
+    const indBoxW = (leftCardW - 7 - indCardGap) / indCols;
+    const indBoxH = 8.0;
+    CORE_READINESS_PDF_META.forEach((item, idx) => {
+      const colIdx = idx % indCols;
+      const rowIdx = Math.floor(idx / indCols);
+      const ix = marginX + 3.5 + colIdx * (indBoxW + indCardGap);
+      const iy = cursorY + 9.8 + rowIdx * (indBoxH + 1.2);
+      const isOk = Boolean(proposal.readiness[item.key]);
+
+      doc.setFillColor(248, 250, 254);
+      doc.setDrawColor(...PU_BORDER);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(ix, iy, indBoxW, indBoxH, 1.2, 1.2, 'FD');
+
+      doc.setFillColor(...(isOk ? EMERALD_700 : SLATE_200));
+      doc.roundedRect(ix + 2, iy + 2.0, 3.4, 3.4, 0.7, 0.7, 'F');
+      if (isOk) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.2);
+        doc.setTextColor(...WHITE);
+        doc.text('V', ix + 3.7, iy + 4.6, { align: 'center' });
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...SLATE_900);
+      doc.text(truncateLine(doc, item.label, indBoxW - 9), ix + 7.0, iy + 3.7);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.6);
+      doc.setTextColor(...SLATE_500);
+      doc.text(truncateLine(doc, item.desc, indBoxW - 9), ix + 7.0, iy + 6.6);
+    });
+
+    drawCardFrame(
+      doc,
+      rightCardX,
+      cursorY,
+      rightCardW,
+      bottomCardsH,
+      'Catatan Teknis & Tindak Lanjut Verifikasi Balai'
+    );
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.9);
+    doc.setTextColor(...SLATE_700);
+    const noteText =
+      proposal.catatanTeknis?.trim() ||
+      'Belum ada catatan teknis tambahan untuk usulan ini.';
+    const wrappedNotes = doc
+      .splitTextToSize(sanitizePdfText(noteText), rightCardW - 7)
+      .slice(0, 7) as string[];
+    wrappedNotes.forEach((line, lIdx) => {
+      doc.text(line, rightCardX + 3.5, cursorY + 11.6 + lIdx * 3.3);
+    });
+
+    // Pengesahan di bagian bawah Detail Status RC (di bawah 5 Indikator Inti RC)
+    cursorY += bottomCardsH;
+    const detailSigH = 32;
+    const detailSigGap = 2.8;
+    if (cursorY + detailSigGap + detailSigH > tableMaxY) {
+      drawDetailPageHeader(true);
+      cursorY = 22.2;
+    } else {
+      cursorY += detailSigGap;
+    }
+    drawSignatureBlock(doc, marginX, cursorY, contentWidth, detailSigH, signatories);
+  }
+
+  // Footer stamped consistently across all pages
+  const totalPages = doc.getNumberOfPages();
   const footerY = pageHeight - 5.5;
-  doc.setDrawColor(...SLATE_200);
-  doc.line(marginX, footerY - 3, pageWidth - marginX, footerY - 3);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.8);
-  doc.setTextColor(...SLATE_500);
   const printDate = new Intl.DateTimeFormat('id-ID', {
     day: '2-digit',
     month: 'short',
@@ -722,14 +1340,27 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date());
-  doc.text(
-    sanitizePdfText(`SIMPRA BPBPK NTB | Profil Usulan Program (${proposal.kodeUsulan})`),
-    marginX,
-    footerY
-  );
-  doc.text(sanitizePdfText(`Dicetak: ${printDate} | Halaman 1 dari 1`), pageWidth - marginX, footerY, {
-    align: 'right',
-  });
+
+  for (let pageNum = 1; pageNum <= totalPages; pageNum += 1) {
+    doc.setPage(pageNum);
+    doc.setDrawColor(...SLATE_200);
+    doc.setLineWidth(0.2);
+    doc.line(marginX, footerY - 3, pageWidth - marginX, footerY - 3);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(...SLATE_500);
+    const footerLabel =
+      pageNum === 1
+        ? `SIMPRA BPBPK NTB | Profil Usulan Program (${proposal.kodeUsulan})`
+        : `SIMPRA BPBPK NTB | Detail Status Readiness Criteria (RC) (${proposal.kodeUsulan})`;
+    doc.text(sanitizePdfText(footerLabel), marginX, footerY);
+    doc.text(
+      sanitizePdfText(`Dicetak: ${printDate} | Halaman ${pageNum} dari ${totalPages}`),
+      pageWidth - marginX,
+      footerY,
+      { align: 'right' }
+    );
+  }
 
   const safeKode = (proposal.kodeUsulan || 'usulan').replace(/[^a-zA-Z0-9_-]/g, '-');
   const fileName = `Profil-Usulan-${safeKode}.pdf`;
