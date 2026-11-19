@@ -952,7 +952,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                             const flags = getRcChecklistFlags(item);
                             const statusMeta = getRcDetailStatusMeta(flags);
                             return (
-                              <tr key={`sheet-detail-custom-${item.id}`} className="bg-amber-50/35">
+                              <tr key={`sheet-detail-custom-${item.id}`}>
                                 <td className="py-2 px-2 border-r border-[#C7D3E8] text-center font-mono font-semibold text-[#061459] align-top">
                                   {KEMENPU_RC_ROWS.length + customIdx + 1}
                                 </td>
@@ -960,9 +960,6 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
                                   <div className="font-semibold text-[#061459]">
                                     {item.namaDokumen}
                                   </div>
-                                  <span className="inline-block mt-0.5 text-[9px] font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.5 rounded">
-                                    Isian Tambahan
-                                  </span>
                                 </td>
                                 <td className="py-2 px-2.5 border-r border-[#C7D3E8] text-[10px] text-slate-600 align-top">
                                   {item.acuanStandar ||

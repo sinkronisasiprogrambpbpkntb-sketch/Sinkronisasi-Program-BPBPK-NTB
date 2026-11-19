@@ -2170,7 +2170,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                         return (
                           <tr
                             key={item.id}
-                            className="bg-amber-50/25 hover:bg-amber-50/45 transition-colors"
+                            className="hover:bg-[#F8FAFE]"
                           >
                             <td className="py-2.5 px-2 border-r border-[#C7D3E8] text-center align-top">
                               <div className="font-mono font-semibold text-[#061459]">
@@ -2190,32 +2190,22 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                             </td>
                             <td className="py-2.5 px-3 border-r border-[#C7D3E8] align-top">
                               {allowManageCurrent ? (
-                                <div className="space-y-1">
-                                  <input
-                                    type="text"
-                                    value={item.namaDokumen}
-                                    onChange={(e) =>
-                                      handleCustomRcFieldChange(
-                                        item.id,
-                                        'namaDokumen',
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder="Nama Dokumen Readiness Criteria..."
-                                    className="w-full px-2 py-1 text-xs font-semibold text-[#061459] bg-white border border-[#C7D3E8] rounded-md focus:outline-none focus:ring-1 focus:ring-[#061459]"
-                                  />
-                                  <span className="inline-block text-[10px] font-semibold text-amber-800 bg-amber-100/80 border border-amber-200 px-1.5 py-0.5 rounded">
-                                    Isian Tambahan
-                                  </span>
-                                </div>
+                                <input
+                                  type="text"
+                                  value={item.namaDokumen}
+                                  onChange={(e) =>
+                                    handleCustomRcFieldChange(
+                                      item.id,
+                                      'namaDokumen',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Nama Dokumen Readiness Criteria..."
+                                  className="w-full px-2 py-1 text-xs font-semibold text-[#061459] bg-white border border-[#C7D3E8] rounded-md focus:outline-none focus:ring-1 focus:ring-[#061459]"
+                                />
                               ) : (
-                                <div>
-                                  <div className="font-semibold text-[#061459]">
-                                    {item.namaDokumen}
-                                  </div>
-                                  <span className="inline-block mt-1 text-[10px] font-semibold text-amber-800 bg-amber-100/80 border border-amber-200 px-1.5 py-0.5 rounded">
-                                    Isian Tambahan
-                                  </span>
+                                <div className="font-semibold text-[#061459]">
+                                  {item.namaDokumen}
                                 </div>
                               )}
                             </td>

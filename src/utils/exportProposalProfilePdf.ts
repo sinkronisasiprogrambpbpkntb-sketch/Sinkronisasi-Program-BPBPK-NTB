@@ -1123,7 +1123,6 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
 
       const nameBlockH =
         nameLines.length * 3.1 +
-        (row.isCustom ? 3.5 : 0) +
         (subNoteWrapped.length > 0 ? 1.5 + subNoteWrapped.length * 2.7 : 0);
       const acuanBlockH = acuanLines.length * 3.0;
       const ketBlockH = ketLines.length * 3.0;
@@ -1134,8 +1133,7 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
         cursorY = drawDetailTableHeader(22.2);
       }
 
-      const rowFill: RgbTuple = row.isCustom ? [255, 251, 235] : WHITE;
-      doc.setFillColor(...rowFill);
+      doc.setFillColor(...WHITE);
       doc.setDrawColor(...PU_BORDER);
       doc.setLineWidth(0.2);
       doc.rect(dTblX, cursorY, contentWidth, rowH, 'FD');
@@ -1159,7 +1157,7 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
       doc.setTextColor(...SLATE_500);
       doc.text(String(row.no), dTblX + colNoW / 2, cursorY + 4.4, { align: 'center' });
 
-      // Nama Dokumen + custom badge / subNotes
+      // Nama Dokumen + subNotes
       let nameY = cursorY + 4.2;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.8);
@@ -1168,13 +1166,6 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
         doc.text(l, dTblX + colNoW + 2.2, nameY);
         nameY += 3.1;
       });
-      if (row.isCustom) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(5.7);
-        doc.setTextColor(...AMBER_700);
-        doc.text('[Isian Tambahan]', dTblX + colNoW + 2.2, nameY + 0.3);
-        nameY += 3.2;
-      }
       if (subNoteWrapped.length > 0) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(5.9);

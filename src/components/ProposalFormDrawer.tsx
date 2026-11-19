@@ -1470,7 +1470,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                     const flags = getRcChecklistFlags(item);
                     const rowNum = KEMENPU_RC_ROWS.length + customIdx + 1;
                     return (
-                      <tr key={item.id} className="bg-amber-50/35">
+                      <tr key={item.id}>
                         <td className="py-2 px-3 text-slate-800 align-top">
                           <div className="flex items-start gap-1.5">
                             <span className="font-mono text-[11px] font-semibold text-slate-500 mt-1.5 shrink-0">
@@ -1495,9 +1495,6 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
                                 placeholder="Acuan / standar kelengkapan (opsional)..."
                                 className="w-full px-2 py-1 text-[11px] text-slate-600 bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-700"
                               />
-                              <span className="inline-block text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded">
-                                Isian Tambahan
-                              </span>
                             </div>
                           </div>
                         </td>
