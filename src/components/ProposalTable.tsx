@@ -868,7 +868,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                     onClick={() => toggleSort('pembahasan')}
                     className="inline-flex items-center gap-1 hover:text-amber-300 cursor-pointer"
                   >
-                    <span>Pembahasan BPBPK NTB</span>
+                    <span>Pembahasan dengan BPBPK NTB</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </th>
@@ -1010,7 +1010,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                       {canEdit && !p.isLocked && onUpdateJumlahPembahasan ? (
                         <ManualMeetingCountCellInput
                           value={p.templateDetails?.jumlahPembahasanBpbpk ?? 0}
-                          ariaLabel={`Jumlah Pembahasan BPBPK NTB ${p.namaProgram}`}
+                          ariaLabel={`Jumlah Pembahasan dengan BPBPK NTB ${p.namaProgram}`}
                           onCommit={(nextVal) => onUpdateJumlahPembahasan(p.id, nextVal)}
                         />
                       ) : (

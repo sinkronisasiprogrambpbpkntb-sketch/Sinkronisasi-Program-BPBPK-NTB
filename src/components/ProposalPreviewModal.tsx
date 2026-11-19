@@ -1666,32 +1666,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   </table>
                 </div>
 
-                {/* Bar Fitur Lihat Lebih Detail di Bawah Tabel Status RC */}
-                <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded-xl bg-[#EEF2FA] border border-[#C7D3E8] flex flex-wrap items-center justify-between gap-2 print:hidden">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#061459]">
-                    <span className="font-semibold">Ringkasan RC:</span>
-                    <span className="font-mono font-semibold text-emerald-700">
-                      Ada {rcChecklistSummary.ada}/{rcChecklistSummary.total}
-                    </span>
-                    <span aria-hidden="true" className="text-slate-400">
-                      ·
-                    </span>
-                    <span className="font-mono font-semibold text-amber-700">
-                      Kurang {rcChecklistSummary.kurang}/{rcChecklistSummary.total}
-                    </span>
-                    <span aria-hidden="true" className="text-slate-400">
-                      ·
-                    </span>
-                    <span className="font-mono font-semibold text-blue-700">
-                      Sesuai {rcChecklistSummary.sesuai}/{rcChecklistSummary.total}
-                    </span>
-                    {customRcDraft.length > 0 && (
-                      <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white border border-[#C7D3E8] text-[#061459]">
-                        +{customRcDraft.length} isian baru
-                      </span>
-                    )}
-                  </div>
-
+                {/* Tombol Fitur Lihat Lebih Detail di Bawah Tabel Status RC */}
+                <div className="mx-4 mb-3 mt-1 flex items-center justify-end print:hidden">
                   <button
                     type="button"
                     onClick={() => {
@@ -1806,7 +1782,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
 
                   <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
                     <div className="text-[11px] font-medium text-slate-500">
-                      Pembahasan BPBPK NTB
+                      Pembahasan dengan BPBPK NTB
                     </div>
                     <div className="mt-0.5 font-mono text-xs font-bold text-[#061459] tabular-nums">
                       {details.jumlahPembahasanBpbpk} Kali Pembahasan

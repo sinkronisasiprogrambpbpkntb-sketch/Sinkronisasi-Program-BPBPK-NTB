@@ -772,7 +772,7 @@ function DashboardWorkspace() {
       try {
         await saveProposalToFirestore(updatedProposal);
         showNotice(
-          `Jumlah pembahasan BPBPK NTB usulan "${target.kodeUsulan}" (${cleanedCount} Kali) tersimpan.`
+          `Jumlah pembahasan dengan BPBPK NTB usulan "${target.kodeUsulan}" (${cleanedCount} Kali) tersimpan.`
         );
       } catch (err) {
         const quota = extractQuotaNoticeFromError(err);

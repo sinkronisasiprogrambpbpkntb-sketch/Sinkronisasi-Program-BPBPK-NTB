@@ -1335,7 +1335,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Pembahasan BPBPK NTB
+                  Pembahasan dengan BPBPK NTB
                 </label>
                 <div className="flex items-center bg-white border border-slate-300 rounded-lg px-3 py-2 focus-within:border-blue-700">
                   <input

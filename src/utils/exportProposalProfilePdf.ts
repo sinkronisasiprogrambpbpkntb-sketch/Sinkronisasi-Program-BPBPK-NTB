@@ -977,7 +977,7 @@ function buildProposalProfilePdfDoc(input: ProposalProfilePdfInput): {
         value: details.statusManual?.trim() || proposal.statusVerifikasi,
       },
       {
-        label: 'Pembahasan BPBPK NTB',
+        label: 'Pembahasan dengan BPBPK NTB',
         value: `${details.jumlahPembahasanBpbpk ?? 0} Kali Pembahasan`,
       },
       {

@@ -1922,7 +1922,7 @@ export function exportProposalsAsCsv(
     'Total Pagu 2027-2030 (Rp M)',
     'Kesiapan RC (%)',
     'Status',
-    'Pembahasan BPBPK NTB (Kali)',
+    'Pembahasan dengan BPBPK NTB (Kali)',
     'Link Data RC',
   ];
 

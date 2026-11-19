@@ -825,7 +825,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
 
                     <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
                       <div className="text-[11px] font-medium text-slate-500">
-                        Pembahasan BPBPK NTB
+                        Pembahasan dengan BPBPK NTB
                       </div>
                       <div className="mt-0.5 font-mono text-xs font-bold text-[#061459] tabular-nums">
                         {details.jumlahPembahasanBpbpk ?? 0} Kali Pembahasan
