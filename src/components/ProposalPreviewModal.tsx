@@ -3,10 +3,15 @@ import type { GeoJsonObject } from 'geojson';
 import L from 'leaflet';
 import {
   AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  Circle,
   Download,
   Edit3,
+  ExternalLink,
   Eye,
   FileCheck2,
   ImagePlus,
@@ -15,6 +20,7 @@ import {
   MapPin,
   PenLine,
   PieChart,
+  Plus,
   Printer,
   RotateCcw,
   Save,
@@ -49,6 +55,7 @@ import {
   tryParseNumberFlexible,
 } from '../data/initialProposals';
 import {
+  CustomRcDocumentEntry,
   LatLngPoint,
   ProposalTemplateDetails,
   RcDocKey,
@@ -306,6 +313,82 @@ function formatNumberMiliar(val: number): string {
   });
 }
 
+const CORE_READINESS_META: Array<{
+  key: keyof ReadinessCriteria;
+  label: string;
+  desc: string;
+}> = [
+  {
+    key: 'dokumenPerencanaan',
+    label: 'Dokumen Perencanaan',
+    desc: 'RISPAM / RIPS / RISPAL / RIPKS / Masterplan',
+  },
+  {
+    key: 'dedRab',
+    label: 'DED & RAB',
+    desc: 'FS, Detailed Engineering Design & RAB',
+  },
+  {
+    key: 'kesiapanLahan',
+    label: 'Kesiapan Lahan',
+    desc: 'Sertifikat / Status Lahan Clean & Clear',
+  },
+  {
+    key: 'dokumenLingkungan',
+    label: 'Dokumen Lingkungan',
+    desc: 'AMDAL / UKL-UPL / SPPL',
+  },
+  {
+    key: 'lembagaPengelola',
+    label: 'Lembaga Pengelola',
+    desc: 'Surat Minat & Komitmen Pemda / UPTD / BUMD',
+  },
+];
+
+function getRcRowStatusMeta(flags: { ada: boolean; kurang: boolean; sesuai: boolean }): {
+  label: string;
+  badgeClass: string;
+} {
+  if (flags.sesuai && !flags.kurang) {
+    return {
+      label: 'Sesuai & Lengkap',
+      badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    };
+  }
+  if (flags.ada && flags.kurang) {
+    return {
+      label: 'Ada · Perlu Dilengkapi',
+      badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+    };
+  }
+  if (flags.kurang) {
+    return {
+      label: 'Kurang / Revisi',
+      badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+    };
+  }
+  if (flags.ada) {
+    return {
+      label: 'Ada (Dalam Reviu)',
+      badgeClass: 'bg-blue-50 text-blue-800 border-blue-200',
+    };
+  }
+  return {
+    label: 'Belum Tersedia',
+    badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+  };
+}
+
+function getSafeRcExternalUrl(rawLink?: string): string | null {
+  const trimmed = (rawLink ?? '').trim();
+  if (!trimmed || /^(javascript|data|vbscript):/i.test(trimmed) || /\s/.test(trimmed)) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.includes('.')) return `https://${trimmed}`;
+  return null;
+}
+
 export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   proposal,
   proposalsList,
@@ -315,6 +398,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   canManageProposal,
   onClose,
   onSelectProposal,
+  onToggleReadiness,
   onUpdateSkorRc,
   onSaveProposal,
   onEditProposal,
@@ -353,9 +437,22 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       updatedAt: '2026-11-04',
     })).rcDetails
   );
+  const [customRcDraft, setCustomRcDraft] = useState<CustomRcDocumentEntry[]>(() =>
+    proposal ? resolveProposalTemplateDetails(proposal).customRcItems : []
+  );
   const [imageDraftUrl, setImageDraftUrl] = useState<string | undefined>(undefined);
   const [uploadAlert, setUploadAlert] = useState<string | null>(null);
   const [showPdfPreview, setShowPdfPreview] = useState<boolean>(false);
+  const [showDetailedRc, setShowDetailedRc] = useState<boolean>(false);
+  const [showNewRcForm, setShowNewRcForm] = useState<boolean>(false);
+  const [newRcNama, setNewRcNama] = useState<string>('');
+  const [newRcAcuan, setNewRcAcuan] = useState<string>('');
+  const [newRcAda, setNewRcAda] = useState<boolean>(true);
+  const [newRcKurang, setNewRcKurang] = useState<boolean>(false);
+  const [newRcSesuai, setNewRcSesuai] = useState<boolean>(false);
+  const [newRcKeterangan, setNewRcKeterangan] = useState<string>('');
+  const [newRcError, setNewRcError] = useState<string | null>(null);
+  const [rcSaveNotice, setRcSaveNotice] = useState<string | null>(null);
   const [signatories, setSignatories] = useState<PdfSignatoriesConfig>(
     loadInitialProfilSignatories
   );
@@ -381,15 +478,32 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     : 0;
 
   useEffect(() => {
-    if (!proposal) return;
+    if (!proposal) {
+      setShowDetailedRc(false);
+      setCustomRcDraft([]);
+      return;
+    }
     const resolved = resolveProposalTemplateDetails(proposal);
     setRcDraft(String(getReadinessScore(proposal.readiness, proposal.skorRc).percentage));
     setRcTableDraft(resolved.rcDetails);
+    setCustomRcDraft(resolved.customRcItems);
     setImageDraftUrl(resolved.lokasiGambarUrl);
     setLocationMediaTab(resolved.lokasiGambarUrl ? 'image' : 'map');
     setUploadAlert(null);
     setShowPdfPreview(false);
   }, [proposal?.id, proposal]);
+
+  useEffect(() => {
+    setShowNewRcForm(false);
+    setNewRcNama('');
+    setNewRcAcuan('');
+    setNewRcAda(true);
+    setNewRcKurang(false);
+    setNewRcSesuai(false);
+    setNewRcKeterangan('');
+    setNewRcError(null);
+    setRcSaveNotice(null);
+  }, [proposal?.id]);
 
   const currentIndex = useMemo(() => {
     if (!proposal || isTemplateDemo) return -1;
@@ -412,14 +526,16 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         !showPdfPreview &&
         e.key === 'ArrowLeft' &&
         hasPrev &&
-        !(document.activeElement instanceof HTMLInputElement)
+        !(document.activeElement instanceof HTMLInputElement) &&
+        !(document.activeElement instanceof HTMLTextAreaElement)
       ) {
         onSelectProposal(proposalsList[currentIndex - 1].id);
       } else if (
         !showPdfPreview &&
         e.key === 'ArrowRight' &&
         hasNext &&
-        !(document.activeElement instanceof HTMLInputElement)
+        !(document.activeElement instanceof HTMLInputElement) &&
+        !(document.activeElement instanceof HTMLTextAreaElement)
       ) {
         onSelectProposal(proposalsList[currentIndex + 1].id);
       }
@@ -466,6 +582,33 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   if (!proposal || !pdfPreviewInput) return null;
 
   const details = resolveProposalTemplateDetails(proposal);
+  const standardRcSummary = KEMENPU_RC_ROWS.reduce(
+    (acc, row) => {
+      const flags = getRcChecklistFlags(rcTableDraft[row.key]);
+      if (flags.ada) acc.ada += 1;
+      if (flags.kurang) acc.kurang += 1;
+      if (flags.sesuai) acc.sesuai += 1;
+      return acc;
+    },
+    { ada: 0, kurang: 0, sesuai: 0 }
+  );
+  const customRcSummary = customRcDraft.reduce(
+    (acc, item) => {
+      const flags = getRcChecklistFlags(item);
+      if (flags.ada) acc.ada += 1;
+      if (flags.kurang) acc.kurang += 1;
+      if (flags.sesuai) acc.sesuai += 1;
+      return acc;
+    },
+    { ada: 0, kurang: 0, sesuai: 0 }
+  );
+  const rcChecklistSummary = {
+    ada: standardRcSummary.ada + customRcSummary.ada,
+    kurang: standardRcSummary.kurang + customRcSummary.kurang,
+    sesuai: standardRcSummary.sesuai + customRcSummary.sesuai,
+    total: KEMENPU_RC_ROWS.length + customRcDraft.length,
+  };
+  const safeRcLinkHref = getSafeRcExternalUrl(details.linkDataRc);
   const totalPagu = getTotalPaguUsulan(proposal.pagu);
   const resolvedInfo = resolvedPlaces[proposal.locationQuery];
   const position = proposal.manualPosition ?? resolvedInfo?.position ?? {
@@ -477,6 +620,13 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     canEdit &&
     !proposal.isLocked &&
     (canManageProposal ? canManageProposal(proposal) : true);
+
+  const triggerRcSaveNotice = (message: string) => {
+    setRcSaveNotice(message);
+    window.setTimeout(() => {
+      setRcSaveNotice((current) => (current === message ? null : current));
+    }, 3200);
+  };
 
   const buildUpdatedProposalFromPreview = (
     overrideDetails?: Partial<ProposalTemplateDetails>,
@@ -491,6 +641,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           : currentRcVal;
 
     const mergedRcDetails = overrideDetails?.rcDetails ?? rcTableDraft;
+    const mergedCustomRcItems = overrideDetails?.customRcItems ?? customRcDraft;
     const nextReadiness = deriveReadinessFromRcTable(mergedRcDetails, proposal.readiness);
 
     const nextTemplateDetails: ProposalTemplateDetails = {
@@ -514,6 +665,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       linkDataRc: details.linkDataRc,
       jumlahPembahasanBpbpk: details.jumlahPembahasanBpbpk,
       rcDetails: mergedRcDetails,
+      customRcItems: mergedCustomRcItems,
       ...overrideDetails,
     };
 
@@ -530,6 +682,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     if (!allowManageCurrent || !onSaveProposal) return;
     const updated = buildUpdatedProposalFromPreview();
     onSaveProposal(updated);
+    triggerRcSaveNotice('Perubahan Detail Status RC berhasil disimpan.');
   };
 
   const handleRcCellChange = (
@@ -565,6 +718,87 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     });
   };
 
+  const handleAddCustomRcItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!allowManageCurrent) return;
+    const cleanName = newRcNama.trim().slice(0, 200);
+    if (!cleanName) {
+      setNewRcError('Nama dokumen Readiness Criteria wajib diisi.');
+      return;
+    }
+    const flags = {
+      ada: newRcAda,
+      kurang: newRcKurang,
+      sesuai: newRcSesuai,
+    };
+    const nextItem: CustomRcDocumentEntry = {
+      id: `rc-custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      namaDokumen: cleanName,
+      acuanStandar: newRcAcuan.trim().slice(0, 240),
+      ...flags,
+      status: formatRcChecklistSummary(flags),
+      keterangan: newRcKeterangan.trim().slice(0, 600),
+    };
+    const nextCustomList = [...customRcDraft, nextItem];
+    setCustomRcDraft(nextCustomList);
+    setNewRcNama('');
+    setNewRcAcuan('');
+    setNewRcAda(true);
+    setNewRcKurang(false);
+    setNewRcSesuai(false);
+    setNewRcKeterangan('');
+    setNewRcError(null);
+    setShowNewRcForm(false);
+
+    if (onSaveProposal) {
+      onSaveProposal(buildUpdatedProposalFromPreview({ customRcItems: nextCustomList }));
+      triggerRcSaveNotice(`Dokumen "${cleanName}" ditambahkan & disimpan.`);
+    } else {
+      triggerRcSaveNotice(`Dokumen "${cleanName}" ditambahkan.`);
+    }
+  };
+
+  const handleCustomRcFieldChange = (
+    id: string,
+    field: 'namaDokumen' | 'acuanStandar' | 'keterangan',
+    value: string
+  ) => {
+    setCustomRcDraft((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleCustomRcFlagToggle = (
+    id: string,
+    flag: 'ada' | 'kurang' | 'sesuai'
+  ) => {
+    setCustomRcDraft((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const currentFlags = getRcChecklistFlags(item);
+        const nextFlags = {
+          ...currentFlags,
+          [flag]: !currentFlags[flag],
+        };
+        return {
+          ...item,
+          ...nextFlags,
+          status: formatRcChecklistSummary(nextFlags),
+        };
+      })
+    );
+  };
+
+  const handleRemoveCustomRcItem = (id: string) => {
+    if (!allowManageCurrent) return;
+    const nextCustomList = customRcDraft.filter((item) => item.id !== id);
+    setCustomRcDraft(nextCustomList);
+    if (onSaveProposal) {
+      onSaveProposal(buildUpdatedProposalFromPreview({ customRcItems: nextCustomList }));
+      triggerRcSaveNotice('Isian dokumen RC tambahan dihapus & disimpan.');
+    }
+  };
+
   const handleUploadLocationImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -584,7 +818,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   };
 
   const handleDownloadSlideHtml = () => {
-    const rcRowsHtml = KEMENPU_RC_ROWS.map((row) => {
+    const standardRcRowsHtml = KEMENPU_RC_ROWS.map((row) => {
       const entry = rcTableDraft[row.key] ?? { status: '', keterangan: '' };
       const flags = getRcChecklistFlags(entry);
       const docName =
@@ -599,6 +833,19 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
         <td style="padding:7px 10px;border-bottom:1px solid #cbd5e1;">${entry.keterangan || '-'}</td>
       </tr>`;
     }).join('');
+    const customRcRowsHtml = customRcDraft
+      .map((item) => {
+        const flags = getRcChecklistFlags(item);
+        return `<tr>
+          <td style="padding:7px 10px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;">${item.namaDokumen}</td>
+          <td style="padding:7px 6px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;text-align:center;font-weight:700;color:#0f766e;">${flags.ada ? '&#10003;' : '&nbsp;'}</td>
+          <td style="padding:7px 6px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;text-align:center;font-weight:700;color:#b45309;">${flags.kurang ? '&#10003;' : '&nbsp;'}</td>
+          <td style="padding:7px 6px;border-bottom:1px solid #cbd5e1;border-right:1px solid #cbd5e1;text-align:center;font-weight:700;color:#1d4ed8;">${flags.sesuai ? '&#10003;' : '&nbsp;'}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid #cbd5e1;">${item.keterangan || '-'}</td>
+        </tr>`;
+      })
+      .join('');
+    const rcRowsHtml = `${standardRcRowsHtml}${customRcRowsHtml}`;
 
     const lingkupHtml = details.lingkupPekerjaan
       .map((item) => `<li style="margin-bottom:4px;">&#9744; ${item}</li>`)
@@ -1402,6 +1649,63 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     </tbody>
                   </table>
                 </div>
+
+                {/* Bar Fitur Lihat Lebih Detail di Bawah Tabel Status RC */}
+                <div className="mx-4 mb-3 mt-1 px-3 py-2 rounded-xl bg-[#EEF2FA] border border-[#C7D3E8] flex flex-wrap items-center justify-between gap-2 print:hidden">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#061459]">
+                    <span className="font-semibold">Ringkasan RC:</span>
+                    <span className="font-mono font-semibold text-emerald-700">
+                      Ada {rcChecklistSummary.ada}/{rcChecklistSummary.total}
+                    </span>
+                    <span aria-hidden="true" className="text-slate-400">
+                      ·
+                    </span>
+                    <span className="font-mono font-semibold text-amber-700">
+                      Kurang {rcChecklistSummary.kurang}/{rcChecklistSummary.total}
+                    </span>
+                    <span aria-hidden="true" className="text-slate-400">
+                      ·
+                    </span>
+                    <span className="font-mono font-semibold text-blue-700">
+                      Sesuai {rcChecklistSummary.sesuai}/{rcChecklistSummary.total}
+                    </span>
+                    {customRcDraft.length > 0 && (
+                      <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white border border-[#C7D3E8] text-[#061459]">
+                        +{customRcDraft.length} isian baru
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextState = !showDetailedRc;
+                      setShowDetailedRc(nextState);
+                      if (nextState) {
+                        window.setTimeout(() => {
+                          document
+                            .getElementById('profil-rc-detail-table-section')
+                            ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }, 60);
+                      }
+                    }}
+                    aria-expanded={showDetailedRc}
+                    aria-controls="profil-rc-detail-table-section"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#061459] hover:bg-[#0A1D6E] text-white border border-[#E89611]/70 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-[#E89611]" />
+                    <span>
+                      {showDetailedRc
+                        ? 'Sembunyikan Detail Tabel RC'
+                        : 'Lihat Lebih Detail Tabel Status RC'}
+                    </span>
+                    {showDetailedRc ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-amber-300" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-amber-300" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               {allowManageCurrent && onSaveProposal && (
@@ -1421,6 +1725,687 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               )}
             </div>
           </div>
+
+          {/* Tabel Fitur Lihat Lebih Detail Status Readiness Criteria (RC) di Bawah Tabel Status RC */}
+          {showDetailedRc && (
+            <section
+              id="profil-rc-detail-table-section"
+              aria-label="Detail Lengkap Status Readiness Criteria (RC)"
+              className="bg-white border border-[#C7D3E8] rounded-2xl overflow-hidden shadow-xs"
+            >
+              <div className="px-4 sm:px-5 py-3 bg-[#061459] text-white border-b-2 border-[#E89611] flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <FileCheck2 className="w-4 h-4 text-[#E89611] shrink-0" />
+                  <h3 className="text-sm sm:text-base font-bold text-white">
+                    Detail Status <span className="italic">Readiness Criteria</span> (RC)
+                  </h3>
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#E89611] text-[#051044] shrink-0">
+                    Skor RC: {rcDraft}%
+                  </span>
+                  <span className="font-mono text-[11px] text-indigo-100 bg-white/10 px-2 py-0.5 rounded border border-white/15 shrink-0">
+                    {rcChecklistSummary.total} Dokumen RC
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 print:hidden">
+                  {allowManageCurrent && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewRcForm((prev) => !prev);
+                        setNewRcError(null);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#E89611] hover:bg-amber-400 text-[#051044] transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>
+                        {showNewRcForm ? 'Tutup Form Isian Baru' : 'Tambah Isian Baru Dokumen RC'}
+                      </span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailedRc(false)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-amber-200 bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                    <span>Tutup Detail</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-5 space-y-4">
+                {/* Ringkasan Metadata Verifikasi RC */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
+                    <div className="text-[11px] font-medium text-slate-500">
+                      Status Verifikasi / Matriks
+                    </div>
+                    <div className="mt-0.5 text-xs font-bold text-[#061459]">
+                      {details.statusManual || proposal.statusVerifikasi}
+                    </div>
+                  </div>
+
+                  <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
+                    <div className="text-[11px] font-medium text-slate-500">
+                      Pembahasan BPBPK NTB
+                    </div>
+                    <div className="mt-0.5 font-mono text-xs font-bold text-[#061459] tabular-nums">
+                      {details.jumlahPembahasanBpbpk} Kali Pembahasan
+                    </div>
+                  </div>
+
+                  <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
+                    <div className="text-[11px] font-medium text-slate-500">
+                      Kelengkapan Dokumen RC
+                    </div>
+                    <div className="mt-0.5 text-xs font-bold text-slate-800 font-mono tabular-nums">
+                      Ada {rcChecklistSummary.ada}/{rcChecklistSummary.total} · Sesuai{' '}
+                      {rcChecklistSummary.sesuai}/{rcChecklistSummary.total} · Kurang{' '}
+                      {rcChecklistSummary.kurang}/{rcChecklistSummary.total}
+                    </div>
+                  </div>
+
+                  <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
+                    <div className="text-[11px] font-medium text-slate-500">
+                      Tautan Berkas / Data RC
+                    </div>
+                    <div className="mt-0.5 text-xs">
+                      {safeRcLinkHref ? (
+                        <a
+                          href={safeRcLinkHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline max-w-full"
+                          title={details.linkDataRc}
+                        >
+                          <span className="truncate">Buka Link Data RC</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                        </a>
+                      ) : details.linkDataRc ? (
+                        <span className="font-medium text-slate-700 truncate block">
+                          {details.linkDataRc}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">Belum diisi</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabel Rincian Lebih Detail Status Readiness Criteria (RC) */}
+                <div className="overflow-x-auto border border-[#C7D3E8] rounded-xl">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#EEF2FA] border-b border-[#C7D3E8] text-[#061459]">
+                        <th className="py-2 px-2.5 text-center font-bold border-r border-[#C7D3E8] w-10">
+                          No
+                        </th>
+                        <th className="py-2 px-3 text-left font-bold border-r border-[#C7D3E8] w-[22%]">
+                          Dokumen Readiness Criteria
+                        </th>
+                        <th className="py-2 px-3 text-left font-bold border-r border-[#C7D3E8] w-[22%]">
+                          Acuan / Standar Kelengkapan
+                        </th>
+                        <th className="py-2 px-2 text-center font-bold border-r border-[#C7D3E8] w-12">
+                          Ada
+                        </th>
+                        <th className="py-2 px-2 text-center font-bold border-r border-[#C7D3E8] w-14">
+                          Kurang
+                        </th>
+                        <th className="py-2 px-2 text-center font-bold border-r border-[#C7D3E8] w-14">
+                          Sesuai
+                        </th>
+                        <th className="py-2 px-2.5 text-center font-bold border-r border-[#C7D3E8] w-[14%]">
+                          Status Detail
+                        </th>
+                        <th className="py-2 px-3 text-left font-bold">
+                          Keterangan &amp; Catatan Verifikasi Lengkap
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#C7D3E8] text-slate-700">
+                      {KEMENPU_RC_ROWS.map((row, idx) => {
+                        const entry = rcTableDraft[row.key] ?? {
+                          status: '',
+                          keterangan: '',
+                        };
+                        const flags = getRcChecklistFlags(entry);
+                        const statusMeta = getRcRowStatusMeta(flags);
+                        const docLabel = entry.customLabel || row.defaultLabel;
+                        const rawLegacy = proposal.templateDetails?.rcDetails;
+                        const legacyFsDedRabSub =
+                          row.key === 'fsDedRab' && rawLegacy
+                            ? (
+                                [
+                                  {
+                                    key: 'studiKelayakan',
+                                    title: 'Studi Kelayakan (FS)',
+                                    data: rawLegacy.studiKelayakan,
+                                  },
+                                  {
+                                    key: 'ded',
+                                    title: 'DED Teknis',
+                                    data: rawLegacy.ded,
+                                  },
+                                  {
+                                    key: 'rab',
+                                    title: 'RAB',
+                                    data: rawLegacy.rab,
+                                  },
+                                ] as const
+                              ).filter((sub) => Boolean(sub.data))
+                            : [];
+
+                        return (
+                          <tr key={`detail-${row.key}`} className="hover:bg-[#F8FAFE]">
+                            <td className="py-2.5 px-2.5 border-r border-[#C7D3E8] text-center font-mono font-semibold text-slate-500 align-top">
+                              {idx + 1}
+                            </td>
+                            <td className="py-2.5 px-3 border-r border-[#C7D3E8] align-top">
+                              <div className="font-semibold text-[#061459]">{docLabel}</div>
+                              {legacyFsDedRabSub.length > 0 && (
+                                <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600 border-t border-slate-200 pt-1.5">
+                                  {legacyFsDedRabSub.map((sub) => (
+                                    <li key={sub.key}>
+                                      <span className="font-semibold text-slate-800">
+                                        {sub.title}:
+                                      </span>{' '}
+                                      <span>{sub.data?.status || '-'}</span>
+                                      {sub.data?.keterangan && (
+                                        <span className="text-slate-500">
+                                          {' '}
+                                          ({sub.data.keterangan})
+                                        </span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 border-r border-[#C7D3E8] text-[11px] text-slate-600 align-top leading-relaxed">
+                              {row.placeholderNote}
+                            </td>
+                            {(
+                              [
+                                {
+                                  key: 'ada',
+                                  label: 'Ada',
+                                  accent: 'text-emerald-700 accent-emerald-700',
+                                },
+                                {
+                                  key: 'kurang',
+                                  label: 'Kurang',
+                                  accent: 'text-amber-700 accent-amber-600',
+                                },
+                                {
+                                  key: 'sesuai',
+                                  label: 'Sesuai',
+                                  accent: 'text-blue-700 accent-blue-700',
+                                },
+                              ] as const
+                            ).map((col) => {
+                              const checked = flags[col.key];
+                              return (
+                                <td
+                                  key={`detail-col-${row.key}-${col.key}`}
+                                  className="py-2.5 px-2 border-r border-[#C7D3E8] text-center align-top"
+                                >
+                                  {allowManageCurrent ? (
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => handleRcFlagToggle(row.key, col.key)}
+                                      aria-label={`Detail ${docLabel} - ${col.label}`}
+                                      className={`w-4 h-4 rounded border-slate-300 cursor-pointer ${col.accent}`}
+                                    />
+                                  ) : (
+                                    <span
+                                      className={`font-bold text-sm leading-none ${
+                                        checked ? col.accent.split(' ')[0] : 'text-slate-300'
+                                      }`}
+                                    >
+                                      {checked ? '✓' : '—'}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="py-2.5 px-2.5 border-r border-[#C7D3E8] text-center align-top">
+                              <span
+                                className={`inline-block px-2 py-0.5 text-[11px] font-semibold rounded border whitespace-nowrap ${statusMeta.badgeClass}`}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 align-top leading-relaxed">
+                              {allowManageCurrent ? (
+                                <textarea
+                                  rows={2}
+                                  value={entry.keterangan}
+                                  onChange={(e) =>
+                                    handleRcCellChange(row.key, 'keterangan', e.target.value)
+                                  }
+                                  placeholder={`Isi keterangan detail (${row.placeholderNote})...`}
+                                  className="w-full px-2 py-1 text-xs bg-white border border-[#C7D3E8] rounded-md text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#061459]"
+                                />
+                              ) : (
+                                <div className="text-xs text-slate-700 whitespace-pre-wrap">
+                                  {entry.keterangan || 'Belum ada keterangan tambahan.'}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {customRcDraft.map((item, customIdx) => {
+                        const rowNumber = KEMENPU_RC_ROWS.length + customIdx + 1;
+                        const flags = getRcChecklistFlags(item);
+                        const statusMeta = getRcRowStatusMeta(flags);
+                        return (
+                          <tr
+                            key={item.id}
+                            className="bg-amber-50/25 hover:bg-amber-50/45 transition-colors"
+                          >
+                            <td className="py-2.5 px-2 border-r border-[#C7D3E8] text-center align-top">
+                              <div className="font-mono font-semibold text-[#061459]">
+                                {rowNumber}
+                              </div>
+                              {allowManageCurrent && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCustomRcItem(item.id)}
+                                  title={`Hapus dokumen "${item.namaDokumen}"`}
+                                  aria-label={`Hapus dokumen ${item.namaDokumen}`}
+                                  className="mt-1.5 inline-flex items-center justify-center p-1 rounded text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer print:hidden"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 border-r border-[#C7D3E8] align-top">
+                              {allowManageCurrent ? (
+                                <div className="space-y-1">
+                                  <input
+                                    type="text"
+                                    value={item.namaDokumen}
+                                    onChange={(e) =>
+                                      handleCustomRcFieldChange(
+                                        item.id,
+                                        'namaDokumen',
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="Nama Dokumen Readiness Criteria..."
+                                    className="w-full px-2 py-1 text-xs font-semibold text-[#061459] bg-white border border-[#C7D3E8] rounded-md focus:outline-none focus:ring-1 focus:ring-[#061459]"
+                                  />
+                                  <span className="inline-block text-[10px] font-semibold text-amber-800 bg-amber-100/80 border border-amber-200 px-1.5 py-0.5 rounded">
+                                    Isian Tambahan
+                                  </span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="font-semibold text-[#061459]">
+                                    {item.namaDokumen}
+                                  </div>
+                                  <span className="inline-block mt-1 text-[10px] font-semibold text-amber-800 bg-amber-100/80 border border-amber-200 px-1.5 py-0.5 rounded">
+                                    Isian Tambahan
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 border-r border-[#C7D3E8] align-top">
+                              {allowManageCurrent ? (
+                                <input
+                                  type="text"
+                                  value={item.acuanStandar ?? ''}
+                                  onChange={(e) =>
+                                    handleCustomRcFieldChange(
+                                      item.id,
+                                      'acuanStandar',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Acuan / standar kelengkapan..."
+                                  className="w-full px-2 py-1 text-[11px] text-slate-700 bg-white border border-[#C7D3E8] rounded-md focus:outline-none focus:ring-1 focus:ring-[#061459]"
+                                />
+                              ) : (
+                                <span className="text-[11px] text-slate-600 leading-relaxed">
+                                  {item.acuanStandar || 'Dokumen pendukung tambahan sesuai kebutuhan verifikasi.'}
+                                </span>
+                              )}
+                            </td>
+                            {(
+                              [
+                                {
+                                  key: 'ada',
+                                  label: 'Ada',
+                                  accent: 'text-emerald-700 accent-emerald-700',
+                                },
+                                {
+                                  key: 'kurang',
+                                  label: 'Kurang',
+                                  accent: 'text-amber-700 accent-amber-600',
+                                },
+                                {
+                                  key: 'sesuai',
+                                  label: 'Sesuai',
+                                  accent: 'text-blue-700 accent-blue-700',
+                                },
+                              ] as const
+                            ).map((col) => {
+                              const checked = flags[col.key];
+                              return (
+                                <td
+                                  key={`custom-rc-${item.id}-${col.key}`}
+                                  className="py-2.5 px-2 border-r border-[#C7D3E8] text-center align-top"
+                                >
+                                  {allowManageCurrent ? (
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => handleCustomRcFlagToggle(item.id, col.key)}
+                                      aria-label={`Detail ${item.namaDokumen} - ${col.label}`}
+                                      className={`w-4 h-4 rounded border-slate-300 cursor-pointer ${col.accent}`}
+                                    />
+                                  ) : (
+                                    <span
+                                      className={`font-bold text-sm leading-none ${
+                                        checked ? col.accent.split(' ')[0] : 'text-slate-300'
+                                      }`}
+                                    >
+                                      {checked ? '✓' : '—'}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="py-2.5 px-2.5 border-r border-[#C7D3E8] text-center align-top">
+                              <span
+                                className={`inline-block px-2 py-0.5 text-[11px] font-semibold rounded border whitespace-nowrap ${statusMeta.badgeClass}`}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 align-top leading-relaxed">
+                              {allowManageCurrent ? (
+                                <textarea
+                                  rows={2}
+                                  value={item.keterangan}
+                                  onChange={(e) =>
+                                    handleCustomRcFieldChange(
+                                      item.id,
+                                      'keterangan',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Isi keterangan & catatan verifikasi dokumen tambahan..."
+                                  className="w-full px-2 py-1 text-xs bg-white border border-[#C7D3E8] rounded-md text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#061459]"
+                                />
+                              ) : (
+                                <div className="text-xs text-slate-700 whitespace-pre-wrap">
+                                  {item.keterangan || 'Belum ada keterangan tambahan.'}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Form & Bilah Aksi Tambah Isian Baru Dokumen Readiness Criteria */}
+                {allowManageCurrent && (
+                  <div className="print:hidden space-y-3">
+                    {!showNewRcForm ? (
+                      <div className="px-3.5 py-2.5 rounded-xl bg-[#EEF2FA] border border-[#C7D3E8] flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-xs text-slate-700 flex flex-wrap items-center gap-2">
+                          <span>
+                            {customRcDraft.length > 0
+                              ? `Terdapat ${customRcDraft.length} isian dokumen RC tambahan.`
+                              : 'Butuh dokumen RC tambahan di luar 6 item standar? Tambahkan baris isian baru di sini.'}
+                          </span>
+                          {rcSaveNotice && (
+                            <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                              {rcSaveNotice}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNewRcForm(true);
+                            setNewRcError(null);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#061459] hover:bg-[#0A1D6E] text-white border border-[#E89611]/70 transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-[#E89611]" />
+                          <span>Tambah Isian Baru Dokumen RC</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <form
+                        onSubmit={handleAddCustomRcItem}
+                        className="border border-[#061459]/30 rounded-xl p-4 bg-[#F8FAFE] space-y-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#C7D3E8] pb-2">
+                          <div className="text-xs font-bold text-[#061459]">
+                            Isian Baru Dokumen Readiness Criteria (RC)
+                          </div>
+                          <span className="text-[11px] text-slate-500">
+                            Otomatis tersimpan ke tabel Detail Status RC
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#061459] mb-1">
+                              Nama Dokumen Readiness Criteria <span className="text-red-600">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={newRcNama}
+                              onChange={(e) => {
+                                setNewRcNama(e.target.value);
+                                if (newRcError) setNewRcError(null);
+                              }}
+                              placeholder="Contoh: Surat Rekomendasi Teknis / Berita Acara Kesepakatan Lahan"
+                              className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#061459] mb-1">
+                              Acuan / Standar Kelengkapan (Opsional)
+                            </label>
+                            <input
+                              type="text"
+                              value={newRcAcuan}
+                              onChange={(e) => setNewRcAcuan(e.target.value)}
+                              placeholder="Contoh: Ditandatangani pejabat berwenang / Sesuai ketentuan KemenPU"
+                              className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                          <div className="md:col-span-5">
+                            <div className="block text-[11px] font-semibold text-[#061459] mb-1.5">
+                              Status Checklist Dokumen
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 px-3 py-2 rounded-lg bg-white border border-[#C7D3E8]">
+                              <label className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-800 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={newRcAda}
+                                  onChange={(e) => setNewRcAda(e.target.checked)}
+                                  className="w-4 h-4 rounded border-slate-300 accent-emerald-700 cursor-pointer"
+                                />
+                                <span>Ada</span>
+                              </label>
+                              <label className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={newRcKurang}
+                                  onChange={(e) => setNewRcKurang(e.target.checked)}
+                                  className="w-4 h-4 rounded border-slate-300 accent-amber-600 cursor-pointer"
+                                />
+                                <span>Kurang</span>
+                              </label>
+                              <label className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-800 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={newRcSesuai}
+                                  onChange={(e) => setNewRcSesuai(e.target.checked)}
+                                  className="w-4 h-4 rounded border-slate-300 accent-blue-700 cursor-pointer"
+                                />
+                                <span>Sesuai</span>
+                              </label>
+                              <span
+                                className={`ml-auto inline-block px-2 py-0.5 text-[10px] font-semibold rounded border ${
+                                  getRcRowStatusMeta({
+                                    ada: newRcAda,
+                                    kurang: newRcKurang,
+                                    sesuai: newRcSesuai,
+                                  }).badgeClass
+                                }`}
+                              >
+                                {
+                                  getRcRowStatusMeta({
+                                    ada: newRcAda,
+                                    kurang: newRcKurang,
+                                    sesuai: newRcSesuai,
+                                  }).label
+                                }
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="md:col-span-7">
+                            <label className="block text-[11px] font-semibold text-[#061459] mb-1">
+                              Keterangan &amp; Catatan Verifikasi
+                            </label>
+                            <input
+                              type="text"
+                              value={newRcKeterangan}
+                              onChange={(e) => setNewRcKeterangan(e.target.value)}
+                              placeholder="Catatan kondisi dokumen, nomor surat, atau tindak lanjut yang diperlukan..."
+                              className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
+                            />
+                          </div>
+                        </div>
+
+                        {newRcError && (
+                          <div className="text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+                            {newRcError}
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowNewRcForm(false);
+                              setNewRcError(null);
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-[#C7D3E8] rounded-lg transition-colors cursor-pointer"
+                          >
+                            Batal
+                          </button>
+                          <button
+                            type="submit"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Tambahkan &amp; Simpan ke Tabel RC</span>
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
+
+                {/* 5 Indikator Kesiapan Inti & Catatan Sinkronisasi Balai */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+                  <div className="lg:col-span-7 border border-[#C7D3E8] rounded-xl p-3.5 bg-[#F8FAFE]">
+                    <div className="text-xs font-bold text-[#061459] mb-2">
+                      5 Indikator Inti Readiness Criteria (RC)
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {CORE_READINESS_META.map((item) => {
+                        const checked = proposal.readiness[item.key];
+                        const content = (
+                          <div className="flex items-start gap-2 text-left">
+                            {checked ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            ) : (
+                              <Circle className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
+                            )}
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-slate-800">
+                                {item.label}
+                              </div>
+                              <div className="text-[11px] text-slate-500">{item.desc}</div>
+                            </div>
+                          </div>
+                        );
+
+                        if (allowManageCurrent) {
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => onToggleReadiness(proposal.id, item.key)}
+                              className="p-2 rounded-lg bg-white border border-[#C7D3E8] hover:border-[#061459] transition-colors cursor-pointer text-left"
+                            >
+                              {content}
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={item.key}
+                            className="p-2 rounded-lg bg-white border border-[#C7D3E8]"
+                          >
+                            {content}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-5 border border-[#C7D3E8] rounded-xl p-3.5 bg-[#F8FAFE] flex flex-col justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-bold text-[#061459] mb-1.5">
+                        Catatan Teknis &amp; Tindak Lanjut Verifikasi Balai
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+                        {proposal.catatanTeknis?.trim() ||
+                          'Belum ada catatan teknis tambahan untuk usulan ini.'}
+                      </p>
+                    </div>
+
+                    {allowManageCurrent && onSaveProposal && (
+                      <div className="pt-2 border-t border-[#D7E0F0] flex justify-end print:hidden">
+                        <button
+                          type="button"
+                          onClick={handleCommitInlinePreviewSave}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Simpan Perubahan Detail RC</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Data Pengesahan & Persetujuan Cetak PDF (Mengesahkan 1, Mengesahkan 2, & Menyetujui) */}
           {!isTemplateDemo && (

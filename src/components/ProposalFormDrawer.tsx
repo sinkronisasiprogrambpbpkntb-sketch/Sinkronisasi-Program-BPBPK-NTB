@@ -405,6 +405,7 @@ export const ProposalFormDrawer: React.FC<ProposalFormDrawerProps> = ({
         Math.round(parseNumberFlexible(jumlahPembahasanBpbpk) || 0)
       ),
       rcDetails: rcTable,
+      customRcItems: editingProposal?.templateDetails?.customRcItems,
     };
 
     const derivedReadiness = deriveReadinessFromRcTable(rcTable, readiness);

@@ -53,6 +53,17 @@ export interface RcDocumentEntry {
   customLabel?: string;
 }
 
+export interface CustomRcDocumentEntry {
+  id: string;
+  namaDokumen: string;
+  acuanStandar?: string;
+  ada?: boolean;
+  kurang?: boolean;
+  sesuai?: boolean;
+  status: string;
+  keterangan: string;
+}
+
 export interface ProposalTemplateDetails {
   provinsi?: string;
   latarBelakang?: string;
@@ -73,6 +84,7 @@ export interface ProposalTemplateDetails {
   linkDataRc?: string;
   jumlahPembahasanBpbpk?: number;
   rcDetails?: Partial<Record<LegacyRcDocKey, RcDocumentEntry>>;
+  customRcItems?: CustomRcDocumentEntry[];
 }
 
 export interface PaguTahunan {

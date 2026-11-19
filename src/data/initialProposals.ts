@@ -1,4 +1,5 @@
 import {
+  CustomRcDocumentEntry,
   LegacyRcDocKey,
   ProposalTemplateDetails,
   RcDocKey,
@@ -1382,10 +1383,11 @@ export function getTotalPaguUsulan(pagu: UsulanProgram['pagu']): number {
 }
 
 export function resolveProposalTemplateDetails(proposal: UsulanProgram): Required<
-  Omit<ProposalTemplateDetails, 'lokasiGambarUrl' | 'rcDetails'>
+  Omit<ProposalTemplateDetails, 'lokasiGambarUrl' | 'rcDetails' | 'customRcItems'>
 > & {
   lokasiGambarUrl?: string;
   rcDetails: Record<RcDocKey, RcDocumentEntry>;
+  customRcItems: CustomRcDocumentEntry[];
 } {
   const d = proposal.templateDetails ?? {};
   const totalPagu = getTotalPaguUsulan(proposal.pagu);
@@ -1565,6 +1567,28 @@ export function resolveProposalTemplateDetails(proposal: UsulanProgram): Require
         ? Math.max(0, Math.round(d.jumlahPembahasanBpbpk))
         : 0,
     rcDetails,
+    customRcItems: Array.isArray(d.customRcItems)
+      ? d.customRcItems
+          .filter(
+            (item): item is CustomRcDocumentEntry =>
+              Boolean(item && typeof item === 'object' && typeof item.namaDokumen === 'string')
+          )
+          .map((item, index) => {
+            const flags = getRcChecklistFlags(item);
+            return {
+              id:
+                typeof item.id === 'string' && item.id.trim()
+                  ? item.id.trim()
+                  : `custom-rc-${index + 1}`,
+              namaDokumen: item.namaDokumen.trim() || `Dokumen Tambahan ${index + 1}`,
+              acuanStandar:
+                typeof item.acuanStandar === 'string' ? item.acuanStandar.trim() : '',
+              ...flags,
+              status: item.status?.trim() || formatRcChecklistSummary(flags),
+              keterangan: typeof item.keterangan === 'string' ? item.keterangan : '',
+            };
+          })
+      : [],
   };
 }
 
