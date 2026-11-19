@@ -440,6 +440,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   const [customRcDraft, setCustomRcDraft] = useState<CustomRcDocumentEntry[]>(() =>
     proposal ? resolveProposalTemplateDetails(proposal).customRcItems : []
   );
+  const [statusManualDraft, setStatusManualDraft] = useState<string>('');
+  const [pembahasanDraft, setPembahasanDraft] = useState<string>('0');
+  const [linkDataRcDraft, setLinkDataRcDraft] = useState<string>('');
+  const [catatanTeknisDraft, setCatatanTeknisDraft] = useState<string>('');
   const [imageDraftUrl, setImageDraftUrl] = useState<string | undefined>(undefined);
   const [uploadAlert, setUploadAlert] = useState<string | null>(null);
   const [showPdfPreview, setShowPdfPreview] = useState<boolean>(false);
@@ -482,19 +486,27 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     if (!proposal) {
       setShowDetailedRc(false);
       setCustomRcDraft([]);
+      setStatusManualDraft('');
+      setPembahasanDraft('0');
+      setLinkDataRcDraft('');
+      setCatatanTeknisDraft('');
       return;
     }
     const resolved = resolveProposalTemplateDetails(proposal);
     setRcDraft(String(getReadinessScore(proposal.readiness, proposal.skorRc).percentage));
     setRcTableDraft(resolved.rcDetails);
     setCustomRcDraft(resolved.customRcItems);
+    setStatusManualDraft(resolved.statusManual);
+    setPembahasanDraft(String(resolved.jumlahPembahasanBpbpk ?? 0));
+    setLinkDataRcDraft(resolved.linkDataRc);
+    setCatatanTeknisDraft(proposal.catatanTeknis ?? '');
     setImageDraftUrl(resolved.lokasiGambarUrl);
     setLocationMediaTab(resolved.lokasiGambarUrl ? 'image' : 'map');
     setUploadAlert(null);
-    setShowPdfPreview(false);
   }, [proposal?.id, proposal]);
 
   useEffect(() => {
+    setShowPdfPreview(false);
     setShowNewRcForm(false);
     setNewRcNama('');
     setNewRcAcuan('');
@@ -568,9 +580,27 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       lng: 117.35,
     };
 
+    const parsedPembahasan = tryParseNumberFlexible(pembahasanDraft);
+    const liveJumlahPembahasan =
+      parsedPembahasan !== null && Number.isFinite(parsedPembahasan)
+        ? Math.min(999, Math.max(0, Math.round(parsedPembahasan)))
+        : resolvedDetails.jumlahPembahasanBpbpk;
+    const liveDetails = {
+      ...resolvedDetails,
+      statusManual: statusManualDraft.trim(),
+      jumlahPembahasanBpbpk: liveJumlahPembahasan,
+      linkDataRc: linkDataRcDraft.trim(),
+      lokasiGambarUrl: imageDraftUrl,
+      rcDetails: rcTableDraft,
+      customRcItems: customRcDraft,
+    };
+
     return {
-      proposal,
-      details: resolvedDetails,
+      proposal: {
+        ...proposal,
+        catatanTeknis: catatanTeknisDraft,
+      },
+      details: liveDetails,
       totalPagu: getTotalPaguUsulan(proposal.pagu),
       rcPercentage: activeRcPercentage,
       rcTable: rcTableDraft,
@@ -587,6 +617,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     resolvedPlaces,
     rcTableDraft,
     customRcDraft,
+    statusManualDraft,
+    pembahasanDraft,
+    linkDataRcDraft,
+    catatanTeknisDraft,
     includeDetailRcInPdf,
     imageDraftUrl,
     signatories,
@@ -621,7 +655,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     sesuai: standardRcSummary.sesuai + customRcSummary.sesuai,
     total: KEMENPU_RC_ROWS.length + customRcDraft.length,
   };
-  const safeRcLinkHref = getSafeRcExternalUrl(details.linkDataRc);
+  const safeRcLinkHref = getSafeRcExternalUrl(linkDataRcDraft);
   const totalPagu = getTotalPaguUsulan(proposal.pagu);
   const resolvedInfo = resolvedPlaces[proposal.locationQuery];
   const position = proposal.manualPosition ?? resolvedInfo?.position ?? {
@@ -653,8 +687,26 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           ? Math.min(100, Math.max(0, Number(parsedRc.toFixed(1))))
           : currentRcVal;
 
+    const parsedPembahasan = tryParseNumberFlexible(pembahasanDraft);
+    const nextPembahasan =
+      parsedPembahasan !== null && Number.isFinite(parsedPembahasan)
+        ? Math.min(999, Math.max(0, Math.round(parsedPembahasan)))
+        : details.jumlahPembahasanBpbpk;
+
     const mergedRcDetails = overrideDetails?.rcDetails ?? rcTableDraft;
-    const mergedCustomRcItems = overrideDetails?.customRcItems ?? customRcDraft;
+    const rawCustomRcItems = overrideDetails?.customRcItems ?? customRcDraft;
+    const mergedCustomRcItems = rawCustomRcItems.map((item, idx) => {
+      const f = getRcChecklistFlags(item);
+      return {
+        ...item,
+        id: item.id || `rc-custom-${idx}-${Date.now()}`,
+        namaDokumen: item.namaDokumen.trim().slice(0, 200) || `Dokumen RC Tambahan ${idx + 1}`,
+        acuanStandar: (item.acuanStandar ?? '').trim().slice(0, 240),
+        ...f,
+        status: formatRcChecklistSummary(f),
+        keterangan: (item.keterangan ?? '').trim().slice(0, 600),
+      };
+    });
     const nextReadiness = deriveReadinessFromRcTable(mergedRcDetails, proposal.readiness);
 
     const nextTemplateDetails: ProposalTemplateDetails = {
@@ -674,9 +726,9 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       outcomeTambahan: details.outcomeTambahan,
       deskripsiLokasi: details.deskripsiLokasi,
       lokasiGambarUrl: imageDraftUrl,
-      statusManual: details.statusManual,
-      linkDataRc: details.linkDataRc,
-      jumlahPembahasanBpbpk: details.jumlahPembahasanBpbpk,
+      statusManual: statusManualDraft.trim(),
+      linkDataRc: linkDataRcDraft.trim(),
+      jumlahPembahasanBpbpk: nextPembahasan,
       rcDetails: mergedRcDetails,
       customRcItems: mergedCustomRcItems,
       ...overrideDetails,
@@ -686,6 +738,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
       ...proposal,
       skorRc: nextSkorRc,
       readiness: nextReadiness,
+      catatanTeknis: catatanTeknisDraft.trim(),
       templateDetails: nextTemplateDetails,
       updatedAt: new Date().toISOString().slice(0, 10),
     };
@@ -695,7 +748,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     if (!allowManageCurrent || !onSaveProposal) return;
     const updated = buildUpdatedProposalFromPreview();
     onSaveProposal(updated);
-    triggerRcSaveNotice('Perubahan Detail Status RC berhasil disimpan.');
+    triggerRcSaveNotice('Perubahan Detail Status RC & Isian Baru berhasil disimpan.');
   };
 
   const handleRcCellChange = (
@@ -1533,7 +1586,9 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                             if (num !== null) {
                               const clamped = Math.min(100, Math.max(0, Number(num.toFixed(1))));
                               setRcDraft(String(clamped));
-                              onUpdateSkorRc(proposal.id, clamped);
+                              if (clamped !== currentRcVal || proposal.skorRc === undefined) {
+                                onUpdateSkorRc(proposal.id, clamped);
+                              }
                             } else {
                               setRcDraft(String(currentRcVal));
                             }
@@ -1732,9 +1787,33 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   <h3 className="text-sm sm:text-base font-bold text-white">
                     Detail Status <span className="italic">Readiness Criteria</span> (RC)
                   </h3>
-                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#E89611] text-[#051044] shrink-0">
-                    Skor RC: {rcDraft}%
-                  </span>
+                  {allowManageCurrent ? (
+                    <div className="flex items-center bg-white border border-[#E89611] rounded-md px-2 py-0.5 w-24 shrink-0 focus-within:ring-2 focus-within:ring-[#E89611]/50">
+                      <span className="text-[10px] font-semibold text-slate-500 mr-1">Skor:</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        aria-label="Skor RC Manual Detail (%)"
+                        value={rcDraft}
+                        onChange={(e) => setRcDraft(e.target.value)}
+                        onBlur={() => {
+                          const num = tryParseNumberFlexible(rcDraft);
+                          if (num !== null) {
+                            const clamped = Math.min(100, Math.max(0, Number(num.toFixed(1))));
+                            setRcDraft(String(clamped));
+                          } else {
+                            setRcDraft(String(currentRcVal));
+                          }
+                        }}
+                        className="w-full text-xs font-mono font-bold tabular-nums text-right text-[#061459] bg-transparent focus:outline-none"
+                      />
+                      <span className="text-[11px] font-mono text-slate-500 ml-0.5">%</span>
+                    </div>
+                  ) : (
+                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#E89611] text-[#051044] shrink-0">
+                      Skor RC: {rcDraft}%
+                    </span>
+                  )}
                   <span className="font-mono text-[11px] text-indigo-100 bg-white/10 px-2 py-0.5 rounded border border-white/15 shrink-0">
                     {rcChecklistSummary.total} Dokumen RC
                   </span>
@@ -1757,6 +1836,17 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     </button>
                   )}
 
+                  {allowManageCurrent && onSaveProposal && (
+                    <button
+                      type="button"
+                      onClick={handleCommitInlinePreviewSave}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Simpan Detail RC</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => setShowDetailedRc(false)}
@@ -1769,23 +1859,59 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               </div>
 
               <div className="p-4 sm:p-5 space-y-4">
-                {/* Ringkasan Metadata Verifikasi RC */}
+                {rcSaveNotice && (
+                  <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 print:hidden">
+                    {rcSaveNotice}
+                  </div>
+                )}
+
+                {/* Ringkasan & Editor Metadata Verifikasi RC */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
-                    <div className="text-[11px] font-medium text-slate-500">
+                    <label className="block text-[11px] font-medium text-slate-500">
                       Status Verifikasi / Matriks
-                    </div>
-                    <div className="mt-0.5 text-xs font-bold text-[#061459]">
-                      {details.statusManual || proposal.statusVerifikasi}
+                    </label>
+                    {allowManageCurrent ? (
+                      <input
+                        type="text"
+                        value={statusManualDraft}
+                        onChange={(e) => setStatusManualDraft(e.target.value)}
+                        placeholder={proposal.statusVerifikasi}
+                        className="mt-1 w-full px-2.5 py-1.5 text-xs font-semibold text-[#061459] bg-white border border-[#C7D3E8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#061459] print:hidden"
+                      />
+                    ) : null}
+                    <div
+                      className={`mt-0.5 text-xs font-bold text-[#061459] ${
+                        allowManageCurrent ? 'hidden print:block' : ''
+                      }`}
+                    >
+                      {statusManualDraft.trim() || proposal.statusVerifikasi}
                     </div>
                   </div>
 
                   <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
-                    <div className="text-[11px] font-medium text-slate-500">
+                    <label className="block text-[11px] font-medium text-slate-500">
                       Pembahasan dengan BPBPK NTB
-                    </div>
-                    <div className="mt-0.5 font-mono text-xs font-bold text-[#061459] tabular-nums">
-                      {details.jumlahPembahasanBpbpk} Kali Pembahasan
+                    </label>
+                    {allowManageCurrent ? (
+                      <div className="mt-1 flex items-center bg-white border border-[#C7D3E8] rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#061459] print:hidden">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={pembahasanDraft}
+                          onChange={(e) => setPembahasanDraft(e.target.value)}
+                          placeholder="0"
+                          className="w-full font-mono text-xs font-bold tabular-nums text-[#061459] bg-transparent focus:outline-none"
+                        />
+                        <span className="text-[11px] text-slate-500 ml-1.5 select-none">Kali</span>
+                      </div>
+                    ) : null}
+                    <div
+                      className={`mt-0.5 font-mono text-xs font-bold text-[#061459] tabular-nums ${
+                        allowManageCurrent ? 'hidden print:block' : ''
+                      }`}
+                    >
+                      {tryParseNumberFlexible(pembahasanDraft) ?? 0} Kali Pembahasan
                     </div>
                   </div>
 
@@ -1793,7 +1919,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                     <div className="text-[11px] font-medium text-slate-500">
                       Kelengkapan Dokumen RC
                     </div>
-                    <div className="mt-0.5 text-xs font-bold text-slate-800 font-mono tabular-nums">
+                    <div className="mt-1.5 text-xs font-bold text-slate-800 font-mono tabular-nums">
                       Ada {rcChecklistSummary.ada}/{rcChecklistSummary.total} · Sesuai{' '}
                       {rcChecklistSummary.sesuai}/{rcChecklistSummary.total} · Kurang{' '}
                       {rcChecklistSummary.kurang}/{rcChecklistSummary.total}
@@ -1801,24 +1927,51 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                   </div>
 
                   <div className="border border-[#C7D3E8] rounded-xl px-3.5 py-2.5 bg-[#F8FAFE]">
-                    <div className="text-[11px] font-medium text-slate-500">
-                      Tautan Berkas / Data RC
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-[11px] font-medium text-slate-500">
+                        Tautan Berkas / Data RC
+                      </label>
+                      {safeRcLinkHref && (
+                        <a
+                          href={safeRcLinkHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-blue-700 hover:underline shrink-0"
+                          title={linkDataRcDraft}
+                        >
+                          <span>Buka</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
                     </div>
-                    <div className="mt-0.5 text-xs">
+                    {allowManageCurrent ? (
+                      <input
+                        type="text"
+                        value={linkDataRcDraft}
+                        onChange={(e) => setLinkDataRcDraft(e.target.value)}
+                        placeholder="https://drive.google.com/..."
+                        className="mt-1 w-full px-2.5 py-1.5 text-xs text-slate-800 bg-white border border-[#C7D3E8] rounded-lg placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#061459] print:hidden"
+                      />
+                    ) : null}
+                    <div
+                      className={`mt-0.5 text-xs ${
+                        allowManageCurrent ? 'hidden print:block' : ''
+                      }`}
+                    >
                       {safeRcLinkHref ? (
                         <a
                           href={safeRcLinkHref}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline max-w-full"
-                          title={details.linkDataRc}
+                          title={linkDataRcDraft}
                         >
                           <span className="truncate">Buka Link Data RC</span>
                           <ExternalLink className="w-3 h-3 shrink-0" />
                         </a>
-                      ) : details.linkDataRc ? (
+                      ) : linkDataRcDraft.trim() ? (
                         <span className="font-medium text-slate-700 truncate block">
-                          {details.linkDataRc}
+                          {linkDataRcDraft.trim()}
                         </span>
                       ) : (
                         <span className="text-slate-400">Belum diisi</span>
@@ -1897,7 +2050,24 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                               {idx + 1}
                             </td>
                             <td className="py-2.5 px-3 border-r border-[#C7D3E8] align-top">
-                              <div className="font-semibold text-[#061459]">{docLabel}</div>
+                              {row.key === 'lainnya' && allowManageCurrent ? (
+                                <>
+                                  <input
+                                    type="text"
+                                    value={entry.customLabel ?? row.defaultLabel}
+                                    onChange={(e) =>
+                                      handleRcCellChange('lainnya', 'customLabel', e.target.value)
+                                    }
+                                    placeholder="Lainnya (silakan tambahkan)"
+                                    className="w-full px-2 py-1 text-xs font-semibold text-[#061459] bg-white border border-[#C7D3E8] rounded-md focus:outline-none focus:ring-1 focus:ring-[#061459] print:hidden"
+                                  />
+                                  <div className="hidden print:block font-semibold text-[#061459]">
+                                    {docLabel}
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="font-semibold text-[#061459]">{docLabel}</div>
+                              )}
                               {legacyFsDedRabSub.length > 0 && (
                                 <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600 border-t border-slate-200 pt-1.5">
                                   {legacyFsDedRabSub.map((sub) => (
@@ -2376,18 +2546,37 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                       <div className="text-xs font-bold text-[#061459] mb-1.5">
                         Catatan Teknis &amp; Tindak Lanjut Verifikasi Balai
                       </div>
-                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
-                        {proposal.catatanTeknis?.trim() ||
-                          'Belum ada catatan teknis tambahan untuk usulan ini.'}
-                      </p>
+                      {allowManageCurrent ? (
+                        <>
+                          <textarea
+                            rows={3}
+                            value={catatanTeknisDraft}
+                            onChange={(e) => setCatatanTeknisDraft(e.target.value)}
+                            placeholder="Isi catatan teknis, progres lahan, DED, atau tindak lanjut verifikasi balai..."
+                            className="w-full px-2.5 py-2 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#061459] print:hidden"
+                          />
+                          <p className="hidden print:block text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+                            {catatanTeknisDraft.trim() ||
+                              'Belum ada catatan teknis tambahan untuk usulan ini.'}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+                          {catatanTeknisDraft.trim() ||
+                            'Belum ada catatan teknis tambahan untuk usulan ini.'}
+                        </p>
+                      )}
                     </div>
 
                     {allowManageCurrent && onSaveProposal && (
-                      <div className="pt-2 border-t border-[#D7E0F0] flex justify-end print:hidden">
+                      <div className="pt-2 border-t border-[#D7E0F0] flex flex-wrap items-center justify-between gap-2 print:hidden">
+                        <span className="text-[11px] text-slate-500">
+                          Simpan seluruh perubahan status, metadata, isian baru &amp; catatan RC.
+                        </span>
                         <button
                           type="button"
                           onClick={handleCommitInlinePreviewSave}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap ml-auto"
                         >
                           <Save className="w-3.5 h-3.5" />
                           <span>Simpan Perubahan Detail RC</span>

@@ -870,10 +870,10 @@ function DashboardWorkspace() {
       }
       await new Promise((resolve) => setTimeout(resolve, 25));
 
-      const latest = proposalsRef.current.find((p) => p.id === target.id) ?? target;
+      const existing = proposalsRef.current.find((p) => p.id === target.id);
       const enriched: UsulanProgram = {
-        ...latest,
-        authorUid: latest.authorUid || EDITOR_OPERATOR_UID,
+        ...target,
+        authorUid: target.authorUid || existing?.authorUid || EDITOR_OPERATOR_UID,
         isPublished: true,
         updatedAt: new Date().toISOString().slice(0, 10),
       };
