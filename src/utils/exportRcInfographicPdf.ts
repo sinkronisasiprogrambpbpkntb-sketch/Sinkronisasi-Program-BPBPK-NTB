@@ -69,6 +69,7 @@ export interface PdfExportContext {
   statusFilterLabel: string;
   searchQuery: string;
   signatories?: PdfSignatoriesConfig;
+  mengesahkanCount?: 2 | 3;
   logoDataUrl?: string | null;
   batikAssets?: PuBatikPdfAssets | null;
   layoutMode?: RcPdfLayoutMode;
@@ -762,7 +763,7 @@ function buildRcInfographicSingleSheetPdfDoc(
     });
   }
 
-  // 6. Signature Block (3 Mengesahkan + 1 Menyetujui)
+  // 6. Signature Block (2 or 3 Mengesahkan + 1 Menyetujui)
   doc.setFillColor(...COLOR_WHITE);
   doc.setDrawColor(...COLOR_PU_BORDER);
   doc.roundedRect(marginX, sigY, contentWidth, sigBoxHeight, 1.5, 1.5, 'FD');
@@ -771,7 +772,9 @@ function buildRcInfographicSingleSheetPdfDoc(
   doc.setFillColor(...COLOR_PU_GOLD);
   doc.rect(marginX + 1, sigY, 28, 1.0, 'F');
 
-  const sigColMaxW = contentWidth * 0.22;
+  const mengesahkanCount: 2 | 3 = context.mengesahkanCount === 2 ? 2 : 3;
+  const sigColMaxW =
+    mengesahkanCount === 2 ? contentWidth * 0.28 : contentWidth * 0.22;
 
   const sigConfig: PdfSignatoriesConfig = context.signatories ?? {
     tempatTanggal: '',
@@ -837,30 +840,51 @@ function buildRcInfographicSingleSheetPdfDoc(
     }
   };
 
-  renderSingleSheetSignatureCol(
-    marginX + contentWidth * 0.125,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan
-  );
-  renderSingleSheetSignatureCol(
-    marginX + contentWidth * 0.375,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
-  );
-  renderSingleSheetSignatureCol(
-    marginX + contentWidth * 0.625,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
-  );
-  renderSingleSheetSignatureCol(
-    marginX + contentWidth * 0.875,
-    'Menyetujui,',
-    sigConfig.tempatTanggal,
-    sigConfig.menyetujui
-  );
+  if (mengesahkanCount === 2) {
+    renderSingleSheetSignatureCol(
+      marginX + contentWidth * (1 / 6),
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan
+    );
+    renderSingleSheetSignatureCol(
+      marginX + contentWidth * 0.5,
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
+    );
+    renderSingleSheetSignatureCol(
+      marginX + contentWidth * (5 / 6),
+      'Menyetujui,',
+      sigConfig.tempatTanggal,
+      sigConfig.menyetujui
+    );
+  } else {
+    renderSingleSheetSignatureCol(
+      marginX + contentWidth * 0.125,
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan
+    );
+    renderSingleSheetSignatureCol(
+      marginX + contentWidth * 0.375,
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
+    );
+    renderSingleSheetSignatureCol(
+      marginX + contentWidth * 0.625,
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
+    );
+    renderSingleSheetSignatureCol(
+      marginX + contentWidth * 0.875,
+      'Menyetujui,',
+      sigConfig.tempatTanggal,
+      sigConfig.menyetujui
+    );
+  }
 
   // 7. Single-Page Footer
   doc.setDrawColor(...COLOR_SLATE_200);
@@ -1433,7 +1457,9 @@ function buildRcInfographicPdfDoc(
   doc.setFillColor(...COLOR_PU_GOLD);
   doc.rect(marginX + 1, cursorY, 32, 1.1, 'F');
 
-  const sigColMaxW = contentWidth * 0.22;
+  const mengesahkanCount: 2 | 3 = context.mengesahkanCount === 2 ? 2 : 3;
+  const sigColMaxW =
+    mengesahkanCount === 2 ? contentWidth * 0.28 : contentWidth * 0.22;
 
   const sigConfig: PdfSignatoriesConfig = context.signatories ?? {
     tempatTanggal: '',
@@ -1499,30 +1525,51 @@ function buildRcInfographicPdfDoc(
     }
   };
 
-  renderSignatureColumn(
-    marginX + contentWidth * 0.125,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan
-  );
-  renderSignatureColumn(
-    marginX + contentWidth * 0.375,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
-  );
-  renderSignatureColumn(
-    marginX + contentWidth * 0.625,
-    'Mengesahkan,',
-    '',
-    sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
-  );
-  renderSignatureColumn(
-    marginX + contentWidth * 0.875,
-    'Menyetujui,',
-    sigConfig.tempatTanggal,
-    sigConfig.menyetujui
-  );
+  if (mengesahkanCount === 2) {
+    renderSignatureColumn(
+      marginX + contentWidth * (1 / 6),
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan
+    );
+    renderSignatureColumn(
+      marginX + contentWidth * 0.5,
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
+    );
+    renderSignatureColumn(
+      marginX + contentWidth * (5 / 6),
+      'Menyetujui,',
+      sigConfig.tempatTanggal,
+      sigConfig.menyetujui
+    );
+  } else {
+    renderSignatureColumn(
+      marginX + contentWidth * 0.125,
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan
+    );
+    renderSignatureColumn(
+      marginX + contentWidth * 0.375,
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan2 ?? { jabatan: '', nama: '' }
+    );
+    renderSignatureColumn(
+      marginX + contentWidth * 0.625,
+      'Mengesahkan,',
+      '',
+      sigConfig.mengesahkan3 ?? { jabatan: '', nama: '' }
+    );
+    renderSignatureColumn(
+      marginX + contentWidth * 0.875,
+      'Menyetujui,',
+      sigConfig.tempatTanggal,
+      sigConfig.menyetujui
+    );
+  }
 
   cursorY += sigBoxHeight + 3;
 

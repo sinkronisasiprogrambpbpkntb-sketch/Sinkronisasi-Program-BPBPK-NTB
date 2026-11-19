@@ -140,6 +140,18 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
   const sortLabel =
     context.sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi';
   const sig = context.signatories;
+  const mengesahkanCount: 2 | 3 = context.mengesahkanCount === 2 ? 2 : 3;
+  const mengesahkanParties =
+    mengesahkanCount === 2
+      ? [
+          { key: 'm1', party: sig?.mengesahkan },
+          { key: 'm2', party: sig?.mengesahkan2 },
+        ]
+      : [
+          { key: 'm1', party: sig?.mengesahkan },
+          { key: 'm2', party: sig?.mengesahkan2 },
+          { key: 'm3', party: sig?.mengesahkan3 },
+        ];
 
   const handlePrintNow = () => {
     onClose();
@@ -658,16 +670,16 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                 )}
               </div>
 
-              {/* Signature Block: 3 Kolom Mengesahkan & 1 Kolom Menyetujui without NIP */}
+              {/* Signature Block: 2 or 3 Kolom Mengesahkan & 1 Kolom Menyetujui without NIP */}
               <div className="border border-[#C7D3E8] border-t-2 border-t-[#061459] rounded-lg px-5 py-5 bg-white">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 text-center text-xs text-slate-900">
-                  {(
-                    [
-                      { key: 'm1', party: sig?.mengesahkan },
-                      { key: 'm2', party: sig?.mengesahkan2 },
-                      { key: 'm3', party: sig?.mengesahkan3 },
-                    ] as const
-                  ).map(({ key, party }) => (
+                <div
+                  className={`grid gap-5 text-center text-xs text-slate-900 ${
+                    mengesahkanCount === 2
+                      ? 'grid-cols-1 sm:grid-cols-3'
+                      : 'grid-cols-2 lg:grid-cols-4'
+                  }`}
+                >
+                  {mengesahkanParties.map(({ key, party }) => (
                     <div
                       key={key}
                       className="flex flex-col items-center justify-between min-h-[108px]"

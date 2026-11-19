@@ -139,6 +139,19 @@ function loadInitialSignatories(): PdfSignatoriesConfig {
   }
 }
 
+const ALL_SEKTORS: SektorCiptaKarya[] = [
+  SektorCiptaKarya.AIR_MINUM,
+  SektorCiptaKarya.SANITASI,
+  SektorCiptaKarya.KAWASAN_STRATEGIS,
+  SektorCiptaKarya.BINA_PENATAAN_BANGUNAN,
+];
+
+const NON_BPB_SEKTORS: SektorCiptaKarya[] = [
+  SektorCiptaKarya.AIR_MINUM,
+  SektorCiptaKarya.SANITASI,
+  SektorCiptaKarya.KAWASAN_STRATEGIS,
+];
+
 export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   proposals,
   yearFilterLabel,
@@ -150,6 +163,8 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [tierFilter, setTierFilter] = useState<RcTierFilter>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedSectors, setSelectedSectors] =
+    useState<SektorCiptaKarya[]>(ALL_SEKTORS);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [signatories, setSignatories] = useState<PdfSignatoriesConfig>(
     loadInitialSignatories
@@ -171,8 +186,18 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     }
   }, [signatories]);
 
+  const availableInputSectors = useMemo(
+    () => ALL_SEKTORS.filter((sek) => proposals.some((p) => p.sektor === sek)),
+    [proposals]
+  );
+
+  const sectorScopedProposals = useMemo(() => {
+    if (availableInputSectors.length <= 1) return proposals;
+    return proposals.filter((p) => selectedSectors.includes(p.sektor));
+  }, [proposals, availableInputSectors.length, selectedSectors]);
+
   const allRanked = useMemo<RankedProposalItem[]>(() => {
-    const items = proposals.map((p) => {
+    const items = sectorScopedProposals.map((p) => {
       const score = getReadinessScore(p.readiness, p.skorRc);
       const tierMeta = getTierMeta(score.percentage);
       const totalPagu = getTotalPaguUsulan(p.pagu);
@@ -204,7 +229,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     });
 
     return items;
-  }, [proposals, sortOrder]);
+  }, [sectorScopedProposals, sortOrder]);
 
   const statusOptions = useMemo(() => {
     const manualMap = new Map<string, number>();
@@ -313,7 +338,11 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   }, [statusScoped]);
 
   const sectorAverages = useMemo(() => {
-    const list = Object.values(SektorCiptaKarya).map((sek) => {
+    const activeSectorList =
+      availableInputSectors.length <= 1
+        ? ALL_SEKTORS
+        : ALL_SEKTORS.filter((sek) => selectedSectors.includes(sek));
+    const list = activeSectorList.map((sek) => {
       const items = statusScoped.filter((x) => x.proposal.sektor === sek);
       const count = items.length;
       const avgPct =
@@ -337,7 +366,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     return list.sort((a, b) =>
       sortOrder === 'desc' ? b.avgPct - a.avgPct : a.avgPct - b.avgPct
     );
-  }, [statusScoped, sortOrder]);
+  }, [statusScoped, sortOrder, availableInputSectors.length, selectedSectors]);
 
   const regionalAverages = useMemo(() => {
     const map: Record<
@@ -426,24 +455,74 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     return 'Semua Status Usulan';
   }, [effectiveStatusFilter]);
 
+  const isOnlyNonBpbPreset =
+    selectedSectors.length === NON_BPB_SEKTORS.length &&
+    NON_BPB_SEKTORS.every((s) => selectedSectors.includes(s));
+
+  const isAllSectorsSelected = selectedSectors.length === ALL_SEKTORS.length;
+
+  const effectiveSectorFilterLabel = useMemo(() => {
+    if (availableInputSectors.length <= 1 || isAllSectorsSelected) {
+      return sectorFilterLabel;
+    }
+    return selectedSectors.map((s) => SEKTOR_SHORT_LABELS[s]).join(', ');
+  }, [
+    availableInputSectors.length,
+    isAllSectorsSelected,
+    sectorFilterLabel,
+    selectedSectors,
+  ]);
+
+  const mengesahkanCount = useMemo<2 | 3>(() => {
+    const itemsToInspect =
+      filteredRanked.length > 0
+        ? filteredRanked
+        : statusScoped.length > 0
+          ? statusScoped
+          : allRanked;
+
+    if (itemsToInspect.length > 0) {
+      const hasBpb = itemsToInspect.some(
+        (item) => item.proposal.sektor === SektorCiptaKarya.BINA_PENATAAN_BANGUNAN
+      );
+      return hasBpb ? 3 : 2;
+    }
+
+    return selectedSectors.includes(SektorCiptaKarya.BINA_PENATAAN_BANGUNAN)
+      ? 3
+      : 2;
+  }, [filteredRanked, statusScoped, allRanked, selectedSectors]);
+
+  const toggleSectorSelection = (sek: SektorCiptaKarya) => {
+    setSelectedSectors((prev) => {
+      if (prev.includes(sek)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((item) => item !== sek);
+      }
+      return ALL_SEKTORS.filter((item) => item === sek || prev.includes(item));
+    });
+  };
+
   const pdfContext = useMemo<PdfExportContext>(
     () => ({
       yearFilterLabel,
-      sectorFilterLabel,
+      sectorFilterLabel: effectiveSectorFilterLabel,
       sortOrder,
       tierFilterLabel,
       statusFilterLabel,
       searchQuery,
       signatories,
+      mengesahkanCount,
     }),
     [
       yearFilterLabel,
-      sectorFilterLabel,
+      effectiveSectorFilterLabel,
       sortOrder,
       tierFilterLabel,
       statusFilterLabel,
       searchQuery,
       signatories,
+      mengesahkanCount,
     ]
   );
 
@@ -505,7 +584,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
               </p>
               <p className="text-[11px] text-amber-100 mt-0.5">
-                Sektor Teknis: {sectorFilterLabel} · {yearFilterLabel} · {tierFilterLabel} ·{' '}
+                Sektor Teknis: {effectiveSectorFilterLabel} · {yearFilterLabel} · {tierFilterLabel} ·{' '}
                 {statusFilterLabel} · {filteredRanked.length} dari {statusScoped.length} Paket
               </p>
             </div>
@@ -537,7 +616,8 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
               Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Sektor Teknis: <span className="font-medium text-slate-700">{sectorFilterLabel}</span>
+              Sektor Teknis:{' '}
+              <span className="font-medium text-slate-700">{effectiveSectorFilterLabel}</span>
               <span aria-hidden="true"> · </span>
               <span>{yearFilterLabel}</span>
               <span aria-hidden="true"> · </span>
@@ -695,6 +775,64 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
             </div>
           </div>
         </div>
+
+        {availableInputSectors.length > 1 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#E5ECF7]">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-[#061459] mr-1">
+                Cakupan Sektor Cetak:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedSectors(ALL_SEKTORS)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors cursor-pointer whitespace-nowrap ${
+                  isAllSectorsSelected
+                    ? 'bg-[#061459] text-white border-[#061459]'
+                    : 'bg-white text-slate-600 border-[#C7D3E8] hover:text-[#061459]'
+                }`}
+              >
+                Semua Sektor (4 Bidang)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedSectors(NON_BPB_SEKTORS)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors cursor-pointer whitespace-nowrap ${
+                  isOnlyNonBpbPreset
+                    ? 'bg-[#E89611] text-[#051044] border-[#E89611] font-semibold'
+                    : 'bg-white text-slate-600 border-[#C7D3E8] hover:text-[#061459]'
+                }`}
+                title="Hanya Sektor Air Minum, Sanitasi, dan PKS (Mengesahkan otomatis menjadi 2 kolom)"
+              >
+                Air Minum, Sanitasi &amp; PKS (2 Mengesahkan)
+              </button>
+            </div>
+
+            <div
+              className="flex flex-wrap items-center gap-1.5"
+              role="group"
+              aria-label="Pilih sektor yang ditampilkan pada infografis dan PDF"
+            >
+              {availableInputSectors.map((sek) => {
+                const active = selectedSectors.includes(sek);
+                return (
+                  <button
+                    key={sek}
+                    type="button"
+                    onClick={() => toggleSectorSelection(sek)}
+                    aria-pressed={active}
+                    className={`px-2.5 py-1 text-[11px] font-medium rounded-md border transition-colors cursor-pointer whitespace-nowrap ${
+                      active
+                        ? 'bg-[#EEF2FA] text-[#061459] border-[#0A1D6E]/40 font-semibold'
+                        : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                    }`}
+                  >
+                    {SEKTOR_SHORT_LABELS[sek]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Summary Infographic Metrics Row */}
@@ -860,6 +998,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                   onClick={() => {
                     setTierFilter('ALL');
                     setStatusFilter('ALL');
+                    setSelectedSectors(ALL_SEKTORS);
                     setSearchQuery('');
                   }}
                   className="px-3.5 py-2 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
@@ -998,7 +1137,9 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                   Data Pengesahan &amp; Persetujuan (Cetak PDF)
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Ditampilkan di bagian bawah setelah Grafik Peringkat Skor RC per Paket Usulan saat Cetak PDF
+                  {mengesahkanCount === 2
+                    ? 'Cakupan hanya Sektor Air Minum, Sanitasi, dan/atau PKS — otomatis menampilkan 2 kolom Mengesahkan dan 1 kolom Menyetujui.'
+                    : 'Ditampilkan di bagian bawah setelah Grafik Peringkat Skor RC per Paket Usulan saat Cetak PDF (3 kolom Mengesahkan dan 1 kolom Menyetujui).'}
                 </p>
               </div>
               <button
@@ -1031,7 +1172,13 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pt-1">
+              <div
+                className={`grid gap-4 pt-1 ${
+                  mengesahkanCount === 2
+                    ? 'grid-cols-1 md:grid-cols-3'
+                    : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4'
+                }`}
+              >
                 {/* Mengesahkan 1 */}
                 <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
                   <div className="text-xs font-bold text-slate-900">
@@ -1126,52 +1273,54 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                   </div>
                 </div>
 
-                {/* Mengesahkan 3 */}
-                <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
-                  <div className="text-xs font-bold text-slate-900">
-                    Mengesahkan 3
+                {/* Mengesahkan 3 (hanya muncul bila Sektor BPB masuk dalam cakupan) */}
+                {mengesahkanCount === 3 && (
+                  <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                    <div className="text-xs font-bold text-slate-900">
+                      Mengesahkan 3
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Jabatan
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.mengesahkan3?.jabatan ?? ''}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            mengesahkan3: {
+                              jabatan: e.target.value,
+                              nama: prev.mengesahkan3?.nama ?? '',
+                            },
+                          }))
+                        }
+                        placeholder="Contoh: Kepala Bappeda Provinsi NTB"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Nama Lengkap &amp; Gelar
+                      </label>
+                      <input
+                        type="text"
+                        value={signatories.mengesahkan3?.nama ?? ''}
+                        onChange={(e) =>
+                          setSignatories((prev) => ({
+                            ...prev,
+                            mengesahkan3: {
+                              jabatan: prev.mengesahkan3?.jabatan ?? '',
+                              nama: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Nama pejabat yang mengesahkan"
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                      Jabatan
-                    </label>
-                    <input
-                      type="text"
-                      value={signatories.mengesahkan3?.jabatan ?? ''}
-                      onChange={(e) =>
-                        setSignatories((prev) => ({
-                          ...prev,
-                          mengesahkan3: {
-                            jabatan: e.target.value,
-                            nama: prev.mengesahkan3?.nama ?? '',
-                          },
-                        }))
-                      }
-                      placeholder="Contoh: Kepala Bappeda Provinsi NTB"
-                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                      Nama Lengkap &amp; Gelar
-                    </label>
-                    <input
-                      type="text"
-                      value={signatories.mengesahkan3?.nama ?? ''}
-                      onChange={(e) =>
-                        setSignatories((prev) => ({
-                          ...prev,
-                          mengesahkan3: {
-                            jabatan: prev.mengesahkan3?.jabatan ?? '',
-                            nama: e.target.value,
-                          },
-                        }))
-                      }
-                      placeholder="Nama pejabat yang mengesahkan"
-                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                    />
-                  </div>
-                </div>
+                )}
 
                 {/* Sebelah Kanan: Menyetujui */}
                 <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
@@ -1223,12 +1372,22 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
             </div>
 
             {/* Print-only Formal Signature Block */}
-            <div className="hidden print:grid print:grid-cols-4 gap-4 py-2 text-center text-xs text-slate-900">
-              {[
-                signatories.mengesahkan,
-                signatories.mengesahkan2 ?? { jabatan: '', nama: '' },
-                signatories.mengesahkan3 ?? { jabatan: '', nama: '' },
-              ].map((party, idx) => (
+            <div
+              className={`hidden print:grid gap-4 py-2 text-center text-xs text-slate-900 ${
+                mengesahkanCount === 2 ? 'print:grid-cols-3' : 'print:grid-cols-4'
+              }`}
+            >
+              {(mengesahkanCount === 2
+                ? [
+                    signatories.mengesahkan,
+                    signatories.mengesahkan2 ?? { jabatan: '', nama: '' },
+                  ]
+                : [
+                    signatories.mengesahkan,
+                    signatories.mengesahkan2 ?? { jabatan: '', nama: '' },
+                    signatories.mengesahkan3 ?? { jabatan: '', nama: '' },
+                  ]
+              ).map((party, idx) => (
                 <div
                   key={`rc-print-mengesahkan-${idx}`}
                   className="flex flex-col items-center justify-between min-h-[120px]"
