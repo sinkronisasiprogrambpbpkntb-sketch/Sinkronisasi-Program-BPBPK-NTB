@@ -3,6 +3,7 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import {
   BarChart2,
   BarChart3,
+  BookOpen,
   CloudUpload,
   Edit3,
   Eye,
@@ -32,6 +33,7 @@ import { ProposalTable } from './components/ProposalTable';
 import { RcInfographicView } from './components/RcInfographicView';
 import { ShareReadOnlyLinkModal } from './components/ShareReadOnlyLinkModal';
 import { SpatialMapView } from './components/SpatialMapView';
+import { TechnicalGuideModal } from './components/TechnicalGuideModal';
 import {
   exportProposalsAsCsv,
   exportProposalsAsGeoJson,
@@ -424,6 +426,7 @@ function DashboardWorkspace() {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [driveBackupOpen, setDriveBackupOpen] = useState<boolean>(false);
   const [shareLinkOpen, setShareLinkOpen] = useState<boolean>(false);
+  const [guideOpen, setGuideOpen] = useState<boolean>(false);
   const [editingProposal, setEditingProposal] = useState<UsulanProgram | null>(null);
   const [previewProposalId, setPreviewProposalId] = useState<string | null>(null);
   const [showTemplateDemo, setShowTemplateDemo] = useState<boolean>(false);
@@ -1059,11 +1062,21 @@ function DashboardWorkspace() {
   // Render PIN Sign-In Portal when mode is 'portal'
   if (accessMode === 'portal') {
     return (
-      <AccessPortalView
-        totalPackages={proposals.length}
-        onEnterAccount={handleEnterAccount}
-        welcomeAudio={welcomeAudio}
-      />
+      <>
+        <AccessPortalView
+          totalPackages={proposals.length}
+          onEnterAccount={handleEnterAccount}
+          welcomeAudio={welcomeAudio}
+          onOpenGuide={() => setGuideOpen(true)}
+        />
+        <TechnicalGuideModal
+          isOpen={guideOpen}
+          onClose={() => setGuideOpen(false)}
+          onExportSuccess={(fileName) =>
+            showNotice(`Petunjuk teknis berhasil diunduh: "${fileName}".`)
+          }
+        />
+      </>
     );
   }
 
@@ -1202,6 +1215,19 @@ function DashboardWorkspace() {
 
           <button
             type="button"
+            onClick={() => {
+              setMobileNavOpen(false);
+              setGuideOpen(true);
+            }}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-100 bg-white/10 hover:bg-white/15 border border-amber-400/35 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            title="Buka buku petunjuk teknis penggunaan aplikasi web SIMPRA"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-[#E89611]" />
+            <span>Petunjuk Teknis</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleOpenPreviewOrTemplate}
             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
           >
@@ -1292,6 +1318,16 @@ function DashboardWorkspace() {
               <span className="hidden md:inline">
                 {welcomeAudio.isPlaying ? 'Hentikan Suara' : 'Suara Pembuka'}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setGuideOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#061459] bg-amber-50 border border-amber-300 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Buka Petunjuk Teknis Penggunaan Web App"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-[#C27803]" />
+              <span className="hidden sm:inline">Petunjuk Teknis</span>
             </button>
 
             <button
@@ -1882,6 +1918,16 @@ function DashboardWorkspace() {
           }
         />
       )}
+
+      {/* Interactive Technical Usage Guide Modal (Available in Edit & Read-Only modes) */}
+      <TechnicalGuideModal
+        isOpen={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        onExportSuccess={(fileName) =>
+          showNotice(`Petunjuk teknis berhasil diunduh: "${fileName}".`)
+        }
+      />
+
       {welcomeAudio.needsInteraction && !welcomeAudio.isPlaying && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 batik-pu-banner text-white border-2 border-[#E89611] rounded-xl px-4 py-2.5 shadow-2xl max-w-[92vw] print:hidden">
           <button

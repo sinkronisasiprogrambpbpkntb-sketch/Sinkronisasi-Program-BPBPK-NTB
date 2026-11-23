@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ArrowRight,
+  BookOpen,
   CheckCircle2,
   Database,
   Edit3,
@@ -20,12 +21,14 @@ interface AccessPortalViewProps {
   totalPackages: number;
   onEnterAccount: (profile: AccountSessionProfile) => void;
   welcomeAudio?: WelcomeAudioControls;
+  onOpenGuide?: () => void;
 }
 
 export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
   totalPackages,
   onEnterAccount,
   welcomeAudio,
+  onOpenGuide,
 }) => {
   const [isEntering, setIsEntering] = useState<boolean>(false);
 
@@ -65,7 +68,18 @@ export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
             Tahun Anggaran 2027–2030
           </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {onOpenGuide && (
+            <button
+              type="button"
+              onClick={onOpenGuide}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border bg-[#040E42]/80 hover:bg-[#0A1D6E] text-amber-200 border-amber-400/35 transition-colors cursor-pointer whitespace-nowrap"
+              title="Buka Petunjuk Teknis Penggunaan Web App"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-[#E89611]" />
+              <span>Petunjuk Teknis</span>
+            </button>
+          )}
           {welcomeAudio && (
             <button
               type="button"
@@ -90,7 +104,7 @@ export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
               <span>{welcomeAudio.isPlaying ? 'Hentikan Suara' : 'Suara Pembuka'}</span>
             </button>
           )}
-          <div className="font-mono text-xs tabular-nums text-amber-200">
+          <div className="font-mono text-xs tabular-nums text-amber-200 hidden sm:block">
             {totalPackages} Paket Usulan Terdaftar
           </div>
         </div>
