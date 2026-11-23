@@ -4,7 +4,6 @@ import {
   BarChart2,
   BarChart3,
   BookOpen,
-  Check,
   CloudUpload,
   Edit3,
   Eye,
@@ -521,26 +520,6 @@ function DashboardWorkspace() {
     if (kept.length === fundingSourceOptions.length) return null;
     return kept;
   }, [selectedFundingSources, fundingSourceOptions]);
-
-  const toggleSidebarFundingSource = useCallback(
-    (source: string) => {
-      const allKeys = fundingSourceOptions.map((o) => o.value);
-      setSelectedFundingSources((prev) => {
-        const currentSet =
-          prev === null ? new Set(allKeys) : new Set(prev);
-        if (currentSet.has(source)) {
-          currentSet.delete(source);
-        } else {
-          currentSet.add(source);
-        }
-        if (currentSet.size >= allKeys.length) {
-          return null;
-        }
-        return allKeys.filter((k) => currentSet.has(k));
-      });
-    },
-    [fundingSourceOptions]
-  );
 
   const filteredProposals = useMemo(() => {
     if (effectiveSelectedFundingSources === null) {
@@ -1236,66 +1215,6 @@ function DashboardWorkspace() {
                     >
                       <span className="truncate pr-2">{SEKTOR_SHORT_LABELS[sek]}</span>
                       <span className="font-mono tabular-nums text-[11px]">{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Sumber Pendanaan Checklist Filter in Sidebar */}
-            <div className="mt-6 pt-5 border-t border-white/15">
-              <div className="px-3 text-[11px] font-semibold text-amber-300/90 mb-2">
-                Sumber Pendanaan
-              </div>
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => setSelectedFundingSources(null)}
-                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
-                    effectiveSelectedFundingSources === null
-                      ? 'bg-white/15 text-white border border-amber-400/40 font-medium'
-                      : 'text-indigo-200/85 hover:bg-white/8 hover:text-white'
-                  }`}
-                >
-                  <span>Semua Sumber Dana</span>
-                  <span className="font-mono tabular-nums text-[11px]">
-                    {proposalsBeforeFundingFilter.length}
-                  </span>
-                </button>
-                {fundingSourceOptions.map((opt) => {
-                  const checked =
-                    effectiveSelectedFundingSources === null ||
-                    effectiveSelectedFundingSources.includes(opt.value);
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => toggleSidebarFundingSource(opt.value)}
-                      aria-pressed={checked}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
-                        checked && effectiveSelectedFundingSources !== null
-                          ? 'bg-white/15 text-white border border-amber-400/40 font-medium'
-                          : checked
-                            ? 'text-indigo-100 hover:bg-white/8 hover:text-white'
-                            : 'text-indigo-300/55 hover:bg-white/8 hover:text-indigo-100'
-                      }`}
-                    >
-                      <span className="inline-flex items-center gap-2 min-w-0 pr-2">
-                        <span
-                          className={`w-3.5 h-3.5 rounded-[3px] border inline-flex items-center justify-center shrink-0 ${
-                            checked
-                              ? 'bg-[#E89611] border-[#E89611] text-[#051044]'
-                              : 'border-indigo-300/50 bg-transparent'
-                          }`}
-                          aria-hidden="true"
-                        >
-                          {checked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                        </span>
-                        <span className="truncate">{opt.label}</span>
-                      </span>
-                      <span className="font-mono tabular-nums text-[11px] shrink-0">
-                        {opt.count}
-                      </span>
                     </button>
                   );
                 })}
