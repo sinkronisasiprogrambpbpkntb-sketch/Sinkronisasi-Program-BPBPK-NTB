@@ -103,7 +103,7 @@ const ManualRcCellInput: React.FC<ManualRcCellInputProps> = ({
       className="inline-flex items-center gap-1"
     >
       <div
-        className="inline-flex items-center bg-white border border-slate-300 rounded px-1.5 py-0.5 focus-within:border-blue-700 w-16"
+        className="inline-flex items-center bg-amber-50/90 border-2 border-[#E89611] rounded-lg px-2 py-1 shadow-xs focus-within:border-[#061459] focus-within:ring-2 focus-within:ring-[#E89611]/30 w-20"
         title="Ketik Skor RC manual (0–100) lalu klik tombol simpan atau tekan Enter"
       >
         <input
@@ -122,9 +122,9 @@ const ManualRcCellInput: React.FC<ManualRcCellInputProps> = ({
               (e.currentTarget as HTMLInputElement).blur();
             }
           }}
-          className="w-full font-mono text-xs font-semibold tabular-nums text-right text-slate-900 bg-transparent focus:outline-none"
+          className="w-full font-mono text-base font-extrabold tabular-nums text-right text-[#061459] bg-transparent focus:outline-none"
         />
-        <span className="font-mono text-[10px] text-slate-500 ml-0.5 select-none">%</span>
+        <span className="font-mono text-xs font-bold text-[#9A5B00] ml-0.5 select-none">%</span>
       </div>
       {isDirty && (
         <button
@@ -839,11 +839,11 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                     <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </th>
-                <th className="py-3 px-3 whitespace-nowrap">
+                <th className="py-3 px-3 whitespace-nowrap bg-[#0B227C] text-amber-300">
                   <button
                     type="button"
                     onClick={() => toggleSort('rc')}
-                    className="inline-flex items-center gap-1 hover:text-amber-300 cursor-pointer"
+                    className="inline-flex items-center gap-1 hover:text-amber-200 cursor-pointer font-bold"
                   >
                     <span>Skor RC (%)</span>
                     <ArrowUpDown className="w-3 h-3" />
@@ -977,7 +977,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                       {p.sumberDana}
                     </td>
 
-                    <td className="py-3 px-3 whitespace-nowrap">
+                    <td className="py-3 px-3 whitespace-nowrap bg-amber-50/45">
                       {canEdit && !p.isLocked ? (
                         <ManualRcCellInput
                           value={rc.percentage}
@@ -986,7 +986,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                           onCommit={(nextVal) => onUpdateSkorRc(p.id, nextVal)}
                         />
                       ) : (
-                        <span className="font-mono font-semibold tabular-nums text-slate-800">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-50 border-2 border-[#E89611] font-mono text-base font-extrabold tabular-nums text-[#061459] shadow-xs">
                           {rc.percentage}%
                         </span>
                       )}

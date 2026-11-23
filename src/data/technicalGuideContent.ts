@@ -1,3 +1,12 @@
+import guideAksesPortalImg from '../assets/images/guide_akses_portal_1795442855770.jpg';
+import guideNavigasiFilterImg from '../assets/images/guide_navigasi_filter_1795442856222.jpg';
+import guideMatriksRcImg from '../assets/images/guide_matriks_rc_1795442857775.jpg';
+import guideFormulirUsulanImg from '../assets/images/guide_formulir_usulan_1795442857924.jpg';
+import guideProfilPdfImg from '../assets/images/guide_profil_pdf_1795442860007.jpg';
+import guideSpasialGisImg from '../assets/images/guide_spasial_gis_1795442858382.jpg';
+import guideInfografisProyeksiImg from '../assets/images/guide_infografis_proyeksi_1795442858561.jpg';
+import guideCloudDriveImg from '../assets/images/guide_cloud_drive_1795442856276.jpg';
+
 export interface GuideStep {
   title: string;
   detail: string;
@@ -9,6 +18,9 @@ export interface GuideSection {
   title: string;
   subtitle: string;
   summary: string;
+  imageUrl: string;
+  imageAlt: string;
+  imageCaption: string;
   steps: GuideStep[];
   tips?: string[];
 }
@@ -21,6 +33,9 @@ export const TECHNICAL_GUIDE_SECTIONS: GuideSection[] = [
     subtitle: 'Pengenalan sistem, mode pengelola tanpa PIN, suara pembuka, & tautan lihat saja',
     summary:
       'SIMPRA BPBPK NTB (TA. 2027–2030) adalah platform terpadu untuk sinkronisasi usulan program infrastruktur Cipta Karya sektor Air Minum (SPAM), Sanitasi, Penataan Kawasan Strategis (PKS), dan Bina Penataan Bangunan (BPB) di Provinsi Nusa Tenggara Barat.',
+    imageUrl: guideAksesPortalImg,
+    imageAlt: 'Ilustrasi antarmuka Portal Akses masuk dashboard pengelola SIMPRA BPBPK NTB',
+    imageCaption: 'Gambar 01. Tampilan Portal Akses awal, tombol Buka Dashboard & Mulai Edit, dan kontrol Suara Pembuka.',
     steps: [
       {
         title: 'Masuk Dashboard Pengelola (Tanpa PIN)',
@@ -54,6 +69,9 @@ export const TECHNICAL_GUIDE_SECTIONS: GuideSection[] = [
     subtitle: 'Berpindah antar-menu dan menyaring data berdasarkan sektor, tahun anggaran, & wilayah',
     summary:
       'Seluruh tampilan tabel, peta, infografis, dan proyeksi anggaran selalu mengikuti filter aktif secara real-time.',
+    imageUrl: guideNavigasiFilterImg,
+    imageAlt: 'Ilustrasi struktur sidebar navigasi kiri dan bilah filter Tahun Anggaran serta Kabupaten/Kota',
+    imageCaption: 'Gambar 02. Tata letak 4 menu utama di sidebar kiri, filter Cakupan Sektor Teknis, Tahun Anggaran, dan kolom pencarian.',
     steps: [
       {
         title: '4 Menu Utama (Sidebar Kiri)',
@@ -87,6 +105,9 @@ export const TECHNICAL_GUIDE_SECTIONS: GuideSection[] = [
     subtitle: 'Mengelola tabel usulan, pengurutan, edit inline, hapus massal, & ekspor data',
     summary:
       'Menu Matriks Usulan & RC menampilkan seluruh daftar paket program beserta rincian pagu tahunan dan atribut verifikasi RC dalam satu tabel interaktif.',
+    imageUrl: guideMatriksRcImg,
+    imageAlt: 'Ilustrasi tabel Matriks Usulan & RC dengan sel edit langsung dan tombol ekspor CSV serta GeoJSON',
+    imageCaption: 'Gambar 03. Tabel interaktif Matriks Usulan & RC dengan fitur pengurutan kolom, edit cepat inline, dan ekspor CSV/GeoJSON.',
     steps: [
       {
         title: 'Edit Cepat Langsung di Sel Tabel',
@@ -117,6 +138,9 @@ export const TECHNICAL_GUIDE_SECTIONS: GuideSection[] = [
     subtitle: 'Pengisian formulir 5 bagian lengkap termasuk Isian Baru Dokumen RC',
     summary:
       'Klik tombol "Tambah Usulan" di header atau tombol "Edit" pada baris tabel/panel detail untuk membuka laci formulir lengkap.',
+    imageUrl: guideFormulirUsulanImg,
+    imageAlt: 'Ilustrasi panel laci formulir usulan 5 bagian beserta tabel verifikasi dokumen RC dan tombol tambah isian baru',
+    imageCaption: 'Gambar 04. Laci formulir usulan 5 bagian: identitas & koordinat, pagu 2027–2030, unggah skema, dan Isian Baru Dokumen RC.',
     steps: [
       {
         title: 'Bagian 1 — Identitas & Lokasi Spasial',
@@ -147,6 +171,9 @@ export const TECHNICAL_GUIDE_SECTIONS: GuideSection[] = [
     subtitle: 'Template Eksekutif KEMENPU, edit lengkap Detail Status RC, Pengesahan, & PDF Batik PU',
     summary:
       'Buka Profil Usulan melalui tombol "Preview Usulan" di header atau ikon mata pada tiap baris untuk melihat lembar eksekutif dan mencetak PDF resmi.',
+    imageUrl: guideProfilPdfImg,
+    imageAlt: 'Ilustrasi dokumen Profil Usulan 8 panel KEMENPU dan halaman kedua rincian Detail Status RC beserta kolom Pengesahan',
+    imageCaption: 'Gambar 05. Halaman 1 Profil Usulan (8 Panel Eksekutif) & Halaman 2 Detail Status RC lengkap dengan Pengesahan di bagian bawah.',
     steps: [
       {
         title: 'Kartu Eksekutif 8 Panel',
@@ -185,6 +212,9 @@ export const TECHNICAL_GUIDE_SECTIONS: GuideSection[] = [
     subtitle: 'Pemetaan koordinat usulan, panel detail samping, & plot titik interaktif',
     summary:
       'Menu Fitur Spasial GIS memvisualisasikan sebaran titik lokasi seluruh usulan Cipta Karya pada peta interaktif wilayah Provinsi NTB.',
+    imageUrl: guideSpasialGisImg,
+    imageAlt: 'Ilustrasi peta interaktif GIS wilayah Lombok dan Sumbawa NTB dengan marker lokasi dan panel detail plot koordinat',
+    imageCaption: 'Gambar 06. Peta interaktif GIS se-NTB (Pulau Lombok & Sumbawa), panel detail kanan, dan fitur Plot Titik di Peta.',
     steps: [
       {
         title: 'Jelajahi Penanda Lokasi',
@@ -210,6 +240,9 @@ export const TECHNICAL_GUIDE_SECTIONS: GuideSection[] = [
     subtitle: 'Peringkat kesiapan dokumen RC, aturan 2 vs 3 pengesah, & analisis proyeksi pagu',
     summary:
       'Gunakan dua menu analitik ini untuk kebutuhan paparan pimpinan, rapat koordinasi BPBPK NTB, dan evaluasi readiness.',
+    imageUrl: guideInfografisProyeksiImg,
+    imageAlt: 'Ilustrasi grafik Infografis Peringkat Skor RC beserta pratinjau pengesahan dan grafik Proyeksi Anggaran 2027–2030',
+    imageCaption: 'Gambar 07. Infografis peringkat Skor RC dengan aturan pengesahan 2/3 kolom serta grafik proyeksi anggaran TA. 2027–2030.',
     steps: [
       {
         title: 'Infografis Peringkat Skor RC',
@@ -240,6 +273,9 @@ export const TECHNICAL_GUIDE_SECTIONS: GuideSection[] = [
     subtitle: 'Sinkronisasi real-time, cadangan ke Google Drive resmi, & tautan read-only',
     summary:
       'Aplikasi menyimpan perubahan secara otomatis ke Cloud Firestore dan menyediakan fitur pencadangan eksternal ke Google Drive.',
+    imageUrl: guideCloudDriveImg,
+    imageAlt: 'Ilustrasi alur sinkronisasi Cloud Database, unggah cadangan ke Google Drive resmi, dan berbagi tautan Read-Only',
+    imageCaption: 'Gambar 08. Alur penyimpanan ke Cloud Firestore, pencadangan folder Google Drive, dan pembagian tautan Lihat Saja (Read-Only).',
     steps: [
       {
         title: 'Simpan Perubahan ke Cloud Database',

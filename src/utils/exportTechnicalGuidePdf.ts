@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { TECHNICAL_GUIDE_SECTIONS } from '../data/technicalGuideContent';
+import { GuideSection, TECHNICAL_GUIDE_SECTIONS } from '../data/technicalGuideContent';
 import {
   getCachedPuBatikAssets,
   getCachedPuWordmarkDataUrl,
@@ -28,6 +28,52 @@ function sanitizePdfText(value: string): string {
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function loadSingleImageAsJpegDataUrl(url: string): Promise<string | null> {
+  if (typeof window === 'undefined' || !url) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const targetW = 960;
+        const targetH = 540;
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, targetW, targetH);
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        resolve(canvas.toDataURL('image/jpeg', 0.86));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+export async function loadGuideImageDataUrls(
+  sections: GuideSection[]
+): Promise<Record<string, string>> {
+  const entries = await Promise.all(
+    sections.map(async (sec) => {
+      const dataUrl = await loadSingleImageAsJpegDataUrl(sec.imageUrl);
+      return [sec.id, dataUrl] as const;
+    })
+  );
+  const result: Record<string, string> = {};
+  entries.forEach(([id, dataUrl]) => {
+    if (dataUrl) result[id] = dataUrl;
+  });
+  return result;
 }
 
 function drawBatikPageChrome(
@@ -98,6 +144,7 @@ function drawBatikPageChrome(
 export function exportTechnicalGuidePdf(options?: {
   wordmarkDataUrl?: string | null;
   batikAssets?: PuBatikPdfAssets | null;
+  sectionImages?: Record<string, string>;
 }): string {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -113,6 +160,7 @@ export function exportTechnicalGuidePdf(options?: {
   const maxContentY = pageHeight - 14;
   const batikAssets = options?.batikAssets ?? getCachedPuBatikAssets();
   const wordmarkDataUrl = options?.wordmarkDataUrl ?? getCachedPuWordmarkDataUrl();
+  const sectionImages = options?.sectionImages ?? {};
 
   const drawTopHeader = (isFirstPage: boolean) => {
     drawBatikPageChrome(doc, pageWidth, pageHeight, batikAssets);
@@ -152,7 +200,7 @@ export function exportTechnicalGuidePdf(options?: {
       doc.setFontSize(6.9);
       doc.setTextColor(...SLATE_500);
       doc.text(
-        'Panduan Operasional Matriks Usulan, Verifikasi RC, Spasial GIS, Profil Usulan, & Ekspor PDF',
+        'Panduan Operasional Bergambar: Matriks Usulan, Verifikasi RC, Spasial GIS, Profil Usulan & Ekspor PDF',
         marginX + 8.5,
         headerY + 16.4
       );
@@ -229,6 +277,47 @@ export function exportTechnicalGuidePdf(options?: {
       doc.text(line, marginX + 4, cursorY + 4.2 + idx * 3.6);
     });
     cursorY += summaryH + 2.5;
+
+    // Chapter Illustration Figure (if preloaded)
+    const imgDataUrl = sectionImages[section.id];
+    if (imgDataUrl && imgDataUrl.startsWith('data:image/')) {
+      const figW = 144; // centered 16:9 figure inside 186mm content area
+      const figH = figW * (9 / 16); // 81mm
+      const figX = marginX + (contentWidth - figW) / 2;
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(6.9);
+      const capLines = doc.splitTextToSize(
+        sanitizePdfText(section.imageCaption),
+        contentWidth - 8
+      ) as string[];
+      const figFrameH = figH + 3.5 + capLines.length * 3.2 + 2.5;
+
+      ensureSpace(figFrameH + 2.5);
+
+      doc.setFillColor(...WHITE);
+      doc.setDrawColor(...PU_BORDER);
+      doc.roundedRect(marginX, cursorY, contentWidth, figFrameH, 1.4, 1.4, 'FD');
+
+      try {
+        doc.addImage(imgDataUrl, 'JPEG', figX, cursorY + 2.0, figW, figH, undefined, 'FAST');
+        doc.setDrawColor(...PU_BORDER);
+        doc.setLineWidth(0.2);
+        doc.rect(figX, cursorY + 2.0, figW, figH);
+      } catch {
+        // Ignore image draw failure
+      }
+
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(6.9);
+      doc.setTextColor(...SLATE_500);
+      capLines.forEach((line, idx) => {
+        doc.text(line, pageWidth / 2, cursorY + 2.0 + figH + 4.0 + idx * 3.2, {
+          align: 'center',
+        });
+      });
+
+      cursorY += figFrameH + 2.6;
+    }
 
     // Numbered Steps
     section.steps.forEach((step, sIdx) => {
