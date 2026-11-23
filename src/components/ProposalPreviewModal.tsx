@@ -42,6 +42,7 @@ import {
   PU_WORDMARK_SRC,
 } from '../utils/puLogoAsset';
 import { ProposalPdfPreviewOverlay } from './ProposalPdfPreviewOverlay';
+import { JabatanSelectField } from './JabatanSelectField';
 import {
   buildSpatialGeoJsonLayers,
   deriveReadinessFromRcTable,
@@ -2631,20 +2632,20 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                       <label className="block text-[11px] font-medium text-slate-600 mb-1">
                         Jabatan
                       </label>
-                      <input
-                        type="text"
+                      <JabatanSelectField
+                        variant="pu"
+                        ariaLabel="Jabatan Mengesahkan 1"
                         value={signatories.mengesahkan.jabatan}
-                        onChange={(e) =>
+                        onChange={(val) =>
                           setSignatories((prev) => ({
                             ...prev,
                             mengesahkan: {
                               ...prev.mengesahkan,
-                              jabatan: e.target.value,
+                              jabatan: val,
                             },
                           }))
                         }
-                        placeholder="Contoh: Kepala BPBPK Provinsi NTB"
-                        className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
+                        placeholder="Ketik jabatan mengesahkan 1 secara manual"
                       />
                     </div>
                     <div>
@@ -2678,20 +2679,20 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
                       <label className="block text-[11px] font-medium text-slate-600 mb-1">
                         Jabatan
                       </label>
-                      <input
-                        type="text"
+                      <JabatanSelectField
+                        variant="pu"
+                        ariaLabel="Jabatan Mengesahkan 2"
                         value={signatories.mengesahkan3?.jabatan ?? ''}
-                        onChange={(e) =>
+                        onChange={(val) =>
                           setSignatories((prev) => ({
                             ...prev,
                             mengesahkan3: {
-                              jabatan: e.target.value,
+                              jabatan: val,
                               nama: prev.mengesahkan3?.nama ?? '',
                             },
                           }))
                         }
-                        placeholder="Contoh: Kepala Bappeda Provinsi NTB"
-                        className="w-full h-9 px-3 text-xs bg-white border border-[#C7D3E8] rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#061459]/20 focus:border-[#061459]"
+                        placeholder="Ketik jabatan mengesahkan 2 secara manual"
                       />
                     </div>
                     <div>

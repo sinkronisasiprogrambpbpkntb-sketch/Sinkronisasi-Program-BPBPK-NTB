@@ -29,6 +29,7 @@ import {
   PU_LOGO_SRC,
 } from '../utils/puLogoAsset';
 import { RcInfographicPreviewModal } from './RcInfographicPreviewModal';
+import { JabatanSelectField } from './JabatanSelectField';
 
 interface RcInfographicViewProps {
   proposals: UsulanProgram[];
@@ -1188,20 +1189,20 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
                       Jabatan
                     </label>
-                    <input
-                      type="text"
+                    <JabatanSelectField
+                      variant="slate"
+                      ariaLabel="Jabatan Mengesahkan 1"
                       value={signatories.mengesahkan.jabatan}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         setSignatories((prev) => ({
                           ...prev,
                           mengesahkan: {
                             ...prev.mengesahkan,
-                            jabatan: e.target.value,
+                            jabatan: val,
                           },
                         }))
                       }
-                      placeholder="Contoh: Kepala BPBPK Provinsi NTB"
-                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      placeholder="Ketik jabatan mengesahkan 1 secara manual"
                     />
                   </div>
                   <div>
@@ -1235,20 +1236,20 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
                       Jabatan
                     </label>
-                    <input
-                      type="text"
+                    <JabatanSelectField
+                      variant="slate"
+                      ariaLabel="Jabatan Mengesahkan 2"
                       value={signatories.mengesahkan2?.jabatan ?? ''}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         setSignatories((prev) => ({
                           ...prev,
                           mengesahkan2: {
-                            jabatan: e.target.value,
+                            jabatan: val,
                             nama: prev.mengesahkan2?.nama ?? '',
                           },
                         }))
                       }
-                      placeholder="Contoh: Kepala Dinas PUPR Kab./Kota"
-                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      placeholder="Ketik jabatan mengesahkan 2 secara manual"
                     />
                   </div>
                   <div>
@@ -1283,20 +1284,20 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                       <label className="block text-[11px] font-medium text-slate-600 mb-1">
                         Jabatan
                       </label>
-                      <input
-                        type="text"
+                      <JabatanSelectField
+                        variant="slate"
+                        ariaLabel="Jabatan Mengesahkan 3"
                         value={signatories.mengesahkan3?.jabatan ?? ''}
-                        onChange={(e) =>
+                        onChange={(val) =>
                           setSignatories((prev) => ({
                             ...prev,
                             mengesahkan3: {
-                              jabatan: e.target.value,
+                              jabatan: val,
                               nama: prev.mengesahkan3?.nama ?? '',
                             },
                           }))
                         }
-                        placeholder="Contoh: Kepala Bappeda Provinsi NTB"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        placeholder="Ketik jabatan mengesahkan 3 secara manual"
                       />
                     </div>
                     <div>
