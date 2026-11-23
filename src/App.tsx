@@ -4,6 +4,7 @@ import {
   BarChart2,
   BarChart3,
   BookOpen,
+  Check,
   CloudUpload,
   Edit3,
   Eye,
@@ -78,9 +79,11 @@ import {
   ReadinessCriteria,
   ResolvedPlaceInfo,
   SektorCiptaKarya,
+  SumberDana,
   UsulanProgram,
   WorkspaceView,
 } from './types/ciptaKarya';
+import { StatusFilterOption } from './components/StatusChecklistFilter';
 
 const STORAGE_KEY = 'simpra_ntb_ta_2027_2030_rekap_v4';
 const LOCAL_BOOTSTRAP_KEY = 'simpra_ntb_bootstrapped_rekap_v4';
@@ -419,6 +422,7 @@ function DashboardWorkspace() {
   const [activeView, setActiveView] = useState<WorkspaceView>(initialShareParams.initialView);
   const [yearFilter, setYearFilter] = useState<YearFilter>(initialShareParams.initialYear);
   const [sektorFilter, setSektorFilter] = useState<SektorFilter>(initialShareParams.initialSektor);
+  const [selectedFundingSources, setSelectedFundingSources] = useState<string[] | null>(null);
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
   const [focusTrigger, setFocusTrigger] = useState<number>(0);
 
@@ -485,13 +489,69 @@ function DashboardWorkspace() {
     updateAccessMode('portal');
   }, [updateAccessMode]);
 
-  const filteredProposals = useMemo(() => {
+  const proposalsBeforeFundingFilter = useMemo(() => {
     return proposals.filter((p) => {
       if (sektorFilter !== 'ALL' && p.sektor !== sektorFilter) return false;
       if (!isActiveInYear(p, yearFilter)) return false;
       return true;
     });
   }, [proposals, sektorFilter, yearFilter]);
+
+  const fundingSourceOptions = useMemo<StatusFilterOption[]>(() => {
+    const countMap = new Map<string, number>();
+    for (const sd of Object.values(SumberDana)) {
+      countMap.set(sd, 0);
+    }
+    for (const p of proposalsBeforeFundingFilter) {
+      countMap.set(p.sumberDana, (countMap.get(p.sumberDana) ?? 0) + 1);
+    }
+    return Array.from(countMap.entries()).map(([label, count]) => ({
+      value: label,
+      label,
+      count,
+    }));
+  }, [proposalsBeforeFundingFilter]);
+
+  const effectiveSelectedFundingSources = useMemo(() => {
+    if (selectedFundingSources === null) return null;
+    if (selectedFundingSources.length === 0) return [];
+    const validKeys = new Set(fundingSourceOptions.map((o) => o.value));
+    const kept = selectedFundingSources.filter((k) => validKeys.has(k));
+    if (kept.length === 0) return null;
+    if (kept.length === fundingSourceOptions.length) return null;
+    return kept;
+  }, [selectedFundingSources, fundingSourceOptions]);
+
+  const toggleSidebarFundingSource = useCallback(
+    (source: string) => {
+      const allKeys = fundingSourceOptions.map((o) => o.value);
+      setSelectedFundingSources((prev) => {
+        const currentSet =
+          prev === null ? new Set(allKeys) : new Set(prev);
+        if (currentSet.has(source)) {
+          currentSet.delete(source);
+        } else {
+          currentSet.add(source);
+        }
+        if (currentSet.size >= allKeys.length) {
+          return null;
+        }
+        return allKeys.filter((k) => currentSet.has(k));
+      });
+    },
+    [fundingSourceOptions]
+  );
+
+  const filteredProposals = useMemo(() => {
+    if (effectiveSelectedFundingSources === null) {
+      return proposalsBeforeFundingFilter;
+    }
+    if (effectiveSelectedFundingSources.length === 0) {
+      return [];
+    }
+    const allowed = new Set(effectiveSelectedFundingSources);
+    return proposalsBeforeFundingFilter.filter((p) => allowed.has(p.sumberDana));
+  }, [proposalsBeforeFundingFilter, effectiveSelectedFundingSources]);
 
   const selectedProposal = useMemo(() => {
     if (!selectedProposalId) return null;
@@ -1181,6 +1241,66 @@ function DashboardWorkspace() {
                 })}
               </div>
             </div>
+
+            {/* Sumber Pendanaan Checklist Filter in Sidebar */}
+            <div className="mt-6 pt-5 border-t border-white/15">
+              <div className="px-3 text-[11px] font-semibold text-amber-300/90 mb-2">
+                Sumber Pendanaan
+              </div>
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedFundingSources(null)}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                    effectiveSelectedFundingSources === null
+                      ? 'bg-white/15 text-white border border-amber-400/40 font-medium'
+                      : 'text-indigo-200/85 hover:bg-white/8 hover:text-white'
+                  }`}
+                >
+                  <span>Semua Sumber Dana</span>
+                  <span className="font-mono tabular-nums text-[11px]">
+                    {proposalsBeforeFundingFilter.length}
+                  </span>
+                </button>
+                {fundingSourceOptions.map((opt) => {
+                  const checked =
+                    effectiveSelectedFundingSources === null ||
+                    effectiveSelectedFundingSources.includes(opt.value);
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => toggleSidebarFundingSource(opt.value)}
+                      aria-pressed={checked}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        checked && effectiveSelectedFundingSources !== null
+                          ? 'bg-white/15 text-white border border-amber-400/40 font-medium'
+                          : checked
+                            ? 'text-indigo-100 hover:bg-white/8 hover:text-white'
+                            : 'text-indigo-300/55 hover:bg-white/8 hover:text-indigo-100'
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-2 min-w-0 pr-2">
+                        <span
+                          className={`w-3.5 h-3.5 rounded-[3px] border inline-flex items-center justify-center shrink-0 ${
+                            checked
+                              ? 'bg-[#E89611] border-[#E89611] text-[#051044]'
+                              : 'border-indigo-300/50 bg-transparent'
+                          }`}
+                          aria-hidden="true"
+                        >
+                          {checked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                        </span>
+                        <span className="truncate">{opt.label}</span>
+                      </span>
+                      <span className="font-mono tabular-nums text-[11px] shrink-0">
+                        {opt.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1571,7 +1691,11 @@ function DashboardWorkspace() {
                 {formatRpMiliar(kpis.totalPagu)}
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                Akumulasi APBN RM, SBSN, dan PHLN
+                {effectiveSelectedFundingSources === null
+                  ? 'Akumulasi APBN RM, SBSN, PHLN, dan KPBU'
+                  : effectiveSelectedFundingSources.length === 0
+                    ? 'Tidak ada Sumber Pendanaan dipilih'
+                    : `Filter: ${effectiveSelectedFundingSources.join(', ')}`}
               </div>
             </div>
 
@@ -1626,6 +1750,10 @@ function DashboardWorkspace() {
                   setPreviewProposalId(null);
                   setShowTemplateDemo(true);
                 }}
+                fundingOptions={fundingSourceOptions}
+                totalBeforeFundingCount={proposalsBeforeFundingFilter.length}
+                selectedFundingSources={effectiveSelectedFundingSources}
+                onChangeFundingSources={setSelectedFundingSources}
               />
             </div>
           )}
@@ -1785,6 +1913,10 @@ function DashboardWorkspace() {
               sectorFilterLabel={
                 sektorFilter === 'ALL' ? 'Semua Sektor Teknis (4 Bidang)' : sektorFilter
               }
+              fundingOptions={fundingSourceOptions}
+              totalBeforeFundingCount={proposalsBeforeFundingFilter.length}
+              selectedFundingSources={effectiveSelectedFundingSources}
+              onChangeFundingSources={setSelectedFundingSources}
               onPreviewProposal={(id) => {
                 setSelectedProposalId(id);
                 setShowTemplateDemo(false);

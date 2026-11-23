@@ -21,7 +21,11 @@ import {
   SEKTOR_SHORT_LABELS,
   tryParseNumberFlexible,
 } from '../data/initialProposals';
-import { ResolvedPlaceInfo, UsulanProgram } from '../types/ciptaKarya';
+import { ResolvedPlaceInfo, SumberDana, UsulanProgram } from '../types/ciptaKarya';
+import {
+  StatusChecklistFilter,
+  StatusFilterOption,
+} from './StatusChecklistFilter';
 
 interface ProposalTableProps {
   proposals: UsulanProgram[];
@@ -44,6 +48,10 @@ interface ProposalTableProps {
   onExportCsv: () => void;
   onExportGeoJson: () => void;
   onOpenTemplateDemo?: () => void;
+  fundingOptions?: StatusFilterOption[];
+  totalBeforeFundingCount?: number;
+  selectedFundingSources?: string[] | null;
+  onChangeFundingSources?: (next: string[] | null) => void;
 }
 
 interface ManualRcCellInputProps {
@@ -500,10 +508,15 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
   onExportCsv,
   onExportGeoJson,
   onOpenTemplateDemo,
+  fundingOptions,
+  totalBeforeFundingCount,
+  selectedFundingSources,
+  onChangeFundingSources,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [kabupatenFilter, setKabupatenFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[] | null>(null);
+  const [localSelectedFunding, setLocalSelectedFunding] = useState<string[] | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('pagu');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -512,40 +525,87 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
     return Array.from(new Set(proposals.map((p) => p.kabupatenKota))).sort();
   }, [proposals]);
 
-  const manualStatusOptions = useMemo(() => {
-    const set = new Set<string>();
-    let hasEmpty = false;
+  const statusChecklistOptions = useMemo<StatusFilterOption[]>(() => {
+    const countMap = new Map<string, number>();
+    let emptyCount = 0;
     for (const p of proposals) {
       const m = p.templateDetails?.statusManual?.trim() ?? '';
-      if (m) set.add(m);
-      else hasEmpty = true;
+      if (m) {
+        countMap.set(m, (countMap.get(m) ?? 0) + 1);
+      } else {
+        emptyCount += 1;
+      }
     }
-    return {
-      values: Array.from(set).sort((a, b) => a.localeCompare(b, 'id-ID')),
-      hasEmpty,
-    };
+    const opts: StatusFilterOption[] = Array.from(countMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b, 'id-ID'))
+      .map(([label, count]) => ({
+        value: label,
+        label,
+        count,
+      }));
+    if (emptyCount > 0) {
+      opts.push({
+        value: '__EMPTY__',
+        label: 'Belum Diisi Status',
+        count: emptyCount,
+      });
+    }
+    return opts;
   }, [proposals]);
 
-  const effectiveStatusFilter = useMemo(() => {
-    if (statusFilter === 'ALL') return 'ALL';
-    if (statusFilter === '__EMPTY__') {
-      return manualStatusOptions.hasEmpty ? '__EMPTY__' : 'ALL';
+  const effectiveSelectedStatuses = useMemo(() => {
+    if (selectedStatuses === null) return null;
+    if (selectedStatuses.length === 0) return [];
+    const validKeys = new Set(statusChecklistOptions.map((o) => o.value));
+    const kept = selectedStatuses.filter((k) => validKeys.has(k));
+    if (kept.length === 0) return null;
+    if (kept.length === statusChecklistOptions.length) return null;
+    return kept;
+  }, [selectedStatuses, statusChecklistOptions]);
+
+  const effectiveFundingChecklistOptions = useMemo<StatusFilterOption[]>(() => {
+    if (fundingOptions) return fundingOptions;
+    const countMap = new Map<string, number>();
+    for (const sd of Object.values(SumberDana)) {
+      countMap.set(sd, 0);
     }
-    return manualStatusOptions.values.includes(statusFilter) ? statusFilter : 'ALL';
-  }, [statusFilter, manualStatusOptions]);
+    for (const p of proposals) {
+      countMap.set(p.sumberDana, (countMap.get(p.sumberDana) ?? 0) + 1);
+    }
+    return Array.from(countMap.entries()).map(([label, count]) => ({
+      value: label,
+      label,
+      count,
+    }));
+  }, [fundingOptions, proposals]);
+
+  const activeFundingSelection =
+    onChangeFundingSources !== undefined
+      ? (selectedFundingSources ?? null)
+      : localSelectedFunding;
+
+  const handleFundingChange =
+    onChangeFundingSources ?? setLocalSelectedFunding;
 
   const filteredAndSorted = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const allowedStatuses =
+      effectiveSelectedStatuses !== null
+        ? new Set(effectiveSelectedStatuses)
+        : null;
+    const allowedLocalFunding =
+      onChangeFundingSources === undefined && localSelectedFunding !== null
+        ? new Set(localSelectedFunding)
+        : null;
     const list = proposals.filter((p) => {
       if (kabupatenFilter !== 'ALL' && p.kabupatenKota !== kabupatenFilter) return false;
-      const m = p.templateDetails?.statusManual?.trim() ?? '';
-      if (effectiveStatusFilter === '__EMPTY__' && m !== '') return false;
-      if (
-        effectiveStatusFilter !== 'ALL' &&
-        effectiveStatusFilter !== '__EMPTY__' &&
-        m !== effectiveStatusFilter
-      ) {
+      if (allowedLocalFunding !== null && !allowedLocalFunding.has(p.sumberDana)) {
         return false;
+      }
+      const m = p.templateDetails?.statusManual?.trim() ?? '';
+      if (allowedStatuses !== null) {
+        const statusKey = m === '' ? '__EMPTY__' : m;
+        if (!allowedStatuses.has(statusKey)) return false;
       }
       if (!q) return true;
       return (
@@ -585,7 +645,16 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
     });
 
     return list;
-  }, [proposals, searchQuery, kabupatenFilter, effectiveStatusFilter, sortKey, sortAsc]);
+  }, [
+    proposals,
+    searchQuery,
+    kabupatenFilter,
+    effectiveSelectedStatuses,
+    onChangeFundingSources,
+    localSelectedFunding,
+    sortKey,
+    sortAsc,
+  ]);
 
   const manageableVisibleItems = useMemo(() => {
     if (!canEdit) return [];
@@ -664,22 +733,29 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
             ))}
           </select>
 
-          <select
-            value={effectiveStatusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            aria-label="Filter Status Usulan"
-            className="h-9 px-3 text-xs border border-[#C7D3E8] rounded-lg bg-white text-slate-700 focus:outline-none focus:border-[#0A1D6E]"
-          >
-            <option value="ALL">Semua Status Usulan</option>
-            {manualStatusOptions.values.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
-            {manualStatusOptions.hasEmpty && (
-              <option value="__EMPTY__">Belum Diisi Status</option>
-            )}
-          </select>
+          <StatusChecklistFilter
+            options={statusChecklistOptions}
+            totalCount={proposals.length}
+            selectedValues={effectiveSelectedStatuses}
+            onChange={setSelectedStatuses}
+            ariaLabel="Ceklist Filter Status Usulan"
+            buttonClassName="min-w-[205px]"
+          />
+
+          <StatusChecklistFilter
+            options={effectiveFundingChecklistOptions}
+            totalCount={totalBeforeFundingCount ?? proposals.length}
+            selectedValues={activeFundingSelection}
+            onChange={handleFundingChange}
+            ariaLabel="Ceklist Filter Sumber Pendanaan"
+            allLabel="Semua Sumber Pendanaan"
+            dialogLabel="Ceklist Filter Sumber Pendanaan"
+            emptyDataLabel="Belum ada data sumber pendanaan"
+            zeroSelectedLabel="0 Sumber Dana Dipilih"
+            pluralLabel="Sumber Dana"
+            icon="wallet"
+            buttonClassName="min-w-[215px]"
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -744,16 +820,34 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
       {filteredAndSorted.length === 0 ? (
         <div className="py-16 px-6 text-center">
           <p className="text-sm font-semibold text-slate-900 mb-1">
-            {proposals.length === 0
+            {(totalBeforeFundingCount ?? proposals.length) === 0
               ? 'Daftar usulan kegiatan kosong (0 Paket)'
               : 'Tidak ada usulan kegiatan yang sesuai kriteria filter'}
           </p>
           <p className="text-xs text-slate-500 max-w-md mx-auto mb-5">
-            {proposals.length === 0
+            {(totalBeforeFundingCount ?? proposals.length) === 0
               ? 'Seluruh daftar usulan lama telah dihapus. Silakan tambahkan usulan kegiatan baru atau buka Template Preview untuk melihat tampilan lembar paparan usulan.'
-              : 'Ubah kata kunci pencarian atau sesuaikan filter tahun anggaran/sektor untuk menampilkan matriks usulan TA 2027–2030.'}
+              : 'Ubah kata kunci pencarian atau sesuaikan filter kabupaten, status usulan, sumber pendanaan, tahun anggaran, atau sektor untuk menampilkan matriks usulan TA 2027–2030.'}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2.5">
+            {(totalBeforeFundingCount ?? proposals.length) > 0 &&
+              (searchQuery !== '' ||
+                kabupatenFilter !== 'ALL' ||
+                effectiveSelectedStatuses !== null ||
+                activeFundingSelection !== null) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setKabupatenFilter('ALL');
+                    setSelectedStatuses(null);
+                    handleFundingChange(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-[#061459] bg-[#EEF2FA] border border-[#C7D3E8] hover:bg-[#E1E8F5] rounded-lg cursor-pointer whitespace-nowrap"
+                >
+                  <span>Reset Filter Matriks</span>
+                </button>
+              )}
             {canEdit && (
               <button
                 type="button"

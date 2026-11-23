@@ -16,7 +16,7 @@ import {
   getTotalPaguUsulan,
   SEKTOR_SHORT_LABELS,
 } from '../data/initialProposals';
-import { SektorCiptaKarya, UsulanProgram } from '../types/ciptaKarya';
+import { SektorCiptaKarya, SumberDana, UsulanProgram } from '../types/ciptaKarya';
 import {
   exportRcInfographicPdf,
   PdfExportContext,
@@ -30,11 +30,19 @@ import {
 } from '../utils/puLogoAsset';
 import { RcInfographicPreviewModal } from './RcInfographicPreviewModal';
 import { JabatanSelectField } from './JabatanSelectField';
+import {
+  StatusChecklistFilter,
+  StatusFilterOption,
+} from './StatusChecklistFilter';
 
 interface RcInfographicViewProps {
   proposals: UsulanProgram[];
   yearFilterLabel: string;
   sectorFilterLabel?: string;
+  fundingOptions?: StatusFilterOption[];
+  totalBeforeFundingCount?: number;
+  selectedFundingSources?: string[] | null;
+  onChangeFundingSources?: (next: string[] | null) => void;
   onPreviewProposal: (id: string) => void;
   onFocusOnMap?: (id: string) => void;
   onPdfExported?: (fileName: string) => void;
@@ -157,13 +165,18 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   proposals,
   yearFilterLabel,
   sectorFilterLabel = 'Semua Sektor Teknis',
+  fundingOptions,
+  totalBeforeFundingCount,
+  selectedFundingSources,
+  onChangeFundingSources,
   onPreviewProposal,
   onFocusOnMap,
   onPdfExported,
 }) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [tierFilter, setTierFilter] = useState<RcTierFilter>('ALL');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[] | null>(null);
+  const [localSelectedFunding, setLocalSelectedFunding] = useState<string[] | null>(null);
   const [selectedSectors, setSelectedSectors] =
     useState<SektorCiptaKarya[]>(ALL_SEKTORS);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -187,15 +200,48 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     }
   }, [signatories]);
 
+  const effectiveFundingChecklistOptions = useMemo<StatusFilterOption[]>(() => {
+    if (fundingOptions) return fundingOptions;
+    const countMap = new Map<string, number>();
+    for (const sd of Object.values(SumberDana)) {
+      countMap.set(sd, 0);
+    }
+    for (const p of proposals) {
+      countMap.set(p.sumberDana, (countMap.get(p.sumberDana) ?? 0) + 1);
+    }
+    return Array.from(countMap.entries()).map(([label, count]) => ({
+      value: label,
+      label,
+      count,
+    }));
+  }, [fundingOptions, proposals]);
+
+  const activeFundingSelection =
+    onChangeFundingSources !== undefined
+      ? (selectedFundingSources ?? null)
+      : localSelectedFunding;
+
+  const handleFundingChange =
+    onChangeFundingSources ?? setLocalSelectedFunding;
+
+  const fundingScopedProposals = useMemo(() => {
+    if (onChangeFundingSources !== undefined || localSelectedFunding === null) {
+      return proposals;
+    }
+    if (localSelectedFunding.length === 0) return [];
+    const allowed = new Set(localSelectedFunding);
+    return proposals.filter((p) => allowed.has(p.sumberDana));
+  }, [proposals, onChangeFundingSources, localSelectedFunding]);
+
   const availableInputSectors = useMemo(
-    () => ALL_SEKTORS.filter((sek) => proposals.some((p) => p.sektor === sek)),
-    [proposals]
+    () => ALL_SEKTORS.filter((sek) => fundingScopedProposals.some((p) => p.sektor === sek)),
+    [fundingScopedProposals]
   );
 
   const sectorScopedProposals = useMemo(() => {
-    if (availableInputSectors.length <= 1) return proposals;
-    return proposals.filter((p) => selectedSectors.includes(p.sektor));
-  }, [proposals, availableInputSectors.length, selectedSectors]);
+    if (availableInputSectors.length <= 1) return fundingScopedProposals;
+    return fundingScopedProposals.filter((p) => selectedSectors.includes(p.sektor));
+  }, [fundingScopedProposals, availableInputSectors.length, selectedSectors]);
 
   const allRanked = useMemo<RankedProposalItem[]>(() => {
     const items = sectorScopedProposals.map((p) => {
@@ -232,7 +278,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     return items;
   }, [sectorScopedProposals, sortOrder]);
 
-  const statusOptions = useMemo(() => {
+  const statusChecklistOptions = useMemo<StatusFilterOption[]>(() => {
     const manualMap = new Map<string, number>();
     let emptyManualCount = 0;
     for (const item of allRanked) {
@@ -244,7 +290,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
       }
     }
 
-    const manualOptions = Array.from(manualMap.entries())
+    const opts: StatusFilterOption[] = Array.from(manualMap.entries())
       .sort(([a], [b]) => a.localeCompare(b, 'id-ID'))
       .map(([label, count]) => ({
         value: `manual:${label}`,
@@ -252,40 +298,37 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
         count,
       }));
 
-    return {
-      manualOptions,
-      emptyManualCount,
-    };
+    if (emptyManualCount > 0) {
+      opts.push({
+        value: 'manual:__EMPTY__',
+        label: 'Belum Diisi Status',
+        count: emptyManualCount,
+      });
+    }
+
+    return opts;
   }, [allRanked]);
 
-  const effectiveStatusFilter = useMemo(() => {
-    if (statusFilter === 'ALL') return 'ALL';
-    if (statusFilter === 'manual:__EMPTY__') {
-      return statusOptions.emptyManualCount > 0 ? statusFilter : 'ALL';
-    }
-    if (statusFilter.startsWith('manual:')) {
-      return statusOptions.manualOptions.some((o) => o.value === statusFilter)
-        ? statusFilter
-        : 'ALL';
-    }
-    return 'ALL';
-  }, [statusFilter, statusOptions]);
+  const effectiveSelectedStatuses = useMemo(() => {
+    if (selectedStatuses === null) return null;
+    if (selectedStatuses.length === 0) return [];
+    const validKeys = new Set(statusChecklistOptions.map((o) => o.value));
+    const kept = selectedStatuses.filter((k) => validKeys.has(k));
+    if (kept.length === 0) return null;
+    if (kept.length === statusChecklistOptions.length) return null;
+    return kept;
+  }, [selectedStatuses, statusChecklistOptions]);
 
   const statusScoped = useMemo(() => {
-    if (effectiveStatusFilter === 'ALL') return allRanked;
-    if (effectiveStatusFilter === 'manual:__EMPTY__') {
-      return allRanked.filter(
-        (item) => !(item.proposal.templateDetails?.statusManual?.trim() ?? '')
-      );
-    }
-    if (effectiveStatusFilter.startsWith('manual:')) {
-      const target = effectiveStatusFilter.slice('manual:'.length);
-      return allRanked.filter(
-        (item) => (item.proposal.templateDetails?.statusManual?.trim() ?? '') === target
-      );
-    }
-    return allRanked;
-  }, [allRanked, effectiveStatusFilter]);
+    if (effectiveSelectedStatuses === null) return allRanked;
+    if (effectiveSelectedStatuses.length === 0) return [];
+    const allowed = new Set(effectiveSelectedStatuses);
+    return allRanked.filter((item) => {
+      const m = item.proposal.templateDetails?.statusManual?.trim() ?? '';
+      const key = m ? `manual:${m}` : 'manual:__EMPTY__';
+      return allowed.has(key);
+    });
+  }, [allRanked, effectiveSelectedStatuses]);
 
   const filteredRanked = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -448,13 +491,25 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
           : 'Kurang (<50%)';
 
   const statusFilterLabel = useMemo(() => {
-    if (effectiveStatusFilter === 'ALL') return 'Semua Status Usulan';
-    if (effectiveStatusFilter === 'manual:__EMPTY__') return 'Belum Diisi Status';
-    if (effectiveStatusFilter.startsWith('manual:')) {
-      return effectiveStatusFilter.slice('manual:'.length);
-    }
-    return 'Semua Status Usulan';
-  }, [effectiveStatusFilter]);
+    if (effectiveSelectedStatuses === null) return 'Semua Status Usulan';
+    if (effectiveSelectedStatuses.length === 0) return 'Tidak Ada Status Dipilih';
+    const labels = effectiveSelectedStatuses.map((key) =>
+      key === 'manual:__EMPTY__'
+        ? 'Belum Diisi Status'
+        : key.startsWith('manual:')
+          ? key.slice('manual:'.length)
+          : key
+    );
+    if (labels.length <= 3) return labels.join(', ');
+    return `${labels.slice(0, 2).join(', ')} (+${labels.length - 2} status lainnya)`;
+  }, [effectiveSelectedStatuses]);
+
+  const fundingFilterLabel = useMemo(() => {
+    if (activeFundingSelection === null) return 'Semua Sumber Pendanaan';
+    if (activeFundingSelection.length === 0) return 'Tidak Ada Sumber Pendanaan Dipilih';
+    if (activeFundingSelection.length <= 3) return activeFundingSelection.join(', ');
+    return `${activeFundingSelection.slice(0, 2).join(', ')} (+${activeFundingSelection.length - 2} lainnya)`;
+  }, [activeFundingSelection]);
 
   const isOnlyNonBpbPreset =
     selectedSectors.length === NON_BPB_SEKTORS.length &&
@@ -508,6 +563,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     () => ({
       yearFilterLabel,
       sectorFilterLabel: effectiveSectorFilterLabel,
+      fundingFilterLabel,
       sortOrder,
       tierFilterLabel,
       statusFilterLabel,
@@ -518,6 +574,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     [
       yearFilterLabel,
       effectiveSectorFilterLabel,
+      fundingFilterLabel,
       sortOrder,
       tierFilterLabel,
       statusFilterLabel,
@@ -585,8 +642,12 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                 Usulan Program Infrastruktur Cipta Karya - BPBPK Nusa Tenggara Barat
               </p>
               <p className="text-[11px] text-amber-100 mt-0.5">
-                Sektor Teknis: {effectiveSectorFilterLabel} · {yearFilterLabel} · {tierFilterLabel} ·{' '}
-                {statusFilterLabel} · {filteredRanked.length} dari {statusScoped.length} Paket
+                Sektor Teknis: {effectiveSectorFilterLabel}
+                {fundingFilterLabel !== 'Semua Sumber Pendanaan'
+                  ? ` · Sumber Pendanaan: ${fundingFilterLabel}`
+                  : ''}{' '}
+                · {yearFilterLabel} · {tierFilterLabel} · {statusFilterLabel} ·{' '}
+                {filteredRanked.length} dari {statusScoped.length} Paket
               </p>
             </div>
           </div>
@@ -743,25 +804,30 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
             ))}
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full xl:w-auto">
-            <select
-              value={effectiveStatusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              aria-label="Filter Status Usulan"
-              className="h-9 px-3 text-xs border border-[#C7D3E8] rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0A1D6E]/20 focus:border-[#0A1D6E] w-full sm:w-64"
-            >
-              <option value="ALL">Semua Status Usulan ({allRanked.length})</option>
-              {statusOptions.manualOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label} ({opt.count})
-                </option>
-              ))}
-              {statusOptions.emptyManualCount > 0 && (
-                <option value="manual:__EMPTY__">
-                  Belum Diisi Status ({statusOptions.emptyManualCount})
-                </option>
-              )}
-            </select>
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2.5 w-full xl:w-auto">
+            <StatusChecklistFilter
+              options={effectiveFundingChecklistOptions}
+              totalCount={totalBeforeFundingCount ?? proposals.length}
+              selectedValues={activeFundingSelection}
+              onChange={handleFundingChange}
+              ariaLabel="Ceklist Filter Sumber Pendanaan"
+              allLabel="Semua Sumber Pendanaan"
+              dialogLabel="Ceklist Filter Sumber Pendanaan"
+              emptyDataLabel="Belum ada data sumber pendanaan"
+              zeroSelectedLabel="0 Sumber Dana Dipilih"
+              pluralLabel="Sumber Dana"
+              icon="wallet"
+              buttonClassName="w-full sm:w-56"
+            />
+
+            <StatusChecklistFilter
+              options={statusChecklistOptions}
+              totalCount={allRanked.length}
+              selectedValues={effectiveSelectedStatuses}
+              onChange={setSelectedStatuses}
+              ariaLabel="Ceklist Filter Status Usulan"
+              buttonClassName="w-full sm:w-56"
+            />
 
             <div className="relative w-full sm:w-64">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -998,7 +1064,8 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
                   type="button"
                   onClick={() => {
                     setTierFilter('ALL');
-                    setStatusFilter('ALL');
+                    setSelectedStatuses(null);
+                    handleFundingChange(null);
                     setSelectedSectors(ALL_SEKTORS);
                     setSearchQuery('');
                   }}

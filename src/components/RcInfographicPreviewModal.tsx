@@ -400,6 +400,12 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
                   <strong>Sektor Teknis:</strong>{' '}
                   {context.sectorFilterLabel || 'Semua Sektor Teknis'}
                 </span>
+                {context.fundingFilterLabel &&
+                  context.fundingFilterLabel !== 'Semua Sumber Pendanaan' && (
+                    <span>
+                      <strong>Sumber Pendanaan:</strong> {context.fundingFilterLabel}
+                    </span>
+                  )}
                 <span>
                   <strong>Urutan:</strong> {sortLabel}
                 </span>

@@ -64,6 +64,7 @@ export type RcPdfLayoutMode = 'multi' | 'single-sheet';
 export interface PdfExportContext {
   yearFilterLabel: string;
   sectorFilterLabel?: string;
+  fundingFilterLabel?: string;
   sortOrder: 'desc' | 'asc';
   tierFilterLabel: string;
   statusFilterLabel: string;
@@ -368,6 +369,10 @@ function buildRcInfographicSingleSheetPdfDoc(
     context.sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi';
   const metaParts = [
     `Sektor Teknis: ${context.sectorFilterLabel || 'Semua Sektor Teknis'}`,
+    ...(context.fundingFilterLabel &&
+    context.fundingFilterLabel !== 'Semua Sumber Pendanaan'
+      ? [`Sumber Pendanaan: ${context.fundingFilterLabel}`]
+      : []),
     `Urutan: ${sortText}`,
     `Kesiapan: ${context.tierFilterLabel}`,
     `Status Usulan: ${context.statusFilterLabel}`,
@@ -1081,6 +1086,10 @@ function buildRcInfographicPdfDoc(
       context.sortOrder === 'desc' ? 'Tertinggi ke Terendah' : 'Terendah ke Tertinggi';
     const metaParts = [
       `Sektor Teknis: ${context.sectorFilterLabel || 'Semua Sektor Teknis'}`,
+      ...(context.fundingFilterLabel &&
+      context.fundingFilterLabel !== 'Semua Sumber Pendanaan'
+        ? [`Sumber Pendanaan: ${context.fundingFilterLabel}`]
+        : []),
       `Urutan: ${sortText}`,
       `Kesiapan: ${context.tierFilterLabel}`,
       `Status Usulan: ${context.statusFilterLabel}`,
