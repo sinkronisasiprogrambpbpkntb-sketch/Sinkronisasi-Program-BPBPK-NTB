@@ -1849,7 +1849,15 @@ function DashboardWorkspace() {
           )}
 
           {/* VIEW 2: PROYEKSI ANGGARAN 2027-2030 */}
-          {activeView === WorkspaceView.BUDGET && <AnalyticsView proposals={filteredProposals} />}
+          {activeView === WorkspaceView.BUDGET && (
+            <AnalyticsView
+              proposals={filteredProposals}
+              fundingOptions={fundingSourceOptions}
+              totalBeforeFundingCount={proposalsBeforeFundingFilter.length}
+              selectedFundingSources={effectiveSelectedFundingSources}
+              onChangeFundingSources={setSelectedFundingSources}
+            />
+          )}
         </main>
 
         {/* Quiet Institutional Footer */}
