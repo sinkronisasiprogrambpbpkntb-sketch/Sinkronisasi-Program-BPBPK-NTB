@@ -19,16 +19,9 @@
   <body>
     <audio
       id="simpra-welcome-audio-1"
-      src="/assets/aistudio/audio__2__00467de3.wav"
+      src="/assets/aistudio/nobodyknows_-_Hero_s_Come_Back_Naruto_Shippuuden_Opening_1__mp3.pm__62d3a408.mp3"
       preload="auto"
       autoplay
-      playsinline
-      style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;"
-    ></audio>
-    <audio
-      id="simpra-welcome-audio-2"
-      src="/assets/aistudio/audio__1__48f1a895.wav"
-      preload="auto"
       playsinline
       style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;"
     ></audio>
@@ -36,6 +29,14 @@
       (function () {
         var el1 = document.getElementById('simpra-welcome-audio-1');
         if (!el1 || typeof el1.play !== 'function') return;
+        try {
+          var saved = window.localStorage.getItem('simpra_welcome_audio_volume_v1');
+          var vol = saved !== null ? Number(saved) : 0.25;
+          if (!Number.isFinite(vol) || vol < 0 || vol > 1) vol = 0.25;
+          el1.volume = vol;
+        } catch (e) {
+          el1.volume = 0.25;
+        }
         try {
           var p = el1.play();
           if (p && typeof p.catch === 'function') {

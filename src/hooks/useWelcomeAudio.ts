@@ -1,47 +1,86 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export const WELCOME_AUDIO_FIRST_SRC = '/assets/aistudio/audio__2__00467de3.wav';
-export const WELCOME_AUDIO_SECOND_SRC = '/assets/aistudio/audio__1__48f1a895.wav';
+export const WELCOME_AUDIO_SRC =
+  '/assets/aistudio/nobodyknows_-_Hero_s_Come_Back_Naruto_Shippuuden_Opening_1__mp3.pm__62d3a408.mp3';
 
-const WELCOME_AUDIO_1_ELEMENT_ID = 'simpra-welcome-audio-1';
-const WELCOME_AUDIO_2_ELEMENT_ID = 'simpra-welcome-audio-2';
+const WELCOME_AUDIO_ELEMENT_ID = 'simpra-welcome-audio-1';
+const WELCOME_AUDIO_VOLUME_STORAGE_KEY = 'simpra_welcome_audio_volume_v1';
+const DEFAULT_WELCOME_AUDIO_VOLUME = 0.25;
+
+function readInitialVolume(): number {
+  try {
+    if (typeof window === 'undefined') return DEFAULT_WELCOME_AUDIO_VOLUME;
+    const raw = window.localStorage.getItem(WELCOME_AUDIO_VOLUME_STORAGE_KEY);
+    if (raw === null) return DEFAULT_WELCOME_AUDIO_VOLUME;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return DEFAULT_WELCOME_AUDIO_VOLUME;
+    return Math.min(1, Math.max(0, parsed));
+  } catch {
+    return DEFAULT_WELCOME_AUDIO_VOLUME;
+  }
+}
 
 export interface WelcomeAudioControls {
   isPlaying: boolean;
   needsInteraction: boolean;
   hasPlayed: boolean;
+  volume: number;
+  setVolume: (nextVolume: number) => void;
   togglePlay: () => void;
   dismissPrompt: () => void;
 }
 
 export function useWelcomeAudio(): WelcomeAudioControls {
-  const audio1Ref = useRef<HTMLAudioElement | null>(null);
-  const audio2Ref = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoArmedRef = useRef<boolean>(false);
   const dismissedRef = useRef<boolean>(false);
   const startedPlaybackRef = useRef<boolean>(false);
   const isAttemptingRef = useRef<boolean>(false);
-  const sequenceCancelledRef = useRef<boolean>(false);
 
+  const [volume, setVolumeState] = useState<number>(readInitialVolume);
+  const volumeRef = useRef<number>(volume);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [needsInteraction, setNeedsInteraction] = useState<boolean>(false);
   const [hasPlayed, setHasPlayed] = useState<boolean>(false);
 
-  const startFirstTrack = useCallback(
+  const setVolume = useCallback((nextVolume: number) => {
+    const clamped = Math.min(
+      1,
+      Math.max(0, Number.isFinite(nextVolume) ? nextVolume : DEFAULT_WELCOME_AUDIO_VOLUME)
+    );
+    volumeRef.current = clamped;
+    setVolumeState(clamped);
+
+    const audio = audioRef.current;
+    if (audio) {
+      audio.volume = clamped;
+      if (clamped > 0 && audio.muted) {
+        audio.muted = false;
+      }
+    }
+
+    try {
+      window.localStorage.setItem(
+        WELCOME_AUDIO_VOLUME_STORAGE_KEY,
+        String(Number(clamped.toFixed(2)))
+      );
+    } catch {
+      // Ignore restricted localStorage errors
+    }
+  }, []);
+
+  const startTrack = useCallback(
     async (fromManualAction: boolean, restartFromZero: boolean = true): Promise<boolean> => {
-      const audio1 = audio1Ref.current;
-      const audio2 = audio2Ref.current;
-      if (!audio1) return false;
+      const audio = audioRef.current;
+      if (!audio) return false;
 
       if (fromManualAction) {
         autoArmedRef.current = false;
         dismissedRef.current = false;
       }
 
-      sequenceCancelledRef.current = false;
-
       if (!fromManualAction) {
-        if ((!audio1.paused && !audio1.ended) || (audio2 && !audio2.paused && !audio2.ended)) {
+        if (!audio.paused && !audio.ended) {
           startedPlaybackRef.current = true;
           autoArmedRef.current = false;
           setIsPlaying(true);
@@ -57,14 +96,11 @@ export function useWelcomeAudio(): WelcomeAudioControls {
 
       isAttemptingRef.current = true;
       try {
-        if (audio2) {
-          audio2.pause();
-          audio2.currentTime = 0;
+        audio.volume = volumeRef.current;
+        if (restartFromZero && (fromManualAction || audio.paused || audio.ended)) {
+          audio.currentTime = 0;
         }
-        if (restartFromZero && (fromManualAction || audio1.paused || audio1.ended)) {
-          audio1.currentTime = 0;
-        }
-        await audio1.play();
+        await audio.play();
         startedPlaybackRef.current = true;
         autoArmedRef.current = false;
         setIsPlaying(true);
@@ -83,31 +119,18 @@ export function useWelcomeAudio(): WelcomeAudioControls {
   useEffect(() => {
     if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
 
-    const existingEl1 = document.getElementById(WELCOME_AUDIO_1_ELEMENT_ID);
-    const audio1 =
-      existingEl1 instanceof HTMLAudioElement
-        ? existingEl1
-        : new Audio(WELCOME_AUDIO_FIRST_SRC);
+    const existingEl = document.getElementById(WELCOME_AUDIO_ELEMENT_ID);
+    const audio =
+      existingEl instanceof HTMLAudioElement
+        ? existingEl
+        : new Audio(WELCOME_AUDIO_SRC);
 
-    if (audio1.getAttribute('src') !== WELCOME_AUDIO_FIRST_SRC) {
-      audio1.src = WELCOME_AUDIO_FIRST_SRC;
+    if (audio.getAttribute('src') !== WELCOME_AUDIO_SRC) {
+      audio.src = WELCOME_AUDIO_SRC;
     }
-    audio1.preload = 'auto';
-    audio1.volume = 1;
-    audio1Ref.current = audio1;
-
-    const existingEl2 = document.getElementById(WELCOME_AUDIO_2_ELEMENT_ID);
-    const audio2 =
-      existingEl2 instanceof HTMLAudioElement
-        ? existingEl2
-        : new Audio(WELCOME_AUDIO_SECOND_SRC);
-
-    if (audio2.getAttribute('src') !== WELCOME_AUDIO_SECOND_SRC) {
-      audio2.src = WELCOME_AUDIO_SECOND_SRC;
-    }
-    audio2.preload = 'auto';
-    audio2.volume = 1;
-    audio2Ref.current = audio2;
+    audio.preload = 'auto';
+    audio.volume = volumeRef.current;
+    audioRef.current = audio;
 
     const gestureEvents: Array<keyof WindowEventMap> = [
       'click',
@@ -125,7 +148,7 @@ export function useWelcomeAudio(): WelcomeAudioControls {
       });
     };
 
-    const handleTrack1Play = () => {
+    const handlePlay = () => {
       startedPlaybackRef.current = true;
       autoArmedRef.current = false;
       setIsPlaying(true);
@@ -134,56 +157,11 @@ export function useWelcomeAudio(): WelcomeAudioControls {
       detachGestureListeners();
     };
 
-    const handleTrack1Pause = () => {
-      // Do not flicker UI to stopped when Track 1 finishes and transitions into Track 2
-      if (audio1.ended && !sequenceCancelledRef.current) return;
-      if (audio2 && !audio2.paused && !audio2.ended) return;
+    const handlePause = () => {
       setIsPlaying(false);
     };
 
-    const handleTrack1Ended = () => {
-      if (
-        sequenceCancelledRef.current ||
-        audio1.getAttribute('src') !== WELCOME_AUDIO_FIRST_SRC
-      ) {
-        setIsPlaying(false);
-        return;
-      }
-
-      void (async () => {
-        try {
-          audio2.currentTime = 0;
-          await audio2.play();
-          setIsPlaying(true);
-        } catch {
-          // Fallback: play Track 2 via audio1 if separate element playback was blocked
-          try {
-            audio1.src = WELCOME_AUDIO_SECOND_SRC;
-            audio1.currentTime = 0;
-            await audio1.play();
-            setIsPlaying(true);
-          } catch {
-            setIsPlaying(false);
-          }
-        }
-      })();
-    };
-
-    const handleTrack2Play = () => {
-      startedPlaybackRef.current = true;
-      autoArmedRef.current = false;
-      setIsPlaying(true);
-      setHasPlayed(true);
-      setNeedsInteraction(false);
-      detachGestureListeners();
-    };
-
-    const handleTrack2Pause = () => {
-      if (!audio1.paused && !audio1.ended) return;
-      setIsPlaying(false);
-    };
-
-    const handleTrack2Ended = () => {
+    const handleEnded = () => {
       setIsPlaying(false);
     };
 
@@ -197,7 +175,7 @@ export function useWelcomeAudio(): WelcomeAudioControls {
         return;
       }
 
-      void startFirstTrack(false, true).then((ok) => {
+      void startTrack(false, true).then((ok) => {
         if (ok) {
           detachGestureListeners();
         }
@@ -206,7 +184,7 @@ export function useWelcomeAudio(): WelcomeAudioControls {
 
     const handleCanPlay = () => {
       if (startedPlaybackRef.current || dismissedRef.current) return;
-      void startFirstTrack(false, false);
+      void startTrack(false, false);
     };
 
     const handleVisibilityOrFocus = () => {
@@ -217,47 +195,30 @@ export function useWelcomeAudio(): WelcomeAudioControls {
       ) {
         return;
       }
-      void startFirstTrack(false, false);
+      void startTrack(false, false);
     };
 
-    audio1.addEventListener('play', handleTrack1Play);
-    audio1.addEventListener('pause', handleTrack1Pause);
-    audio1.addEventListener('ended', handleTrack1Ended);
-    audio1.addEventListener('canplaythrough', handleCanPlay);
-
-    audio2.addEventListener('play', handleTrack2Play);
-    audio2.addEventListener('pause', handleTrack2Pause);
-    audio2.addEventListener('ended', handleTrack2Ended);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('canplaythrough', handleCanPlay);
 
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
-    // Sync immediately if Track 1 or Track 2 already started/completed via HTML autoplay
-    if ((!audio1.paused && !audio1.ended) || (!audio2.paused && !audio2.ended)) {
+    if (!audio.paused && !audio.ended) {
       startedPlaybackRef.current = true;
       setIsPlaying(true);
       setHasPlayed(true);
       setNeedsInteraction(false);
-    } else if (audio1.ended && audio2.ended) {
+    } else if (audio.ended) {
       startedPlaybackRef.current = true;
       setIsPlaying(false);
       setHasPlayed(true);
       setNeedsInteraction(false);
-    } else if (audio1.ended && !audio2.ended) {
-      startedPlaybackRef.current = true;
-      void (async () => {
-        try {
-          await audio2.play();
-          setIsPlaying(true);
-          setHasPlayed(true);
-          setNeedsInteraction(false);
-        } catch {
-          setIsPlaying(false);
-        }
-      })();
     } else {
       void (async () => {
-        const ok = await startFirstTrack(false, false);
+        const ok = await startTrack(false, false);
         if (!ok && !dismissedRef.current && !startedPlaybackRef.current) {
           autoArmedRef.current = true;
           setNeedsInteraction(true);
@@ -271,51 +232,37 @@ export function useWelcomeAudio(): WelcomeAudioControls {
     return () => {
       autoArmedRef.current = false;
       detachGestureListeners();
-      audio1.removeEventListener('play', handleTrack1Play);
-      audio1.removeEventListener('pause', handleTrack1Pause);
-      audio1.removeEventListener('ended', handleTrack1Ended);
-      audio1.removeEventListener('canplaythrough', handleCanPlay);
-      audio2.removeEventListener('play', handleTrack2Play);
-      audio2.removeEventListener('pause', handleTrack2Pause);
-      audio2.removeEventListener('ended', handleTrack2Ended);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('canplaythrough', handleCanPlay);
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-      audio1Ref.current = null;
-      audio2Ref.current = null;
+      audioRef.current = null;
     };
-  }, [startFirstTrack]);
+  }, [startTrack]);
 
   const togglePlay = useCallback(() => {
-    const audio1 = audio1Ref.current;
-    const audio2 = audio2Ref.current;
-    if (!audio1) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
     autoArmedRef.current = false;
     dismissedRef.current = false;
 
-    const currentlyPlaying =
-      (!audio1.paused && !audio1.ended) ||
-      Boolean(audio2 && !audio2.paused && !audio2.ended);
-
+    const currentlyPlaying = !audio.paused && !audio.ended;
     if (currentlyPlaying) {
-      sequenceCancelledRef.current = true;
-      audio1.pause();
-      audio1.currentTime = 0;
-      if (audio2) {
-        audio2.pause();
-        audio2.currentTime = 0;
-      }
+      audio.pause();
+      audio.currentTime = 0;
       setIsPlaying(false);
       setNeedsInteraction(false);
       return;
     }
 
-    // Ensure Track 1 always has the first source in case fallback mutated src earlier
-    if (audio1.getAttribute('src') !== WELCOME_AUDIO_FIRST_SRC) {
-      audio1.src = WELCOME_AUDIO_FIRST_SRC;
+    if (audio.getAttribute('src') !== WELCOME_AUDIO_SRC) {
+      audio.src = WELCOME_AUDIO_SRC;
     }
-    void startFirstTrack(true, true);
-  }, [startFirstTrack]);
+    void startTrack(true, true);
+  }, [startTrack]);
 
   const dismissPrompt = useCallback(() => {
     autoArmedRef.current = false;
@@ -327,6 +274,8 @@ export function useWelcomeAudio(): WelcomeAudioControls {
     isPlaying,
     needsInteraction,
     hasPlayed,
+    volume,
+    setVolume,
     togglePlay,
     dismissPrompt,
   };

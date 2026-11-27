@@ -10,10 +10,10 @@ import {
   ShieldCheck,
   Sparkles,
   Volume2,
-  VolumeX,
   X,
 } from 'lucide-react';
 import { WelcomeAudioControls } from '../hooks/useWelcomeAudio';
+import { WelcomeAudioControl } from './WelcomeAudioControl';
 import { verifyPinAndCreateSession } from '../lib/firebase';
 import { AccountSessionProfile } from '../types/ciptaKarya';
 
@@ -81,28 +81,7 @@ export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
             </button>
           )}
           {welcomeAudio && (
-            <button
-              type="button"
-              data-welcome-audio-control="true"
-              onClick={welcomeAudio.togglePlay}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
-                welcomeAudio.isPlaying
-                  ? 'bg-[#E89611] text-[#051044] border-[#E89611] font-semibold'
-                  : 'bg-[#040E42]/80 hover:bg-[#0A1D6E] text-amber-200 border-white/20'
-              }`}
-              title={
-                welcomeAudio.isPlaying
-                  ? 'Hentikan suara pembuka aplikasi'
-                  : 'Putar suara pembuka aplikasi SIMPRA'
-              }
-            >
-              {welcomeAudio.isPlaying ? (
-                <VolumeX className="w-3.5 h-3.5" />
-              ) : (
-                <Volume2 className="w-3.5 h-3.5 text-[#E89611]" />
-              )}
-              <span>{welcomeAudio.isPlaying ? 'Hentikan Suara' : 'Suara Pembuka'}</span>
-            </button>
+            <WelcomeAudioControl welcomeAudio={welcomeAudio} variant="portal" />
           )}
           <div className="font-mono text-xs tabular-nums text-amber-200 hidden sm:block">
             {totalPackages} Paket Usulan Terdaftar
@@ -228,7 +207,7 @@ export const AccessPortalView: React.FC<AccessPortalViewProps> = ({
             <span className="text-left leading-snug">
               <span className="block text-amber-200">Suara Pembuka SIMPRA Siap Diputar</span>
               <span className="block text-[11px] font-normal text-indigo-100">
-                Ketuk di mana saja atau klik di sini untuk mendengarkan sambutan
+                Ketuk di mana saja atau klik di sini untuk memutar suara pembuka
               </span>
             </span>
           </button>

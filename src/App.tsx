@@ -19,7 +19,6 @@ import {
   Trash2,
   Undo2,
   Volume2,
-  VolumeX,
   X,
 } from 'lucide-react';
 import { AccessPortalView } from './components/AccessPortalView';
@@ -34,6 +33,7 @@ import { RcInfographicView } from './components/RcInfographicView';
 import { ShareReadOnlyLinkModal } from './components/ShareReadOnlyLinkModal';
 import { SpatialMapView } from './components/SpatialMapView';
 import { TechnicalGuideModal } from './components/TechnicalGuideModal';
+import { WelcomeAudioControl } from './components/WelcomeAudioControl';
 import {
   exportProposalsAsCsv,
   exportProposalsAsGeoJson,
@@ -1334,30 +1334,7 @@ function DashboardWorkspace() {
               {isReadOnlyMode ? 'Tampilan Lihat Saja' : accountProfile.displayName}
             </span>
 
-            <button
-              type="button"
-              data-welcome-audio-control="true"
-              onClick={welcomeAudio.togglePlay}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                welcomeAudio.isPlaying
-                  ? 'bg-[#061459] text-amber-200 border-[#E89611] shadow-xs'
-                  : 'bg-white text-[#061459] border-[#C7D3E8] hover:bg-[#F3F6FB]'
-              }`}
-              title={
-                welcomeAudio.isPlaying
-                  ? 'Hentikan suara pembuka web app'
-                  : 'Putar ulang suara pembuka web app'
-              }
-            >
-              {welcomeAudio.isPlaying ? (
-                <VolumeX className="w-3.5 h-3.5 text-[#E89611]" />
-              ) : (
-                <Volume2 className="w-3.5 h-3.5 text-[#E89611]" />
-              )}
-              <span className="hidden md:inline">
-                {welcomeAudio.isPlaying ? 'Hentikan Suara' : 'Suara Pembuka'}
-              </span>
-            </button>
+            <WelcomeAudioControl welcomeAudio={welcomeAudio} variant="header" />
 
             <button
               type="button"
@@ -2001,7 +1978,7 @@ function DashboardWorkspace() {
             <span className="text-left leading-snug">
               <span className="block text-amber-200">Suara Pembuka SIMPRA Siap Diputar</span>
               <span className="block text-[11px] font-normal text-indigo-100">
-                Ketuk di mana saja atau klik di sini untuk mendengarkan sambutan
+                Ketuk di mana saja atau klik di sini untuk memutar suara pembuka
               </span>
             </span>
           </button>
