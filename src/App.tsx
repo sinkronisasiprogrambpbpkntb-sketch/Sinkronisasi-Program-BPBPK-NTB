@@ -74,6 +74,7 @@ import {
   AccessMode,
   AccountSessionProfile,
   LatLngPoint,
+  PaguTahunan,
   RcDocKey,
   ReadinessCriteria,
   ResolvedPlaceInfo,
@@ -972,6 +973,167 @@ function DashboardWorkspace() {
     }
   }, [canEdit, isSavingManual, markLocalBootstrapped, showNotice]);
 
+  const handleDuplicateProposals = useCallback(
+    async (targets: UsulanProgram[]) => {
+      if (!canEdit || targets.length === 0) return;
+
+      const today = new Date().toISOString().slice(0, 10);
+      const nowStamp = Date.now();
+      const current = proposalsRef.current;
+      const usedIds = new Set(current.map((p) => p.id));
+      const usedCodes = new Set(current.map((p) => p.kodeUsulan.trim().toUpperCase()));
+      const usedNames = new Set(current.map((p) => p.namaProgram.trim().toLowerCase()));
+
+      const buildUniqueCode = (sourceCode: string): string => {
+        const cleanBase = (sourceCode || 'USULAN').trim().replace(/-COPY(?:-\d+)?$/i, '');
+        let attempt = 1;
+        while (attempt < 500) {
+          const suffix = attempt === 1 ? '-COPY' : `-COPY-${attempt}`;
+          const maxBaseLen = Math.max(4, 64 - suffix.length);
+          const candidate = `${cleanBase.slice(0, maxBaseLen)}${suffix}`;
+          if (!usedCodes.has(candidate.toUpperCase())) {
+            usedCodes.add(candidate.toUpperCase());
+            return candidate;
+          }
+          attempt += 1;
+        }
+        const fallback = `${cleanBase.slice(0, 48)}-COPY-${nowStamp.toString().slice(-4)}`;
+        usedCodes.add(fallback.toUpperCase());
+        return fallback;
+      };
+
+      const buildDuplicateName = (sourceName: string): string => {
+        const baseName = sourceName.trim().replace(/\s*\(Salinan(?:\s+\d+)?\)$/i, '');
+        let attempt = 1;
+        while (attempt < 500) {
+          const suffix = attempt === 1 ? '(Salinan)' : `(Salinan ${attempt})`;
+          const candidate = `${baseName} ${suffix}`;
+          if (!usedNames.has(candidate.toLowerCase())) {
+            usedNames.add(candidate.toLowerCase());
+            return candidate;
+          }
+          attempt += 1;
+        }
+        return `${baseName} (Salinan)`;
+      };
+
+      const duplicates: UsulanProgram[] = targets.map((source, idx) => {
+        let newId = `usulan-${nowStamp}-${Math.random().toString(36).slice(2, 7)}-${idx + 1}`;
+        while (usedIds.has(newId)) {
+          newId = `usulan-${nowStamp}-${Math.random().toString(36).slice(2, 8)}-${idx + 1}`;
+        }
+        usedIds.add(newId);
+
+        const clonedRcDetails = source.templateDetails?.rcDetails
+          ? Object.fromEntries(
+              Object.entries(source.templateDetails.rcDetails).map(([k, entry]) => [
+                k,
+                entry ? { ...entry } : entry,
+              ])
+            )
+          : undefined;
+
+        const clonedCustomRcItems = source.templateDetails?.customRcItems
+          ? source.templateDetails.customRcItems.map((item, itemIdx) => ({
+              ...item,
+              id: item.id ? `${item.id}-copy-${idx + 1}-${itemIdx + 1}` : `custom-rc-${nowStamp}-${itemIdx + 1}`,
+            }))
+          : undefined;
+
+        return {
+          ...source,
+          id: newId,
+          kodeUsulan: buildUniqueCode(source.kodeUsulan),
+          namaProgram: buildDuplicateName(source.namaProgram),
+          pagu: { ...source.pagu },
+          readiness: { ...source.readiness },
+          manualPosition: source.manualPosition ? { ...source.manualPosition } : undefined,
+          templateDetails: source.templateDetails
+            ? {
+                ...source.templateDetails,
+                lingkupPekerjaan: source.templateDetails.lingkupPekerjaan
+                  ? [...source.templateDetails.lingkupPekerjaan]
+                  : undefined,
+                rcDetails: clonedRcDetails,
+                customRcItems: clonedCustomRcItems,
+              }
+            : undefined,
+          isLocked: false,
+          isPublished: true,
+          authorUid: EDITOR_OPERATOR_UID,
+          updatedAt: today,
+        };
+      });
+
+      setProposals((prev) => sortProposalsStable([...duplicates, ...prev]));
+      setSelectedProposalId(duplicates[0].id);
+      markLocalBootstrapped();
+
+      try {
+        await Promise.all(duplicates.map((dup) => saveProposalToFirestore(dup)));
+        showNotice(
+          duplicates.length === 1
+            ? `Usulan "${duplicates[0].kodeUsulan}" berhasil diduplikasi.`
+            : `${duplicates.length} paket usulan berhasil diduplikasi.`
+        );
+      } catch (err) {
+        const quota = extractQuotaNoticeFromError(err);
+        if (quota) setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
+        showNotice(
+          `${duplicates.length} duplikat usulan tersimpan secara lokal (sinkronisasi Cloud tertunda).`
+        );
+      }
+    },
+    [canEdit, markLocalBootstrapped, showNotice]
+  );
+
+  const handleShiftProposalYears = useCallback(
+    async (
+      updates: Array<{ id: string; nextPagu: PaguTahunan }>,
+      delta: number
+    ) => {
+      if (!canEdit || updates.length === 0) return;
+
+      const today = new Date().toISOString().slice(0, 10);
+      const updateMap = new Map(updates.map((item) => [item.id, item.nextPagu]));
+      const changedProposals: UsulanProgram[] = [];
+
+      const nextList = proposalsRef.current.map((proposal) => {
+        const nextPagu = updateMap.get(proposal.id);
+        if (!nextPagu) return proposal;
+        const updated: UsulanProgram = {
+          ...proposal,
+          pagu: { ...nextPagu },
+          updatedAt: today,
+        };
+        changedProposals.push(updated);
+        return updated;
+      });
+
+      if (changedProposals.length === 0) return;
+
+      setProposals(sortProposalsStable(nextList));
+      markLocalBootstrapped();
+
+      const directionLabel =
+        delta > 0 ? `maju +${delta} tahun` : `mundur ${Math.abs(delta)} tahun`;
+
+      try {
+        await Promise.all(changedProposals.map((item) => saveProposalToFirestore(item)));
+        showNotice(
+          `Jadwal pagu ${changedProposals.length} paket berhasil digeser (${directionLabel}).`
+        );
+      } catch (err) {
+        const quota = extractQuotaNoticeFromError(err);
+        if (quota) setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
+        showNotice(
+          `Pergeseran tahun (${changedProposals.length} paket) tersimpan secara lokal (sinkronisasi Cloud tertunda).`
+        );
+      }
+    },
+    [canEdit, markLocalBootstrapped, showNotice]
+  );
+
   const handleRequestDeleteById = useCallback(
     (id: string) => {
       if (!canEdit) return;
@@ -1633,6 +1795,8 @@ function DashboardWorkspace() {
                 onUpdateJumlahPembahasan={(id, val) => void handleUpdateJumlahPembahasan(id, val)}
                 onUpdateLinkDataRc={(id, val) => void handleUpdateLinkDataRc(id, val)}
                 onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
+                onDuplicateProposals={(targets) => void handleDuplicateProposals(targets)}
+                onShiftProposalYears={handleShiftProposalYears}
                 onJumpToMap={handleFocusOnMap}
                 onAddNew={() => {
                   if (!canEdit) return;

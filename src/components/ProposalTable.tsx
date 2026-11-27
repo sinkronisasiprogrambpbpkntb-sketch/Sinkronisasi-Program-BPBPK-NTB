@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpDown,
+  CalendarRange,
   Check,
+  Copy,
   Download,
   Edit3,
   ExternalLink,
@@ -21,7 +23,8 @@ import {
   SEKTOR_SHORT_LABELS,
   tryParseNumberFlexible,
 } from '../data/initialProposals';
-import { ResolvedPlaceInfo, SumberDana, UsulanProgram } from '../types/ciptaKarya';
+import { PaguTahunan, ResolvedPlaceInfo, SumberDana, UsulanProgram } from '../types/ciptaKarya';
+import { ShiftYearModal } from './ShiftYearModal';
 import {
   StatusChecklistFilter,
   StatusFilterOption,
@@ -42,6 +45,11 @@ interface ProposalTableProps {
   onUpdateJumlahPembahasan?: (id: string, count: number) => void;
   onUpdateLinkDataRc?: (id: string, linkDataRc: string) => void;
   onDeleteProposals: (targets: UsulanProgram[]) => void;
+  onDuplicateProposals?: (targets: UsulanProgram[]) => Promise<void> | void;
+  onShiftProposalYears?: (
+    updates: Array<{ id: string; nextPagu: PaguTahunan }>,
+    delta: number
+  ) => Promise<void> | void;
   onJumpToMap?: (id: string) => void;
   onAddNew: () => void;
   onSaveAll?: () => void;
@@ -502,6 +510,8 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
   onUpdateJumlahPembahasan,
   onUpdateLinkDataRc,
   onDeleteProposals,
+  onDuplicateProposals,
+  onShiftProposalYears,
   onJumpToMap,
   onAddNew,
   onSaveAll,
@@ -517,6 +527,10 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
   const [kabupatenFilter, setKabupatenFilter] = useState<string>('ALL');
   const [selectedStatuses, setSelectedStatuses] = useState<string[] | null>(null);
   const [localSelectedFunding, setLocalSelectedFunding] = useState<string[] | null>(null);
+  const [shiftYearModalState, setShiftYearModalState] = useState<{
+    targets: UsulanProgram[];
+    scopeLabel?: string;
+  } | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('pagu');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -759,6 +773,38 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {canEdit && visibleCheckedItems.length > 0 && onDuplicateProposals && (
+            <button
+              type="button"
+              onClick={() => {
+                void onDuplicateProposals(visibleCheckedItems);
+                setCheckedIds(new Set());
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#061459] bg-amber-50 border border-[#E89611] hover:bg-amber-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Duplikat seluruh baris usulan yang tercentang"
+            >
+              <Copy className="w-3.5 h-3.5 text-[#C27803]" />
+              <span>Duplikat ({visibleCheckedItems.length})</span>
+            </button>
+          )}
+
+          {canEdit && visibleCheckedItems.length > 0 && onShiftProposalYears && (
+            <button
+              type="button"
+              onClick={() =>
+                setShiftYearModalState({
+                  targets: visibleCheckedItems,
+                  scopeLabel: `${visibleCheckedItems.length} Paket Terpilih`,
+                })
+              }
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#061459] bg-[#EEF2FA] border border-[#C7D3E8] hover:bg-[#E1E8F5] rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Geser tahun pelaksanaan & jadwal pagu untuk paket yang tercentang"
+            >
+              <CalendarRange className="w-3.5 h-3.5 text-[#0A1D6E]" />
+              <span>Geser Tahun ({visibleCheckedItems.length})</span>
+            </button>
+          )}
+
           {canEdit && visibleCheckedItems.length > 0 && (
             <button
               type="button"
@@ -772,6 +818,26 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
               <span>Hapus Terpilih ({visibleCheckedItems.length})</span>
             </button>
           )}
+
+          {canEdit &&
+            visibleCheckedItems.length === 0 &&
+            manageableVisibleItems.length > 0 &&
+            onShiftProposalYears && (
+              <button
+                type="button"
+                onClick={() =>
+                  setShiftYearModalState({
+                    targets: manageableVisibleItems,
+                    scopeLabel: `Semua ${manageableVisibleItems.length} Paket yang Tampil`,
+                  })
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#061459] bg-[#EEF2FA] border border-[#C7D3E8] hover:bg-[#E1E8F5] rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                title="Geser tahun jadwal pagu (2027–2030) secara massal untuk paket yang tampil"
+              >
+                <CalendarRange className="w-3.5 h-3.5 text-[#0A1D6E]" />
+                <span>Geser Tahun</span>
+              </button>
+            )}
 
           {canEdit && onSaveAll && (
             <button
@@ -885,6 +951,14 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                       aria-label="Pilih semua baris usulan"
                       className="rounded border-indigo-300 text-[#E89611] focus:ring-[#E89611] cursor-pointer disabled:opacity-40"
                     />
+                  </th>
+                )}
+                {canEdit && onDuplicateProposals && (
+                  <th
+                    className="py-3 px-2 text-center w-16 whitespace-nowrap"
+                    title="Duplikat usulan pada baris ini"
+                  >
+                    Duplikat
                   </th>
                 )}
                 <th className="py-3 px-2.5 text-center w-11 whitespace-nowrap">No</th>
@@ -1002,6 +1076,29 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                           aria-label={`Pilih ${p.namaProgram}`}
                           className="rounded border-slate-300 text-blue-700 focus:ring-blue-600 cursor-pointer disabled:opacity-35"
                         />
+                      </td>
+                    )}
+
+                    {canEdit && onDuplicateProposals && (
+                      <td
+                        className="py-3 px-2 text-center whitespace-nowrap"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        {allowManageRow ? (
+                          <button
+                            type="button"
+                            onClick={() => void onDuplicateProposals([p])}
+                            className="inline-flex items-center justify-center p-1.5 text-[#061459] bg-amber-50 border border-[#E89611]/75 hover:bg-amber-100 rounded-md transition-colors cursor-pointer shadow-2xs"
+                            title={`Duplikat ${p.kodeUsulan}`}
+                            aria-label={`Duplikat ${p.namaProgram}`}
+                          >
+                            <Copy className="w-3.5 h-3.5 text-[#C27803]" />
+                          </button>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
                     )}
 
@@ -1179,6 +1276,24 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                           </button>
                         )}
 
+                        {allowManageRow && onShiftProposalYears && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShiftYearModalState({
+                                targets: [p],
+                                scopeLabel: p.kodeUsulan,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#0A1D6E] bg-[#EEF2FA] border border-[#C7D3E8] hover:bg-[#E1E8F5] rounded-md transition-colors cursor-pointer whitespace-nowrap"
+                            title="Geser tahun jadwal pagu usulan ini"
+                          >
+                            <CalendarRange className="w-3.5 h-3.5" />
+                            <span>Geser Tahun</span>
+                          </button>
+                        )}
+
                         {onJumpToMap && (
                           <button
                             type="button"
@@ -1217,6 +1332,17 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
           </table>
         </div>
       )}
+
+      <ShiftYearModal
+        isOpen={Boolean(shiftYearModalState)}
+        targets={shiftYearModalState?.targets ?? []}
+        scopeLabel={shiftYearModalState?.scopeLabel}
+        onClose={() => setShiftYearModalState(null)}
+        onApply={async (updates, delta) => {
+          await onShiftProposalYears?.(updates, delta);
+          setCheckedIds(new Set());
+        }}
+      />
     </div>
   );
 };
