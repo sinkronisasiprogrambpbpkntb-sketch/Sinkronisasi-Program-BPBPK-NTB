@@ -33,6 +33,7 @@ import {
   ProposalPreviewModal,
 } from './components/ProposalPreviewModal';
 import { ProposalTable } from './components/ProposalTable';
+import { RcInfographicPreviewModal } from './components/RcInfographicPreviewModal';
 import { RcInfographicView } from './components/RcInfographicView';
 import { ShareReadOnlyLinkModal } from './components/ShareReadOnlyLinkModal';
 import { SpatialMapView } from './components/SpatialMapView';
@@ -55,7 +56,24 @@ import {
   exportProposalProfilePdf,
   ProposalProfilePdfInput,
 } from './utils/exportProposalProfilePdf';
-import { loadPuBatikAssets, loadPuWordmarkDataUrl } from './utils/puLogoAsset';
+import {
+  exportRcInfographicPdf,
+  RcPdfLayoutMode,
+} from './utils/exportRcInfographicPdf';
+import {
+  loadPuBatikAssets,
+  loadPuLogoDataUrl,
+  loadPuWordmarkDataUrl,
+} from './utils/puLogoAsset';
+import {
+  ALL_SEKTORS,
+  buildRcInfographicData,
+  loadInitialRcSignatories,
+  RcTierFilter,
+  SEKTOR_CODE_TO_ENUM as RC_SEKTOR_CODE_TO_ENUM,
+  SortOrder,
+} from './utils/rcInfographicData';
+import { buildRcInfographicPdfShareUrl } from './utils/shareProposalLink';
 import { useSpatialResolver } from './hooks/useSpatialResolver';
 import { useWelcomeAudio } from './hooks/useWelcomeAudio';
 import {
@@ -153,6 +171,13 @@ interface InitialShareParams {
   initialSektor: SektorFilter;
   initialProposalProfileKey: string | null;
   initialProfileOpenPdf: boolean;
+  initialRcInfographicOpenPdf: boolean;
+  initialRcSectors: SektorCiptaKarya[] | null;
+  initialRcFundingSources: string[] | null;
+  initialRcTier: RcTierFilter;
+  initialRcSortOrder: SortOrder;
+  initialRcLayoutMode: RcPdfLayoutMode;
+  initialRcSearchQuery: string;
 }
 
 const SEKTOR_CODE_TO_ENUM: Record<string, SektorCiptaKarya> = {
@@ -170,6 +195,13 @@ function readInitialShareParams(): InitialShareParams {
     initialSektor: 'ALL',
     initialProposalProfileKey: null,
     initialProfileOpenPdf: false,
+    initialRcInfographicOpenPdf: false,
+    initialRcSectors: null,
+    initialRcFundingSources: null,
+    initialRcTier: 'ALL',
+    initialRcSortOrder: 'desc',
+    initialRcLayoutMode: 'multi',
+    initialRcSearchQuery: '',
   };
 
   if (typeof window === 'undefined') return defaults;
@@ -183,18 +215,25 @@ function readInitialShareParams(): InitialShareParams {
     const initialProfileOpenPdf =
       initialProposalProfileKey !== null && formatRaw !== 'sheet' && formatRaw !== 'web';
 
-    const isReadOnlyUrl =
-      modeRaw === 'lihat' ||
-      modeRaw === 'view' ||
-      modeRaw === 'readonly' ||
-      modeRaw === 'read-only' ||
-      (initialProposalProfileKey !== null && modeRaw !== 'edit');
-
     const viewRaw = (params.get('view') ?? '').trim().toLowerCase();
     let initialView = WorkspaceView.MATRIX;
     if (viewRaw === WorkspaceView.SPATIAL) initialView = WorkspaceView.SPATIAL;
     else if (viewRaw === WorkspaceView.RC_INFOGRAPHIC) initialView = WorkspaceView.RC_INFOGRAPHIC;
     else if (viewRaw === WorkspaceView.BUDGET) initialView = WorkspaceView.BUDGET;
+
+    const initialRcInfographicOpenPdf =
+      initialProposalProfileKey === null &&
+      initialView === WorkspaceView.RC_INFOGRAPHIC &&
+      formatRaw === 'pdf' &&
+      modeRaw !== 'edit';
+
+    const isReadOnlyUrl =
+      modeRaw === 'lihat' ||
+      modeRaw === 'view' ||
+      modeRaw === 'readonly' ||
+      modeRaw === 'read-only' ||
+      (initialProposalProfileKey !== null && modeRaw !== 'edit') ||
+      initialRcInfographicOpenPdf;
 
     const taRaw = (params.get('ta') ?? '').trim().toUpperCase();
     const initialYear: YearFilter =
@@ -211,6 +250,39 @@ function readInitialShareParams(): InitialShareParams {
       initialSektor = sektorRaw as SektorCiptaKarya;
     }
 
+    const sektorsRaw = (params.get('sektors') ?? '').trim();
+    let initialRcSectors: SektorCiptaKarya[] | null = null;
+    if (sektorsRaw) {
+      const parsedSectors = sektorsRaw
+        .split(',')
+        .map((c) => RC_SEKTOR_CODE_TO_ENUM[c.trim().toUpperCase()])
+        .filter((v): v is SektorCiptaKarya => Boolean(v));
+      if (parsedSectors.length > 0) {
+        initialRcSectors = parsedSectors;
+      }
+    }
+
+    const danaRaw = (params.get('dana') ?? '').trim();
+    const initialRcFundingSources = danaRaw
+      ? danaRaw
+          .split('|')
+          .map((d) => d.trim())
+          .filter(Boolean)
+      : null;
+
+    const tierRaw = (params.get('tier') ?? '').trim().toUpperCase();
+    const initialRcTier: RcTierFilter =
+      tierRaw === 'HIGH' || tierRaw === 'MEDIUM' || tierRaw === 'LOW' ? tierRaw : 'ALL';
+
+    const sortRaw = (params.get('sort') ?? '').trim().toLowerCase();
+    const initialRcSortOrder: SortOrder = sortRaw === 'asc' ? 'asc' : 'desc';
+
+    const layoutRaw = (params.get('layout') ?? '').trim().toLowerCase();
+    const initialRcLayoutMode: RcPdfLayoutMode =
+      layoutRaw === 'single-sheet' || layoutRaw === 'single' ? 'single-sheet' : 'multi';
+
+    const initialRcSearchQuery = (params.get('q') ?? '').trim();
+
     return {
       isReadOnlyUrl,
       initialView,
@@ -218,6 +290,13 @@ function readInitialShareParams(): InitialShareParams {
       initialSektor,
       initialProposalProfileKey,
       initialProfileOpenPdf,
+      initialRcInfographicOpenPdf,
+      initialRcSectors,
+      initialRcFundingSources,
+      initialRcTier,
+      initialRcSortOrder,
+      initialRcLayoutMode,
+      initialRcSearchQuery,
     };
   } catch {
     return defaults;
@@ -271,8 +350,9 @@ function DashboardWorkspace() {
   const initialShareParams = useMemo(() => readInitialShareParams(), []);
   const isStandaloneUrlMode =
     initialShareParams.isReadOnlyUrl &&
-    initialShareParams.initialProposalProfileKey !== null &&
-    initialShareParams.initialProfileOpenPdf;
+    ((initialShareParams.initialProposalProfileKey !== null &&
+      initialShareParams.initialProfileOpenPdf) ||
+      initialShareParams.initialRcInfographicOpenPdf);
 
   const [proposals, setProposals] = useState<UsulanProgram[]>(() => readInitialLocalProposals());
   const proposalsRef = useRef<UsulanProgram[]>(proposals);
@@ -474,6 +554,29 @@ function DashboardWorkspace() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [remoteSyncCompleted, setRemoteSyncCompleted] = useState<boolean>(false);
   const [standalonePdfProposalId, setStandalonePdfProposalId] = useState<string | null>(null);
+  const [standaloneRcPdfConfig, setStandaloneRcPdfConfig] = useState<{
+    year: YearFilter;
+    sektor: SektorFilter;
+    sectors: SektorCiptaKarya[];
+    fundingSources: string[] | null;
+    tier: RcTierFilter;
+    sortOrder: SortOrder;
+    layoutMode: RcPdfLayoutMode;
+    searchQuery: string;
+  } | null>(() =>
+    initialShareParams.isReadOnlyUrl && initialShareParams.initialRcInfographicOpenPdf
+      ? {
+          year: initialShareParams.initialYear,
+          sektor: initialShareParams.initialSektor,
+          sectors: initialShareParams.initialRcSectors ?? ALL_SEKTORS,
+          fundingSources: initialShareParams.initialRcFundingSources,
+          tier: initialShareParams.initialRcTier,
+          sortOrder: initialShareParams.initialRcSortOrder,
+          layoutMode: initialShareParams.initialRcLayoutMode,
+          searchQuery: initialShareParams.initialRcSearchQuery,
+        }
+      : null
+  );
   const [openPreviewAsPdfDoc, setOpenPreviewAsPdfDoc] = useState<boolean>(false);
   const pendingShareProposalRef = useRef<string | null>(
     initialShareParams.initialProposalProfileKey
@@ -492,7 +595,7 @@ function DashboardWorkspace() {
     if (matched) {
       pendingShareProposalRef.current = null;
       setShowTemplateDemo(false);
-      if (isStandaloneUrlMode) {
+      if (isStandaloneUrlMode && initialShareParams.initialProposalProfileKey !== null) {
         setStandalonePdfProposalId(matched.id);
       } else {
         setOpenPreviewAsPdfDoc(initialShareParams.initialProfileOpenPdf);
@@ -500,7 +603,12 @@ function DashboardWorkspace() {
         setPreviewProposalId(matched.id);
       }
     }
-  }, [proposals, initialShareParams.initialProfileOpenPdf, isStandaloneUrlMode]);
+  }, [
+    proposals,
+    initialShareParams.initialProfileOpenPdf,
+    initialShareParams.initialProposalProfileKey,
+    isStandaloneUrlMode,
+  ]);
 
   const standaloneTargetProposal = useMemo(() => {
     const lookupKey =
@@ -546,6 +654,36 @@ function DashboardWorkspace() {
       signatories: loadInitialProfilSignatories(),
     };
   }, [standaloneTargetProposal, resolvedPlaces]);
+
+  const standaloneRcReportData = useMemo(() => {
+    if (!standaloneRcPdfConfig) return null;
+    return buildRcInfographicData({
+      proposals,
+      yearFilter: standaloneRcPdfConfig.year,
+      sektorFilter: standaloneRcPdfConfig.sektor,
+      selectedFundingSources: standaloneRcPdfConfig.fundingSources,
+      selectedSectors: standaloneRcPdfConfig.sectors,
+      tierFilter: standaloneRcPdfConfig.tier,
+      sortOrder: standaloneRcPdfConfig.sortOrder,
+      searchQuery: standaloneRcPdfConfig.searchQuery,
+      signatories: loadInitialRcSignatories(),
+    });
+  }, [proposals, standaloneRcPdfConfig]);
+
+  const standaloneRcShareUrl = useMemo(() => {
+    if (!standaloneRcPdfConfig) return '';
+    return buildRcInfographicPdfShareUrl({
+      preferSharedHost: true,
+      year: standaloneRcPdfConfig.year,
+      sektor: standaloneRcPdfConfig.sektor,
+      sectors: standaloneRcPdfConfig.sectors,
+      fundingSources: standaloneRcPdfConfig.fundingSources,
+      tier: standaloneRcPdfConfig.tier,
+      sortOrder: standaloneRcPdfConfig.sortOrder,
+      layoutMode: standaloneRcPdfConfig.layoutMode,
+      searchQuery: standaloneRcPdfConfig.searchQuery,
+    });
+  }, [standaloneRcPdfConfig]);
 
   useEffect(() => {
     if (proposals.length === 0) {
@@ -1389,9 +1527,117 @@ function DashboardWorkspace() {
     );
   }
 
+  // Render Standalone Mode Perlihat Saja (View Dokumen PDF Infografis Skor RC)
+  const isStandaloneRcPdfActive =
+    isReadOnlyMode && standaloneRcPdfConfig !== null;
+
+  if (isStandaloneRcPdfActive && standaloneRcPdfConfig) {
+    if (proposals.length === 0 && !remoteSyncCompleted) {
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white border border-[#C7D3E8] rounded-2xl p-6 text-center shadow-2xl space-y-3">
+            <div className="w-11 h-11 rounded-xl bg-[#061459] text-[#E89611] flex items-center justify-center mx-auto">
+              <Lock className="w-5 h-5" />
+            </div>
+            <h1 className="text-base font-bold text-[#061459]">
+              Menyiapkan Dokumen PDF Infografis Skor RC...
+            </h1>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Sedang mengambil data resmi peringkat kesiapan usulan dalam Mode Perlihat Saja (Read-Only).
+            </p>
+            {isInAppReadOnlyPreview && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsInAppReadOnlyPreview(false);
+                  setStandaloneRcPdfConfig(null);
+                  setAccessMode('account');
+                }}
+                className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-white bg-[#0A1D6E] hover:bg-[#061459] rounded-lg cursor-pointer"
+              >
+                Kembali ke Mode Edit
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (standaloneRcReportData) {
+      return (
+        <>
+          <RcInfographicPreviewModal
+            isOpen={true}
+            initialMode="pdf"
+            standaloneReadOnly={true}
+            initialLayoutMode={standaloneRcPdfConfig.layoutMode}
+            shareUrl={standaloneRcShareUrl}
+            onBackToEditor={
+              isInAppReadOnlyPreview
+                ? () => {
+                    setIsInAppReadOnlyPreview(false);
+                    setStandaloneRcPdfConfig(null);
+                    setAccessMode('account');
+                  }
+                : undefined
+            }
+            onClose={() => {
+              if (isInAppReadOnlyPreview) {
+                setIsInAppReadOnlyPreview(false);
+                setStandaloneRcPdfConfig(null);
+                setAccessMode('account');
+              }
+            }}
+            onDownloadPdf={(layoutMode) => {
+              void (async () => {
+                const [logoDataUrl, batikAssets] = await Promise.all([
+                  loadPuLogoDataUrl(),
+                  loadPuBatikAssets(),
+                ]);
+                const fileName = exportRcInfographicPdf(
+                  standaloneRcReportData.filteredRanked,
+                  standaloneRcReportData.summaryStats,
+                  standaloneRcReportData.sectorAverages,
+                  standaloneRcReportData.regionalAverages,
+                  {
+                    ...standaloneRcReportData.pdfContext,
+                    logoDataUrl,
+                    batikAssets,
+                    layoutMode,
+                  }
+                );
+                showNotice(
+                  `Infografis Skor RC berhasil diunduh ke berkas "${fileName}".`
+                );
+              })();
+            }}
+            onCopyPdfLink={() =>
+              showNotice(
+                'Link Dokumen PDF Infografis Skor RC (Perlihat Saja) berhasil disalin.'
+              )
+            }
+            rankedItems={standaloneRcReportData.filteredRanked}
+            summaryStats={standaloneRcReportData.summaryStats}
+            sectorAverages={standaloneRcReportData.sectorAverages}
+            regionalAverages={standaloneRcReportData.regionalAverages}
+            context={standaloneRcReportData.pdfContext}
+          />
+          {toastMessage && (
+            <div className="fixed bottom-5 right-5 z-[70] bg-[#061459] text-white text-xs font-medium px-4 py-3 rounded-xl shadow-2xl border border-[#E89611]/70">
+              {toastMessage}
+            </div>
+          )}
+        </>
+      );
+    }
+  }
+
   // Render Standalone Mode Perlihat Saja (View Dokumen PDF untuk 1 Profil Usulan)
   const isStandaloneProfileViewActive =
-    isStandaloneUrlMode || (isReadOnlyMode && standalonePdfProposalId !== null);
+    (initialShareParams.isReadOnlyUrl &&
+      initialShareParams.initialProposalProfileKey !== null &&
+      initialShareParams.initialProfileOpenPdf) ||
+    (isReadOnlyMode && standalonePdfProposalId !== null);
 
   if (isStandaloneProfileViewActive) {
     if (standalonePdfInput && standaloneTargetProposal) {
@@ -2172,7 +2418,9 @@ function DashboardWorkspace() {
           {activeView === WorkspaceView.RC_INFOGRAPHIC && (
             <RcInfographicView
               proposals={filteredProposals}
+              yearFilter={yearFilter}
               yearFilterLabel={yearFilter === 'ALL' ? 'TA 2027–2030' : `TA ${yearFilter}`}
+              sektorFilter={sektorFilter}
               sectorFilterLabel={
                 sektorFilter === 'ALL' ? 'Semua Sektor Teknis (4 Bidang)' : sektorFilter
               }
@@ -2188,6 +2436,11 @@ function DashboardWorkspace() {
               onFocusOnMap={handleFocusOnMap}
               onPdfExported={(fileName) =>
                 showNotice(`Infografis Skor RC berhasil dicetak ke berkas "${fileName}".`)
+              }
+              onCopyShareLink={() =>
+                showNotice(
+                  'Link Perlihat Dokumen PDF Infografis Skor RC berhasil disalin ke clipboard.'
+                )
               }
             />
           )}
@@ -2313,7 +2566,14 @@ function DashboardWorkspace() {
           proposals={proposals}
           selectedProposalId={selectedProposalId}
           onClose={() => setShareLinkOpen(false)}
-          onPreviewReadOnly={({ view, year, sektor, proposalId }) => {
+          onPreviewReadOnly={({
+            view,
+            year,
+            sektor,
+            proposalId,
+            isRcPdfStandalone,
+            rcLayoutMode,
+          }) => {
             setDrawerOpen(false);
             setEditingProposal(null);
             setPickingProposalId(null);
@@ -2325,9 +2585,34 @@ function DashboardWorkspace() {
             setAccessMode('readonly');
             if (proposalId) {
               setShowTemplateDemo(false);
+              setStandaloneRcPdfConfig(null);
               setStandalonePdfProposalId(proposalId);
+              showNotice(
+                'Pratinjau Link Profil (Perlihat Saja) aktif. Klik "Kembali ke Mode Edit" untuk keluar.'
+              );
+            } else if (isRcPdfStandalone) {
+              setShowTemplateDemo(false);
+              setStandalonePdfProposalId(null);
+              setStandaloneRcPdfConfig({
+                year,
+                sektor,
+                sectors: ALL_SEKTORS,
+                fundingSources: null,
+                tier: 'ALL',
+                sortOrder: 'desc',
+                layoutMode: rcLayoutMode ?? 'multi',
+                searchQuery: '',
+              });
+              showNotice(
+                'Pratinjau Dokumen PDF Infografis Skor RC (Perlihat Saja) aktif. Klik "Kembali ke Mode Edit" untuk keluar.'
+              );
+            } else {
+              setStandalonePdfProposalId(null);
+              setStandaloneRcPdfConfig(null);
+              showNotice(
+                'Pratinjau Mode Lihat Saja aktif. Klik "Kembali ke Mode Edit" untuk keluar.'
+              );
             }
-            showNotice('Pratinjau Link Profil (Perlihat Saja) aktif. Klik "Kembali ke Mode Edit" untuk keluar.');
           }}
           onCopiedNotice={() =>
             showNotice('Link web Lihat Saja (Read-Only) berhasil disalin ke clipboard.')

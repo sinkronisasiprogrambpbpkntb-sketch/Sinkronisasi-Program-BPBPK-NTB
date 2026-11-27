@@ -2,24 +2,26 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
+  Check,
+  Copy,
   Download,
+  ExternalLink,
   Eye,
+  Link2,
   MapPin,
   PenLine,
   Printer,
   RotateCcw,
   Search,
+  X,
 } from 'lucide-react';
 import {
   formatRpMiliar,
-  getReadinessScore,
-  getTotalPaguUsulan,
   SEKTOR_SHORT_LABELS,
 } from '../data/initialProposals';
-import { SektorCiptaKarya, SumberDana, UsulanProgram } from '../types/ciptaKarya';
+import { SektorCiptaKarya, UsulanProgram } from '../types/ciptaKarya';
 import {
   exportRcInfographicPdf,
-  PdfExportContext,
   PdfSignatoriesConfig,
   RcPdfLayoutMode,
 } from '../utils/exportRcInfographicPdf';
@@ -28,142 +30,50 @@ import {
   loadPuLogoDataUrl,
   PU_LOGO_SRC,
 } from '../utils/puLogoAsset';
+import {
+  ALL_SEKTORS,
+  buildRcInfographicData,
+  createEmptySignatories,
+  getTierMeta,
+  loadInitialRcSignatories,
+  NON_BPB_SEKTORS,
+  RcTierFilter,
+  saveRcSignatories,
+  SortOrder,
+  YearFilterValue,
+} from '../utils/rcInfographicData';
+import {
+  buildRcInfographicPdfShareUrl,
+  copyTextToClipboard,
+  getShareHostInfo,
+} from '../utils/shareProposalLink';
 import { RcInfographicPreviewModal } from './RcInfographicPreviewModal';
 import { JabatanSelectField } from './JabatanSelectField';
 import {
   StatusChecklistFilter,
-  StatusFilterOption,
 } from './StatusChecklistFilter';
 
 interface RcInfographicViewProps {
   proposals: UsulanProgram[];
+  yearFilter?: YearFilterValue;
   yearFilterLabel: string;
+  sektorFilter?: 'ALL' | SektorCiptaKarya;
   sectorFilterLabel?: string;
-  fundingOptions?: StatusFilterOption[];
+  fundingOptions?: import('./StatusChecklistFilter').StatusFilterOption[];
   totalBeforeFundingCount?: number;
   selectedFundingSources?: string[] | null;
   onChangeFundingSources?: (next: string[] | null) => void;
   onPreviewProposal: (id: string) => void;
   onFocusOnMap?: (id: string) => void;
   onPdfExported?: (fileName: string) => void;
+  onCopyShareLink?: (url: string) => void;
 }
-
-type RcTierFilter = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW';
-type SortOrder = 'desc' | 'asc';
-
-interface RankedProposalItem {
-  proposal: UsulanProgram;
-  rcPercentage: number;
-  rcCompleted: number;
-  rcTotal: number;
-  isManualScore: boolean;
-  totalPagu: number;
-  tier: 'HIGH' | 'MEDIUM' | 'LOW';
-  tierLabel: string;
-  statusDisplay: string;
-}
-
-function getTierMeta(pct: number): {
-  tier: 'HIGH' | 'MEDIUM' | 'LOW';
-  tierLabel: string;
-  barColor: string;
-  textColor: string;
-} {
-  if (pct >= 80) {
-    return {
-      tier: 'HIGH',
-      tierLabel: 'Siap (≥80%)',
-      barColor: '#059669',
-      textColor: 'text-emerald-700',
-    };
-  }
-  if (pct >= 50) {
-    return {
-      tier: 'MEDIUM',
-      tierLabel: 'Proses (50–79%)',
-      barColor: '#2563eb',
-      textColor: 'text-blue-700',
-    };
-  }
-  return {
-    tier: 'LOW',
-    tierLabel: 'Perlu Lengkapi (<50%)',
-    barColor: '#d97706',
-    textColor: 'text-amber-700',
-  };
-}
-
-const PDF_SIGNATORIES_STORAGE_KEY = 'simpra_ntb_rc_pdf_signatories_v1';
-
-function getDefaultTempatTanggal(): string {
-  const formatted = new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date());
-  return `Mataram, ${formatted}`;
-}
-
-function createEmptySignatories(): PdfSignatoriesConfig {
-  return {
-    tempatTanggal: getDefaultTempatTanggal(),
-    mengesahkan: { jabatan: '', nama: '' },
-    mengesahkan2: { jabatan: '', nama: '' },
-    mengesahkan3: { jabatan: '', nama: '' },
-    menyetujui: { jabatan: '', nama: '' },
-  };
-}
-
-function loadInitialSignatories(): PdfSignatoriesConfig {
-  const fallback = createEmptySignatories();
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const raw = window.localStorage.getItem(PDF_SIGNATORIES_STORAGE_KEY);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as Partial<PdfSignatoriesConfig>;
-    return {
-      tempatTanggal:
-        typeof parsed.tempatTanggal === 'string'
-          ? parsed.tempatTanggal
-          : fallback.tempatTanggal,
-      mengesahkan: {
-        jabatan: parsed.mengesahkan?.jabatan ?? '',
-        nama: parsed.mengesahkan?.nama ?? '',
-      },
-      mengesahkan2: {
-        jabatan: parsed.mengesahkan2?.jabatan ?? '',
-        nama: parsed.mengesahkan2?.nama ?? '',
-      },
-      mengesahkan3: {
-        jabatan: parsed.mengesahkan3?.jabatan ?? '',
-        nama: parsed.mengesahkan3?.nama ?? '',
-      },
-      menyetujui: {
-        jabatan: parsed.menyetujui?.jabatan ?? '',
-        nama: parsed.menyetujui?.nama ?? '',
-      },
-    };
-  } catch {
-    return fallback;
-  }
-}
-
-const ALL_SEKTORS: SektorCiptaKarya[] = [
-  SektorCiptaKarya.AIR_MINUM,
-  SektorCiptaKarya.SANITASI,
-  SektorCiptaKarya.KAWASAN_STRATEGIS,
-  SektorCiptaKarya.BINA_PENATAAN_BANGUNAN,
-];
-
-const NON_BPB_SEKTORS: SektorCiptaKarya[] = [
-  SektorCiptaKarya.AIR_MINUM,
-  SektorCiptaKarya.SANITASI,
-  SektorCiptaKarya.KAWASAN_STRATEGIS,
-];
 
 export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   proposals,
+  yearFilter = 'ALL',
   yearFilterLabel,
+  sektorFilter = 'ALL',
   sectorFilterLabel = 'Semua Sektor Teknis',
   fundingOptions,
   totalBeforeFundingCount,
@@ -172,6 +82,7 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   onPreviewProposal,
   onFocusOnMap,
   onPdfExported,
+  onCopyShareLink,
 }) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [tierFilter, setTierFilter] = useState<RcTierFilter>('ALL');
@@ -181,40 +92,21 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     useState<SektorCiptaKarya[]>(ALL_SEKTORS);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [signatories, setSignatories] = useState<PdfSignatoriesConfig>(
-    loadInitialSignatories
+    loadInitialRcSignatories
   );
   const [showPdfPreview, setShowPdfPreview] = useState<boolean>(false);
+  const [showShareLinkPanel, setShowShareLinkPanel] = useState<boolean>(false);
+  const [sharePreferSharedHost, setSharePreferSharedHost] = useState<boolean>(true);
+  const [shareLayoutMode, setShareLayoutMode] = useState<RcPdfLayoutMode>('multi');
+  const [shareLinkCopied, setShareLinkCopied] = useState<boolean>(false);
 
   useEffect(() => {
     void loadPuLogoDataUrl();
   }, []);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        PDF_SIGNATORIES_STORAGE_KEY,
-        JSON.stringify(signatories)
-      );
-    } catch {
-      // Ignore storage quota errors
-    }
+    saveRcSignatories(signatories);
   }, [signatories]);
-
-  const effectiveFundingChecklistOptions = useMemo<StatusFilterOption[]>(() => {
-    if (fundingOptions) return fundingOptions;
-    const countMap = new Map<string, number>();
-    for (const sd of Object.values(SumberDana)) {
-      countMap.set(sd, 0);
-    }
-    for (const p of proposals) {
-      countMap.set(p.sumberDana, (countMap.get(p.sumberDana) ?? 0) + 1);
-    }
-    return Array.from(countMap.entries()).map(([label, count]) => ({
-      value: label,
-      label,
-      count,
-    }));
-  }, [fundingOptions, proposals]);
 
   const activeFundingSelection =
     onChangeFundingSources !== undefined
@@ -224,221 +116,111 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
   const handleFundingChange =
     onChangeFundingSources ?? setLocalSelectedFunding;
 
-  const fundingScopedProposals = useMemo(() => {
-    if (onChangeFundingSources !== undefined || localSelectedFunding === null) {
-      return proposals;
-    }
-    if (localSelectedFunding.length === 0) return [];
-    const allowed = new Set(localSelectedFunding);
-    return proposals.filter((p) => allowed.has(p.sumberDana));
-  }, [proposals, onChangeFundingSources, localSelectedFunding]);
-
-  const availableInputSectors = useMemo(
-    () => ALL_SEKTORS.filter((sek) => fundingScopedProposals.some((p) => p.sektor === sek)),
-    [fundingScopedProposals]
+  const computedData = useMemo(
+    () =>
+      buildRcInfographicData({
+        proposals,
+        yearFilter: 'ALL',
+        yearFilterLabel,
+        sektorFilter: 'ALL',
+        sectorFilterLabel,
+        selectedFundingSources:
+          onChangeFundingSources !== undefined ? null : localSelectedFunding,
+        selectedSectors,
+        selectedStatuses,
+        tierFilter,
+        sortOrder,
+        searchQuery,
+        signatories,
+      }),
+    [
+      proposals,
+      yearFilterLabel,
+      sectorFilterLabel,
+      onChangeFundingSources,
+      localSelectedFunding,
+      selectedSectors,
+      selectedStatuses,
+      tierFilter,
+      sortOrder,
+      searchQuery,
+      signatories,
+    ]
   );
 
-  const sectorScopedProposals = useMemo(() => {
-    if (availableInputSectors.length <= 1) return fundingScopedProposals;
-    return fundingScopedProposals.filter((p) => selectedSectors.includes(p.sektor));
-  }, [fundingScopedProposals, availableInputSectors.length, selectedSectors]);
+  const effectiveFundingChecklistOptions =
+    fundingOptions ?? computedData.fundingChecklistOptions;
+  const availableInputSectors = computedData.availableInputSectors;
+  const allRanked = computedData.allRanked;
+  const statusChecklistOptions = computedData.statusChecklistOptions;
+  const effectiveSelectedStatuses = computedData.effectiveSelectedStatuses;
+  const statusScoped = computedData.statusScoped;
+  const filteredRanked = computedData.filteredRanked;
+  const summaryStats = computedData.summaryStats;
+  const sectorAverages = computedData.sectorAverages;
+  const regionalAverages = computedData.regionalAverages;
+  const tierFilterLabel = computedData.tierFilterLabel;
+  const statusFilterLabel = computedData.statusFilterLabel;
+  const effectiveSectorFilterLabel = computedData.effectiveSectorFilterLabel;
+  const mengesahkanCount = computedData.mengesahkanCount;
 
-  const allRanked = useMemo<RankedProposalItem[]>(() => {
-    const items = sectorScopedProposals.map((p) => {
-      const score = getReadinessScore(p.readiness, p.skorRc);
-      const tierMeta = getTierMeta(score.percentage);
-      const totalPagu = getTotalPaguUsulan(p.pagu);
-      const statusDisplay = p.templateDetails?.statusManual?.trim() || 'Belum diisi status';
+  const fundingFilterLabel = useMemo(() => {
+    if (activeFundingSelection === null) return 'Semua Sumber Pendanaan';
+    if (activeFundingSelection.length === 0) return 'Tidak Ada Sumber Pendanaan Dipilih';
+    if (activeFundingSelection.length <= 3) return activeFundingSelection.join(', ');
+    return `${activeFundingSelection.slice(0, 2).join(', ')} (+${activeFundingSelection.length - 2} lainnya)`;
+  }, [activeFundingSelection]);
 
-      return {
-        proposal: p,
-        rcPercentage: score.percentage,
-        rcCompleted: score.completed,
-        rcTotal: score.total,
-        isManualScore: typeof p.skorRc === 'number' && !Number.isNaN(p.skorRc),
-        totalPagu,
-        tier: tierMeta.tier,
-        tierLabel: tierMeta.tierLabel,
-        statusDisplay,
-      };
-    });
+  const pdfContext = useMemo(
+    () => ({
+      ...computedData.pdfContext,
+      fundingFilterLabel,
+    }),
+    [computedData.pdfContext, fundingFilterLabel]
+  );
 
-    items.sort((a, b) => {
-      if (b.rcPercentage !== a.rcPercentage) {
-        return sortOrder === 'desc'
-          ? b.rcPercentage - a.rcPercentage
-          : a.rcPercentage - b.rcPercentage;
+  const isOnlyNonBpbPreset =
+    selectedSectors.length === NON_BPB_SEKTORS.length &&
+    NON_BPB_SEKTORS.every((s) => selectedSectors.includes(s));
+
+  const isAllSectorsSelected = selectedSectors.length === ALL_SEKTORS.length;
+
+  const toggleSectorSelection = (sek: SektorCiptaKarya) => {
+    setSelectedSectors((prev) => {
+      if (prev.includes(sek)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((item) => item !== sek);
       }
-      if (b.totalPagu !== a.totalPagu) {
-        return b.totalPagu - a.totalPagu;
-      }
-      return a.proposal.kodeUsulan.localeCompare(b.proposal.kodeUsulan);
+      return ALL_SEKTORS.filter((item) => item === sek || prev.includes(item));
     });
+  };
 
-    return items;
-  }, [sectorScopedProposals, sortOrder]);
-
-  const statusChecklistOptions = useMemo<StatusFilterOption[]>(() => {
-    const manualMap = new Map<string, number>();
-    let emptyManualCount = 0;
-    for (const item of allRanked) {
-      const m = item.proposal.templateDetails?.statusManual?.trim() ?? '';
-      if (m) {
-        manualMap.set(m, (manualMap.get(m) ?? 0) + 1);
-      } else {
-        emptyManualCount += 1;
-      }
-    }
-
-    const opts: StatusFilterOption[] = Array.from(manualMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b, 'id-ID'))
-      .map(([label, count]) => ({
-        value: `manual:${label}`,
-        label,
-        count,
-      }));
-
-    if (emptyManualCount > 0) {
-      opts.push({
-        value: 'manual:__EMPTY__',
-        label: 'Belum Diisi Status',
-        count: emptyManualCount,
-      });
-    }
-
-    return opts;
-  }, [allRanked]);
-
-  const effectiveSelectedStatuses = useMemo(() => {
-    if (selectedStatuses === null) return null;
-    if (selectedStatuses.length === 0) return [];
-    const validKeys = new Set(statusChecklistOptions.map((o) => o.value));
-    const kept = selectedStatuses.filter((k) => validKeys.has(k));
-    if (kept.length === 0) return null;
-    if (kept.length === statusChecklistOptions.length) return null;
-    return kept;
-  }, [selectedStatuses, statusChecklistOptions]);
-
-  const statusScoped = useMemo(() => {
-    if (effectiveSelectedStatuses === null) return allRanked;
-    if (effectiveSelectedStatuses.length === 0) return [];
-    const allowed = new Set(effectiveSelectedStatuses);
-    return allRanked.filter((item) => {
-      const m = item.proposal.templateDetails?.statusManual?.trim() ?? '';
-      const key = m ? `manual:${m}` : 'manual:__EMPTY__';
-      return allowed.has(key);
-    });
-  }, [allRanked, effectiveSelectedStatuses]);
-
-  const filteredRanked = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return statusScoped.filter((item) => {
-      if (tierFilter !== 'ALL' && item.tier !== tierFilter) return false;
-      if (!q) return true;
-      const p = item.proposal;
-      return (
-        p.namaProgram.toLowerCase().includes(q) ||
-        p.kodeUsulan.toLowerCase().includes(q) ||
-        p.kabupatenKota.toLowerCase().includes(q) ||
-        SEKTOR_SHORT_LABELS[p.sektor].toLowerCase().includes(q) ||
-        (p.templateDetails?.statusManual ?? '').toLowerCase().includes(q)
-      );
-    });
-  }, [statusScoped, tierFilter, searchQuery]);
-
-  const summaryStats = useMemo(() => {
-    if (statusScoped.length === 0) {
-      return {
-        highest: null as RankedProposalItem | null,
-        lowest: null as RankedProposalItem | null,
-        averagePct: 0,
-        highCount: 0,
-        mediumCount: 0,
-        lowCount: 0,
-        totalCount: 0,
-      };
-    }
-
-    const sortedDesc = [...statusScoped].sort((a, b) =>
-      b.rcPercentage !== a.rcPercentage
-        ? b.rcPercentage - a.rcPercentage
-        : b.totalPagu - a.totalPagu
-    );
-
-    const highCount = statusScoped.filter((x) => x.tier === 'HIGH').length;
-    const mediumCount = statusScoped.filter((x) => x.tier === 'MEDIUM').length;
-    const lowCount = statusScoped.filter((x) => x.tier === 'LOW').length;
-    const sumPct = statusScoped.reduce((acc, x) => acc + x.rcPercentage, 0);
-
-    return {
-      highest: sortedDesc[0],
-      lowest: sortedDesc[sortedDesc.length - 1],
-      averagePct: Math.round(sumPct / statusScoped.length),
-      highCount,
-      mediumCount,
-      lowCount,
-      totalCount: statusScoped.length,
-    };
-  }, [statusScoped]);
-
-  const sectorAverages = useMemo(() => {
-    const activeSectorList =
-      availableInputSectors.length <= 1
-        ? ALL_SEKTORS
-        : ALL_SEKTORS.filter((sek) => selectedSectors.includes(sek));
-    const list = activeSectorList.map((sek) => {
-      const items = statusScoped.filter((x) => x.proposal.sektor === sek);
-      const count = items.length;
-      const avgPct =
-        count > 0
-          ? Math.round(items.reduce((acc, x) => acc + x.rcPercentage, 0) / count)
-          : 0;
-      const maxPct = count > 0 ? Math.max(...items.map((x) => x.rcPercentage)) : 0;
-      const minPct = count > 0 ? Math.min(...items.map((x) => x.rcPercentage)) : 0;
-      const totalPagu = items.reduce((acc, x) => acc + x.totalPagu, 0);
-      return {
-        sektor: sek,
-        shortLabel: SEKTOR_SHORT_LABELS[sek],
-        count,
-        avgPct,
-        maxPct,
-        minPct,
-        totalPagu: Number(totalPagu.toFixed(1)),
-      };
-    });
-
-    return list.sort((a, b) =>
-      sortOrder === 'desc' ? b.avgPct - a.avgPct : a.avgPct - b.avgPct
-    );
-  }, [statusScoped, sortOrder, availableInputSectors.length, selectedSectors]);
-
-  const regionalAverages = useMemo(() => {
-    const map: Record<
-      string,
-      { kabupaten: string; count: number; sumPct: number; totalPagu: number }
-    > = {};
-
-    for (const item of statusScoped) {
-      const kab = item.proposal.kabupatenKota;
-      if (!map[kab]) {
-        map[kab] = { kabupaten: kab, count: 0, sumPct: 0, totalPagu: 0 };
-      }
-      map[kab].count += 1;
-      map[kab].sumPct += item.rcPercentage;
-      map[kab].totalPagu += item.totalPagu;
-    }
-
-    return Object.values(map)
-      .map((entry) => ({
-        kabupaten: entry.kabupaten,
-        count: entry.count,
-        avgPct: Math.round(entry.sumPct / Math.max(1, entry.count)),
-        totalPagu: Number(entry.totalPagu.toFixed(1)),
-      }))
-      .sort((a, b) =>
-        sortOrder === 'desc' ? b.avgPct - a.avgPct : a.avgPct - b.avgPct
-      );
-  }, [statusScoped, sortOrder]);
+  const shareHostInfo = useMemo(() => getShareHostInfo(), []);
+  const rcPdfShareUrl = useMemo(
+    () =>
+      buildRcInfographicPdfShareUrl({
+        preferSharedHost: sharePreferSharedHost,
+        year: yearFilter,
+        sektor: sektorFilter,
+        sectors: selectedSectors,
+        fundingSources: activeFundingSelection,
+        tier: tierFilter,
+        sortOrder,
+        layoutMode: shareLayoutMode,
+        searchQuery,
+      }),
+    [
+      sharePreferSharedHost,
+      yearFilter,
+      sektorFilter,
+      selectedSectors,
+      activeFundingSelection,
+      tierFilter,
+      sortOrder,
+      shareLayoutMode,
+      searchQuery,
+    ]
+  );
 
   const handleExportRankingCsv = () => {
     const headers = [
@@ -480,109 +262,6 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
   };
-
-  const tierFilterLabel =
-    tierFilter === 'ALL'
-      ? 'Semua Tingkat Kesiapan'
-      : tierFilter === 'HIGH'
-        ? 'Siap (>=80%)'
-        : tierFilter === 'MEDIUM'
-          ? 'Proses (50-79%)'
-          : 'Kurang (<50%)';
-
-  const statusFilterLabel = useMemo(() => {
-    if (effectiveSelectedStatuses === null) return 'Semua Status Usulan';
-    if (effectiveSelectedStatuses.length === 0) return 'Tidak Ada Status Dipilih';
-    const labels = effectiveSelectedStatuses.map((key) =>
-      key === 'manual:__EMPTY__'
-        ? 'Belum Diisi Status'
-        : key.startsWith('manual:')
-          ? key.slice('manual:'.length)
-          : key
-    );
-    if (labels.length <= 3) return labels.join(', ');
-    return `${labels.slice(0, 2).join(', ')} (+${labels.length - 2} status lainnya)`;
-  }, [effectiveSelectedStatuses]);
-
-  const fundingFilterLabel = useMemo(() => {
-    if (activeFundingSelection === null) return 'Semua Sumber Pendanaan';
-    if (activeFundingSelection.length === 0) return 'Tidak Ada Sumber Pendanaan Dipilih';
-    if (activeFundingSelection.length <= 3) return activeFundingSelection.join(', ');
-    return `${activeFundingSelection.slice(0, 2).join(', ')} (+${activeFundingSelection.length - 2} lainnya)`;
-  }, [activeFundingSelection]);
-
-  const isOnlyNonBpbPreset =
-    selectedSectors.length === NON_BPB_SEKTORS.length &&
-    NON_BPB_SEKTORS.every((s) => selectedSectors.includes(s));
-
-  const isAllSectorsSelected = selectedSectors.length === ALL_SEKTORS.length;
-
-  const effectiveSectorFilterLabel = useMemo(() => {
-    if (availableInputSectors.length <= 1 || isAllSectorsSelected) {
-      return sectorFilterLabel;
-    }
-    return selectedSectors.map((s) => SEKTOR_SHORT_LABELS[s]).join(', ');
-  }, [
-    availableInputSectors.length,
-    isAllSectorsSelected,
-    sectorFilterLabel,
-    selectedSectors,
-  ]);
-
-  const mengesahkanCount = useMemo<2 | 3>(() => {
-    const itemsToInspect =
-      filteredRanked.length > 0
-        ? filteredRanked
-        : statusScoped.length > 0
-          ? statusScoped
-          : allRanked;
-
-    if (itemsToInspect.length > 0) {
-      const hasBpb = itemsToInspect.some(
-        (item) => item.proposal.sektor === SektorCiptaKarya.BINA_PENATAAN_BANGUNAN
-      );
-      return hasBpb ? 3 : 2;
-    }
-
-    return selectedSectors.includes(SektorCiptaKarya.BINA_PENATAAN_BANGUNAN)
-      ? 3
-      : 2;
-  }, [filteredRanked, statusScoped, allRanked, selectedSectors]);
-
-  const toggleSectorSelection = (sek: SektorCiptaKarya) => {
-    setSelectedSectors((prev) => {
-      if (prev.includes(sek)) {
-        if (prev.length <= 1) return prev;
-        return prev.filter((item) => item !== sek);
-      }
-      return ALL_SEKTORS.filter((item) => item === sek || prev.includes(item));
-    });
-  };
-
-  const pdfContext = useMemo<PdfExportContext>(
-    () => ({
-      yearFilterLabel,
-      sectorFilterLabel: effectiveSectorFilterLabel,
-      fundingFilterLabel,
-      sortOrder,
-      tierFilterLabel,
-      statusFilterLabel,
-      searchQuery,
-      signatories,
-      mengesahkanCount,
-    }),
-    [
-      yearFilterLabel,
-      effectiveSectorFilterLabel,
-      fundingFilterLabel,
-      sortOrder,
-      tierFilterLabel,
-      statusFilterLabel,
-      searchQuery,
-      signatories,
-      mengesahkanCount,
-    ]
-  );
 
   const handleExportPdf = async (layoutMode: RcPdfLayoutMode = 'multi') => {
     const [logoDataUrl, batikAssets] = await Promise.all([
@@ -741,6 +420,21 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
 
             <button
               type="button"
+              onClick={() => setShowShareLinkPanel((prev) => !prev)}
+              disabled={statusScoped.length === 0}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50 ${
+                showShareLinkPanel
+                  ? 'bg-[#E89611] text-[#051044] border-[#E89611] font-semibold'
+                  : 'text-[#061459] bg-white border-[#C7D3E8] hover:bg-[#F3F6FB]'
+              }`}
+              title="Generate Link Perlihat Saja (View Dokumen PDF Infografis Skor RC)"
+            >
+              <Link2 className={`w-3.5 h-3.5 ${showShareLinkPanel ? 'text-[#051044]' : 'text-[#0A1D6E]'}`} />
+              <span>Link Perlihat PDF</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowPdfPreview(true)}
               disabled={statusScoped.length === 0}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#061459] bg-white border border-[#C7D3E8] hover:bg-[#F3F6FB] disabled:opacity-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
@@ -773,6 +467,127 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
             </button>
           </div>
         </div>
+
+        {showShareLinkPanel && (
+          <div className="p-3.5 bg-[#F3F6FB] border border-[#C7D3E8] rounded-xl flex flex-col gap-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#061459]">
+                  <Link2 className="w-3.5 h-3.5 text-[#E89611]" />
+                  <span>Link Perlihat Saja · Dokumen PDF Infografis Skor RC</span>
+                </span>
+                <div className="inline-flex items-center rounded-md border border-[#C7D3E8] bg-white p-0.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setShareLayoutMode('multi')}
+                    className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                      shareLayoutMode === 'multi'
+                        ? 'bg-[#061459] text-white font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Multi Halaman
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShareLayoutMode('single-sheet')}
+                    className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                      shareLayoutMode === 'single-sheet'
+                        ? 'bg-[#E89611] text-[#051044] font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    1 Kertas (Ringkas)
+                  </button>
+                </div>
+                {shareHostInfo.isDevHost && (
+                  <div className="inline-flex items-center rounded-md border border-[#C7D3E8] bg-white p-0.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSharePreferSharedHost(true)}
+                      className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                        sharePreferSharedHost
+                          ? 'bg-[#061459] text-white font-semibold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Link Publik
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSharePreferSharedHost(false)}
+                      className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                        !sharePreferSharedHost
+                          ? 'bg-[#061459] text-white font-semibold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Dev Preview
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShareLinkPanel(false)}
+                className="p-1 text-slate-500 hover:text-slate-800 rounded hover:bg-white cursor-pointer"
+                aria-label="Tutup panel link infografis PDF"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={rcPdfShareUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                aria-label="Link langsung Dokumen PDF Infografis Peringkat Skor RC"
+                className="flex-1 min-w-0 h-8 px-2.5 font-mono text-[11px] bg-white border border-[#C7D3E8] rounded-lg text-slate-800 focus:outline-none focus:border-[#0A1D6E]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  void copyTextToClipboard(rcPdfShareUrl).then((ok) => {
+                    if (ok) {
+                      setShareLinkCopied(true);
+                      onCopyShareLink?.(rcPdfShareUrl);
+                      window.setTimeout(() => setShareLinkCopied(false), 2500);
+                    }
+                  });
+                }}
+                className={`inline-flex items-center gap-1 px-3 h-8 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  shareLinkCopied
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-[#0A1D6E] hover:bg-[#061459] text-white'
+                }`}
+              >
+                {shareLinkCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Tersalin</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Salin Link</span>
+                  </>
+                )}
+              </button>
+              <a
+                href={rcPdfShareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2.5 h-8 text-xs font-medium text-[#061459] bg-white border border-[#C7D3E8] hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                title="Buka link Dokumen PDF Infografis Skor RC di tab baru"
+              >
+                <span>Buka</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Filter Bar: Tier, Status Usulan & Search */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-[#E5ECF7]">
@@ -1618,6 +1433,9 @@ export const RcInfographicView: React.FC<RcInfographicViewProps> = ({
         sectorAverages={sectorAverages}
         regionalAverages={regionalAverages}
         context={pdfContext}
+        initialLayoutMode={shareLayoutMode}
+        shareUrl={rcPdfShareUrl}
+        onCopyPdfLink={onCopyShareLink}
       />
     </div>
   );

@@ -11,14 +11,17 @@ import {
 } from 'lucide-react';
 import { SEKTOR_SHORT_LABELS } from '../data/initialProposals';
 import { SektorCiptaKarya, UsulanProgram, WorkspaceView } from '../types/ciptaKarya';
+import { RcPdfLayoutMode } from '../utils/exportRcInfographicPdf';
 import {
   buildProposalProfileShareUrl,
+  buildRcInfographicPdfShareUrl,
   copyTextToClipboard,
   getShareHostInfo,
 } from '../utils/shareProposalLink';
 
 type YearOption = 'ALL' | '2027' | '2028' | '2029' | '2030';
 type SektorOption = 'ALL' | SektorCiptaKarya;
+type ShareTargetScope = 'ALL' | 'PROFILE' | 'RC_INFOGRAPHIC_PDF';
 
 interface ShareReadOnlyLinkModalProps {
   isOpen: boolean;
@@ -34,6 +37,8 @@ interface ShareReadOnlyLinkModalProps {
     year: YearOption;
     sektor: SektorOption;
     proposalId?: string | null;
+    isRcPdfStandalone?: boolean;
+    rcLayoutMode?: RcPdfLayoutMode;
   }) => void;
   onCopiedNotice?: (url: string) => void;
 }
@@ -67,10 +72,11 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
   const defaultSafeView =
     currentView === WorkspaceView.OVERVIEW ? WorkspaceView.MATRIX : currentView;
 
-  const [targetScope, setTargetScope] = useState<'ALL' | 'PROFILE'>('ALL');
+  const [targetScope, setTargetScope] = useState<ShareTargetScope>('ALL');
   const [selectedProfileId, setSelectedProfileId] = useState<string>(
     selectedProposalId ?? proposals[0]?.id ?? ''
   );
+  const [rcLayoutMode, setRcLayoutMode] = useState<RcPdfLayoutMode>('multi');
   const [selectedView, setSelectedView] = useState<WorkspaceView>(defaultSafeView);
   const [selectedYear, setSelectedYear] = useState<YearOption>(currentYearFilter);
   const [selectedSektor, setSelectedSektor] = useState<SektorOption>(currentSektorFilter);
@@ -84,7 +90,10 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
     );
     setSelectedYear(currentYearFilter);
     setSelectedSektor(currentSektorFilter);
-    setTargetScope('ALL');
+    setTargetScope(
+      currentView === WorkspaceView.RC_INFOGRAPHIC ? 'RC_INFOGRAPHIC_PDF' : 'ALL'
+    );
+    setRcLayoutMode('multi');
     setSelectedProfileId(selectedProposalId ?? proposals[0]?.id ?? '');
     setCopied(false);
   }, [isOpen, currentView, currentYearFilter, currentSektorFilter, selectedProposalId, proposals]);
@@ -95,6 +104,14 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
     if (typeof window === 'undefined') return '';
     if (targetScope === 'PROFILE' && selectedProfileId) {
       return buildProposalProfileShareUrl(selectedProfileId, { preferSharedHost });
+    }
+    if (targetScope === 'RC_INFOGRAPHIC_PDF') {
+      return buildRcInfographicPdfShareUrl({
+        preferSharedHost,
+        year: selectedYear,
+        sektor: selectedSektor,
+        layoutMode: rcLayoutMode,
+      });
     }
 
     const baseOrigin =
@@ -120,6 +137,7 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
     selectedSektor,
     targetScope,
     selectedProfileId,
+    rcLayoutMode,
   ]);
 
   if (!isOpen) return null;
@@ -190,27 +208,27 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
             </div>
           </div>
 
-          {/* Target Scope: Whole App vs Specific Proposal Profile */}
-          {proposals.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-[11px] font-semibold text-slate-700">
-                Jenis Tautan yang Dibagikan
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTargetScope('ALL')}
-                  className={`text-left px-3 py-2 rounded-lg border text-xs transition-colors cursor-pointer ${
-                    targetScope === 'ALL'
-                      ? 'bg-blue-50 border-blue-600 text-blue-900 font-medium'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <div>Seluruh Daftar Usulan</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">
-                    Buka tampilan matriks, GIS, atau proyeksi anggaran
-                  </div>
-                </button>
+          {/* Target Scope: Whole App vs Specific Proposal Profile vs RC Infographic PDF */}
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold text-slate-700">
+              Jenis Tautan yang Dibagikan
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setTargetScope('ALL')}
+                className={`text-left px-3 py-2 rounded-lg border text-xs transition-colors cursor-pointer ${
+                  targetScope === 'ALL'
+                    ? 'bg-blue-50 border-blue-600 text-blue-900 font-medium'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <div>Seluruh Daftar Usulan</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  Matriks, GIS, atau proyeksi anggaran
+                </div>
+              </button>
+              {proposals.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
@@ -225,61 +243,95 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  <div>Link Profil (Perlihat Saja · PDF)</div>
+                  <div>Link Profil (PDF)</div>
                   <div className="text-[10px] text-slate-500 mt-0.5">
-                    Hanya membuka View Dokumen PDF 1 paket usulan (tidak melihat data lain)
+                    View Dokumen PDF 1 paket usulan
                   </div>
                 </button>
-              </div>
-
-              {targetScope === 'PROFILE' && (
-                <div>
-                  <label
-                    htmlFor="share-profile-select"
-                    className="block text-[11px] font-semibold text-slate-700 mb-1"
-                  >
-                    Pilih Paket Usulan
-                  </label>
-                  <select
-                    id="share-profile-select"
-                    value={selectedProfileId}
-                    onChange={(e) => setSelectedProfileId(e.target.value)}
-                    className="w-full h-9 px-2.5 text-xs border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  >
-                    {proposals.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.kodeUsulan} — {p.namaProgram}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               )}
+              <button
+                type="button"
+                onClick={() => setTargetScope('RC_INFOGRAPHIC_PDF')}
+                className={`text-left px-3 py-2 rounded-lg border text-xs transition-colors cursor-pointer ${
+                  targetScope === 'RC_INFOGRAPHIC_PDF'
+                    ? 'bg-blue-50 border-blue-600 text-blue-900 font-medium'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <div>Infografis Skor RC (PDF)</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  View Dokumen PDF Peringkat RC
+                </div>
+              </button>
             </div>
-          )}
+
+            {targetScope === 'PROFILE' && proposals.length > 0 && (
+              <div>
+                <label
+                  htmlFor="share-profile-select"
+                  className="block text-[11px] font-semibold text-slate-700 mb-1"
+                >
+                  Pilih Paket Usulan
+                </label>
+                <select
+                  id="share-profile-select"
+                  value={selectedProfileId}
+                  onChange={(e) => setSelectedProfileId(e.target.value)}
+                  className="w-full h-9 px-2.5 text-xs border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                >
+                  {proposals.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.kodeUsulan} — {p.namaProgram}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
 
           {/* Link Options */}
-          {targetScope === 'ALL' && (
+          {targetScope !== 'PROFILE' && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label
-                htmlFor="share-view-select"
-                className="block text-[11px] font-semibold text-slate-700 mb-1"
-              >
-                Menu Awal
-              </label>
-              <select
-                id="share-view-select"
-                value={selectedView}
-                onChange={(e) => setSelectedView(e.target.value as WorkspaceView)}
-                className="w-full h-9 px-2.5 text-xs border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-              >
-                {VIEW_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {targetScope === 'ALL' ? (
+              <div>
+                <label
+                  htmlFor="share-view-select"
+                  className="block text-[11px] font-semibold text-slate-700 mb-1"
+                >
+                  Menu Awal
+                </label>
+                <select
+                  id="share-view-select"
+                  value={selectedView}
+                  onChange={(e) => setSelectedView(e.target.value as WorkspaceView)}
+                  className="w-full h-9 px-2.5 text-xs border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                >
+                  {VIEW_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="share-rc-layout-select"
+                  className="block text-[11px] font-semibold text-slate-700 mb-1"
+                >
+                  Format Kertas PDF
+                </label>
+                <select
+                  id="share-rc-layout-select"
+                  value={rcLayoutMode}
+                  onChange={(e) => setRcLayoutMode(e.target.value as RcPdfLayoutMode)}
+                  className="w-full h-9 px-2.5 text-xs border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                >
+                  <option value="multi">Multi Halaman (Standar)</option>
+                  <option value="single-sheet">1 Kertas (Ringkas)</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label
@@ -426,10 +478,18 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
             onClick={() => {
               onClose();
               onPreviewReadOnly({
-                view: targetScope === 'PROFILE' ? WorkspaceView.MATRIX : selectedView,
+                view:
+                  targetScope === 'PROFILE'
+                    ? WorkspaceView.MATRIX
+                    : targetScope === 'RC_INFOGRAPHIC_PDF'
+                      ? WorkspaceView.RC_INFOGRAPHIC
+                      : selectedView,
                 year: targetScope === 'PROFILE' ? 'ALL' : selectedYear,
                 sektor: targetScope === 'PROFILE' ? 'ALL' : selectedSektor,
                 proposalId: targetScope === 'PROFILE' ? selectedProfileId : null,
+                isRcPdfStandalone: targetScope === 'RC_INFOGRAPHIC_PDF',
+                rcLayoutMode:
+                  targetScope === 'RC_INFOGRAPHIC_PDF' ? rcLayoutMode : undefined,
               });
             }}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap"

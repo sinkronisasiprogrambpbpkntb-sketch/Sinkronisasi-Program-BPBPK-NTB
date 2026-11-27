@@ -1,8 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
+  Check,
   Download,
+  ExternalLink,
   Eye,
   FileText,
+  Link2,
+  Lock,
   PenLine,
   Printer,
   X,
@@ -25,18 +30,27 @@ import {
   loadPuLogoDataUrl,
   PU_LOGO_SRC,
 } from '../utils/puLogoAsset';
+import {
+  buildRcInfographicPdfShareUrl,
+  copyTextToClipboard,
+} from '../utils/shareProposalLink';
 
 interface RcInfographicPreviewModalProps {
   isOpen: boolean;
+  initialMode?: PreviewMode;
+  standaloneReadOnly?: boolean;
+  onBackToEditor?: () => void;
   onClose: () => void;
   onDownloadPdf: (layoutMode: RcPdfLayoutMode) => void;
-  onEditSignatories: () => void;
+  onEditSignatories?: () => void;
   rankedItems: PdfRankedProposalItem[];
   summaryStats: PdfSummaryStats;
   sectorAverages: PdfSectorAverage[];
   regionalAverages: PdfRegionalAverage[];
   context: PdfExportContext;
   initialLayoutMode?: RcPdfLayoutMode;
+  shareUrl?: string;
+  onCopyPdfLink?: (url: string) => void;
 }
 
 type PreviewMode = 'sheet' | 'pdf';
@@ -49,6 +63,9 @@ function getTierHex(pct: number): { bar: string; textClass: string } {
 
 export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps> = ({
   isOpen,
+  initialMode = 'sheet',
+  standaloneReadOnly = false,
+  onBackToEditor,
   onClose,
   onDownloadPdf,
   onEditSignatories,
@@ -58,17 +75,22 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
   regionalAverages,
   context,
   initialLayoutMode = 'multi',
+  shareUrl,
+  onCopyPdfLink,
 }) => {
-  const [mode, setMode] = useState<PreviewMode>('sheet');
+  const [mode, setMode] = useState<PreviewMode>(initialMode);
   const [layoutMode, setLayoutMode] = useState<RcPdfLayoutMode>(initialLayoutMode);
   const [zoomPct, setZoomPct] = useState<number>(100);
   const [pdfPayload, setPdfPayload] = useState<RcPdfPreviewPayload | null>(null);
+  const [pdfLinkCopied, setPdfLinkCopied] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
+      setMode(initialMode);
       setLayoutMode(initialLayoutMode);
+      setPdfLinkCopied(false);
     }
-  }, [isOpen, initialLayoutMode]);
+  }, [isOpen, initialMode, initialLayoutMode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -106,7 +128,7 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
   }, [isOpen, rankedItems, summaryStats, sectorAverages, regionalAverages, context, layoutMode]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || standaloneReadOnly) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -114,7 +136,7 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, standaloneReadOnly, onClose]);
 
   const printTimestamp = useMemo(
     () =>
@@ -154,15 +176,28 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
         ];
 
   const handlePrintNow = () => {
+    if (standaloneReadOnly) {
+      window.print();
+      return;
+    }
     onClose();
     window.setTimeout(() => {
       window.print();
     }, 120);
   };
 
+  const effectiveShareUrl =
+    shareUrl ??
+    buildRcInfographicPdfShareUrl({
+      preferSharedHost: true,
+      sortOrder: context.sortOrder,
+      layoutMode,
+      searchQuery: context.searchQuery,
+    });
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-[1px] flex flex-col print:hidden"
+      className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-[1px] flex flex-col print:hidden"
       role="dialog"
       aria-modal="true"
       aria-labelledby="rc-pdf-preview-title"
@@ -171,19 +206,29 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
       <header className="bg-[#061459] text-white border-b-2 border-[#E89611] px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-[#E89611] text-[#051044] flex items-center justify-center shrink-0">
-            <Eye className="w-4 h-4" />
+            {standaloneReadOnly ? <Lock className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </div>
           <div className="min-w-0">
-            <h2
-              id="rc-pdf-preview-title"
-              className="text-sm font-bold tracking-tight truncate"
-            >
-              Preview Cetak PDF · Infografis Peringkat Skor RC
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2
+                id="rc-pdf-preview-title"
+                className="text-sm font-bold tracking-tight truncate"
+              >
+                {standaloneReadOnly
+                  ? 'Infografis Peringkat Skor RC · View Dokumen PDF'
+                  : 'Preview Cetak PDF · Infografis Peringkat Skor RC'}
+              </h2>
+              {standaloneReadOnly && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-400/20 border border-amber-300/50 text-[10px] font-semibold text-amber-200 whitespace-nowrap">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Mode Perlihat Saja (Read-Only)</span>
+                </span>
+              )}
+            </div>
             <p className="text-[11px] text-amber-200/95 truncate">
               Format A4 Landscape ·{' '}
               {pdfPayload ? `${pdfPayload.pageCount} Halaman PDF` : 'Menyiapkan dokumen...'} ·{' '}
-              {rankedItems.length} Paket Usulan
+              {rankedItems.length} Paket Usulan · {context.yearFilterLabel}
             </p>
           </div>
         </div>
@@ -281,16 +326,60 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
             </button>
           </div>
 
+          {!standaloneReadOnly && onEditSignatories && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onEditSignatories();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-100 hover:text-white bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <PenLine className="w-3.5 h-3.5 text-amber-300" />
+              <span>Edit Pengesahan</span>
+            </button>
+          )}
+
+          {onBackToEditor && (
+            <button
+              type="button"
+              onClick={onBackToEditor}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-600 border border-blue-400/50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali ke Mode Edit</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
-              onClose();
-              onEditSignatories();
+              void copyTextToClipboard(effectiveShareUrl).then((ok) => {
+                if (ok) {
+                  setPdfLinkCopied(true);
+                  onCopyPdfLink?.(effectiveShareUrl);
+                  window.setTimeout(() => setPdfLinkCopied(false), 2500);
+                }
+              });
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-100 hover:text-white bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
+              pdfLinkCopied
+                ? 'bg-emerald-700 text-white border-emerald-400'
+                : 'text-indigo-100 hover:text-white bg-white/10 hover:bg-white/15 border-white/15'
+            }`}
+            title="Salin Link Perlihat Saja (View Dokumen PDF Infografis Skor RC)"
           >
-            <PenLine className="w-3.5 h-3.5 text-amber-300" />
-            <span>Edit Pengesahan</span>
+            {pdfLinkCopied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-200" />
+                <span>Link Tersalin</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="w-3.5 h-3.5 text-amber-300" />
+                <span>Salin Link Perlihat</span>
+              </>
+            )}
           </button>
 
           <button
@@ -311,14 +400,16 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
             <span>{layoutMode === 'single-sheet' ? 'Unduh PDF (1 Kertas)' : 'Unduh PDF'}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-indigo-200 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-            aria-label="Tutup Preview Cetak PDF"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {!standaloneReadOnly && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-indigo-200 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              aria-label="Tutup Preview Cetak PDF"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -326,28 +417,51 @@ export const RcInfographicPreviewModal: React.FC<RcInfographicPreviewModalProps>
       <div
         className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-800/80"
         onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
+          if (!standaloneReadOnly && e.target === e.currentTarget) onClose();
         }}
       >
-        {mode === 'pdf' && pdfPayload ? (
-          <div className="max-w-[1160px] mx-auto h-full min-h-[540px] flex flex-col gap-3">
-            <div className="bg-slate-900/90 text-slate-200 border border-slate-700 rounded-lg px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
-              <span>
-                Berkas: <strong className="font-mono text-amber-300">{pdfPayload.fileName}</strong>{' '}
-                ({pdfPayload.pageCount} halaman A4 Landscape)
-              </span>
-              <span className="text-slate-400">
-                Jika viewer PDF tidak muncul di browser Anda, gunakan tab{' '}
-                <strong className="text-white">Tata Letak A4</strong> atau klik{' '}
-                <strong className="text-amber-300">Unduh PDF</strong>.
-              </span>
+        {mode === 'pdf' ? (
+          pdfPayload ? (
+            <div className="max-w-[1160px] mx-auto h-full min-h-[540px] flex flex-col gap-3">
+              <div className="bg-slate-900/90 text-slate-200 border border-slate-700 rounded-lg px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Berkas: <strong className="font-mono text-amber-300">{pdfPayload.fileName}</strong>{' '}
+                  ({pdfPayload.pageCount} halaman A4 Landscape)
+                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <a
+                    href={pdfPayload.blobUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-amber-200 font-medium transition-colors"
+                  >
+                    <span>Buka PDF Penuh</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <span className="text-slate-400">
+                    Jika viewer PDF tidak muncul, gunakan tab{' '}
+                    <strong className="text-white">Tata Letak A4</strong> atau klik{' '}
+                    <strong className="text-amber-300">Unduh PDF</strong>.
+                  </span>
+                </div>
+              </div>
+              <iframe
+                src={pdfPayload.blobUrl}
+                title="Pratinjau Dokumen PDF Infografis Skor RC"
+                className="w-full flex-1 min-h-[600px] bg-white rounded-lg border border-slate-700 shadow-2xl"
+              />
             </div>
-            <iframe
-              src={pdfPayload.blobUrl}
-              title="Pratinjau Dokumen PDF Infografis Skor RC"
-              className="w-full flex-1 min-h-[600px] bg-white rounded-lg border border-slate-700 shadow-2xl"
-            />
-          </div>
+          ) : (
+            <div className="max-w-lg mx-auto my-20 bg-slate-900/90 text-white border border-slate-700 rounded-xl p-8 text-center space-y-2 shadow-2xl">
+              <FileText className="w-8 h-8 text-[#E89611] mx-auto animate-pulse" />
+              <div className="text-sm font-bold">
+                Menyiapkan Pratinjau Dokumen PDF Infografis Skor RC...
+              </div>
+              <p className="text-xs text-slate-300">
+                Sedang merender grafik peringkat kesiapan dan tabel skor ke format A4 Landscape.
+              </p>
+            </div>
+          )
         ) : (
           <div className="flex justify-center">
             <div
