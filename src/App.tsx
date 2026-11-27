@@ -27,7 +27,11 @@ import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { GoogleDriveBackupModal } from './components/GoogleDriveBackupModal';
 import { ProposalDetailPanel } from './components/ProposalDetailPanel';
 import { ProposalFormDrawer } from './components/ProposalFormDrawer';
-import { ProposalPreviewModal } from './components/ProposalPreviewModal';
+import { ProposalPdfPreviewOverlay } from './components/ProposalPdfPreviewOverlay';
+import {
+  loadInitialProfilSignatories,
+  ProposalPreviewModal,
+} from './components/ProposalPreviewModal';
 import { ProposalTable } from './components/ProposalTable';
 import { RcInfographicView } from './components/RcInfographicView';
 import { ShareReadOnlyLinkModal } from './components/ShareReadOnlyLinkModal';
@@ -39,12 +43,19 @@ import {
   exportProposalsAsGeoJson,
   formatRpMiliar,
   getPaguForYearFilter,
+  getReadinessScore,
+  getTotalPaguUsulan,
   INITIAL_PROPOSALS,
   isActiveInYear,
   resolveProposalTemplateDetails,
   SEKTOR_SHORT_LABELS,
   TEMPLATE_DEMO_PROPOSAL,
 } from './data/initialProposals';
+import {
+  exportProposalProfilePdf,
+  ProposalProfilePdfInput,
+} from './utils/exportProposalProfilePdf';
+import { loadPuBatikAssets, loadPuWordmarkDataUrl } from './utils/puLogoAsset';
 import { useSpatialResolver } from './hooks/useSpatialResolver';
 import { useWelcomeAudio } from './hooks/useWelcomeAudio';
 import {
@@ -140,6 +151,8 @@ interface InitialShareParams {
   initialView: WorkspaceView;
   initialYear: YearFilter;
   initialSektor: SektorFilter;
+  initialProposalProfileKey: string | null;
+  initialProfileOpenPdf: boolean;
 }
 
 const SEKTOR_CODE_TO_ENUM: Record<string, SektorCiptaKarya> = {
@@ -155,6 +168,8 @@ function readInitialShareParams(): InitialShareParams {
     initialView: WorkspaceView.MATRIX,
     initialYear: 'ALL',
     initialSektor: 'ALL',
+    initialProposalProfileKey: null,
+    initialProfileOpenPdf: false,
   };
 
   if (typeof window === 'undefined') return defaults;
@@ -162,8 +177,18 @@ function readInitialShareParams(): InitialShareParams {
   try {
     const params = new URLSearchParams(window.location.search);
     const modeRaw = (params.get('mode') ?? params.get('akses') ?? '').trim().toLowerCase();
+    const profilRaw = (params.get('profil') ?? params.get('usulan') ?? '').trim();
+    const initialProposalProfileKey = profilRaw.length > 0 ? profilRaw : null;
+    const formatRaw = (params.get('format') ?? params.get('tampilan') ?? '').trim().toLowerCase();
+    const initialProfileOpenPdf =
+      initialProposalProfileKey !== null && formatRaw !== 'sheet' && formatRaw !== 'web';
+
     const isReadOnlyUrl =
-      modeRaw === 'lihat' || modeRaw === 'view' || modeRaw === 'readonly' || modeRaw === 'read-only';
+      modeRaw === 'lihat' ||
+      modeRaw === 'view' ||
+      modeRaw === 'readonly' ||
+      modeRaw === 'read-only' ||
+      (initialProposalProfileKey !== null && modeRaw !== 'edit');
 
     const viewRaw = (params.get('view') ?? '').trim().toLowerCase();
     let initialView = WorkspaceView.MATRIX;
@@ -191,6 +216,8 @@ function readInitialShareParams(): InitialShareParams {
       initialView,
       initialYear,
       initialSektor,
+      initialProposalProfileKey,
+      initialProfileOpenPdf,
     };
   } catch {
     return defaults;
@@ -242,6 +269,11 @@ const VIEW_LABELS: Record<WorkspaceView, string> = {
 
 function DashboardWorkspace() {
   const initialShareParams = useMemo(() => readInitialShareParams(), []);
+  const isStandaloneUrlMode =
+    initialShareParams.isReadOnlyUrl &&
+    initialShareParams.initialProposalProfileKey !== null &&
+    initialShareParams.initialProfileOpenPdf;
+
   const [proposals, setProposals] = useState<UsulanProgram[]>(() => readInitialLocalProposals());
   const proposalsRef = useRef<UsulanProgram[]>(proposals);
   proposalsRef.current = proposals;
@@ -254,7 +286,7 @@ function DashboardWorkspace() {
   } | null>(null);
   const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
 
-  const welcomeAudio = useWelcomeAudio();
+  const welcomeAudio = useWelcomeAudio({ disabled: isStandaloneUrlMode });
 
   const [accessMode, setAccessMode] = useState<AccessMode>(() =>
     initialShareParams.isReadOnlyUrl ? 'readonly' : 'account'
@@ -343,6 +375,7 @@ function DashboardWorkspace() {
       q,
       (snapshot) => {
         if (cancelled) return;
+        setRemoteSyncCompleted(true);
         const docs = snapshot.docs.map((d) => fromFirestoreProposalDoc(d.id, d.data()));
         if (docs.length > 0) {
           markLocalBootstrapped();
@@ -366,6 +399,7 @@ function DashboardWorkspace() {
         }
       },
       (error) => {
+        if (!cancelled) setRemoteSyncCompleted(true);
         const quota = extractQuotaNoticeFromError(error);
         if (quota) {
           setDbQuotaAlert({ message: quota.message, upgradeUrl: quota.upgradeUrl });
@@ -438,6 +472,80 @@ function DashboardWorkspace() {
   const [lastDeletedItems, setLastDeletedItems] = useState<UsulanProgram[]>([]);
   const [pickingProposalId, setPickingProposalId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [remoteSyncCompleted, setRemoteSyncCompleted] = useState<boolean>(false);
+  const [standalonePdfProposalId, setStandalonePdfProposalId] = useState<string | null>(null);
+  const [openPreviewAsPdfDoc, setOpenPreviewAsPdfDoc] = useState<boolean>(false);
+  const pendingShareProposalRef = useRef<string | null>(
+    initialShareParams.initialProposalProfileKey
+  );
+
+  useEffect(() => {
+    const targetKey = pendingShareProposalRef.current;
+    if (!targetKey || proposals.length === 0) return;
+
+    const normalized = targetKey.trim().toLowerCase();
+    const matched = proposals.find(
+      (p) =>
+        p.id === targetKey ||
+        p.kodeUsulan.trim().toLowerCase() === normalized
+    );
+    if (matched) {
+      pendingShareProposalRef.current = null;
+      setShowTemplateDemo(false);
+      if (isStandaloneUrlMode) {
+        setStandalonePdfProposalId(matched.id);
+      } else {
+        setOpenPreviewAsPdfDoc(initialShareParams.initialProfileOpenPdf);
+        setSelectedProposalId(matched.id);
+        setPreviewProposalId(matched.id);
+      }
+    }
+  }, [proposals, initialShareParams.initialProfileOpenPdf, isStandaloneUrlMode]);
+
+  const standaloneTargetProposal = useMemo(() => {
+    const lookupKey =
+      standalonePdfProposalId ??
+      (isStandaloneUrlMode ? initialShareParams.initialProposalProfileKey : null);
+    if (!lookupKey) return null;
+    const normalized = lookupKey.trim().toLowerCase();
+    return (
+      proposals.find(
+        (p) => p.id === lookupKey || p.kodeUsulan.trim().toLowerCase() === normalized
+      ) ?? null
+    );
+  }, [
+    proposals,
+    standalonePdfProposalId,
+    isStandaloneUrlMode,
+    initialShareParams.initialProposalProfileKey,
+  ]);
+
+  const standalonePdfInput = useMemo<ProposalProfilePdfInput | null>(() => {
+    if (!standaloneTargetProposal) return null;
+    const details = resolveProposalTemplateDetails(standaloneTargetProposal);
+    const rcScore = getReadinessScore(
+      standaloneTargetProposal.readiness,
+      standaloneTargetProposal.skorRc
+    );
+    const pos =
+      standaloneTargetProposal.manualPosition ??
+      resolvedPlaces[standaloneTargetProposal.locationQuery]?.position ?? {
+        lat: -8.62,
+        lng: 117.35,
+      };
+    return {
+      proposal: standaloneTargetProposal,
+      details,
+      totalPagu: getTotalPaguUsulan(standaloneTargetProposal.pagu),
+      rcPercentage: rcScore.percentage,
+      rcTable: details.rcDetails,
+      customRcItems: details.customRcItems,
+      includeDetailRc: true,
+      position: pos,
+      imageDataUrl: details.lokasiGambarUrl,
+      signatories: loadInitialProfilSignatories(),
+    };
+  }, [standaloneTargetProposal, resolvedPlaces]);
 
   useEffect(() => {
     if (proposals.length === 0) {
@@ -1281,6 +1389,98 @@ function DashboardWorkspace() {
     );
   }
 
+  // Render Standalone Mode Perlihat Saja (View Dokumen PDF untuk 1 Profil Usulan)
+  const isStandaloneProfileViewActive =
+    isStandaloneUrlMode || (isReadOnlyMode && standalonePdfProposalId !== null);
+
+  if (isStandaloneProfileViewActive) {
+    if (standalonePdfInput && standaloneTargetProposal) {
+      return (
+        <>
+          <ProposalPdfPreviewOverlay
+            isOpen={true}
+            initialMode="pdf"
+            standaloneReadOnly={true}
+            onBackToEditor={
+              isInAppReadOnlyPreview
+                ? () => {
+                    setIsInAppReadOnlyPreview(false);
+                    setStandalonePdfProposalId(null);
+                    setAccessMode('account');
+                  }
+                : undefined
+            }
+            onClose={() => {
+              if (isInAppReadOnlyPreview) {
+                setIsInAppReadOnlyPreview(false);
+                setStandalonePdfProposalId(null);
+                setAccessMode('account');
+              }
+            }}
+            onDownloadPdf={() => {
+              void (async () => {
+                const [wordmarkDataUrl, batikAssets] = await Promise.all([
+                  loadPuWordmarkDataUrl(),
+                  loadPuBatikAssets(),
+                ]);
+                exportProposalProfilePdf({
+                  ...standalonePdfInput,
+                  wordmarkDataUrl,
+                  batikAssets,
+                });
+              })();
+            }}
+            onPrintDirect={() => window.print()}
+            onCopyPdfLink={() =>
+              showNotice(
+                `Link Profil untuk Perlihat Saja "${standaloneTargetProposal.kodeUsulan}" berhasil disalin.`
+              )
+            }
+            pdfInput={standalonePdfInput}
+          />
+          {toastMessage && (
+            <div className="fixed bottom-5 right-5 z-[70] bg-[#061459] text-white text-xs font-medium px-4 py-3 rounded-xl shadow-2xl border border-[#E89611]/70">
+              {toastMessage}
+            </div>
+          )}
+        </>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white border border-[#C7D3E8] rounded-2xl p-6 text-center shadow-2xl space-y-3">
+          <div className="w-11 h-11 rounded-xl bg-[#061459] text-[#E89611] flex items-center justify-center mx-auto">
+            <Lock className="w-5 h-5" />
+          </div>
+          <h1 className="text-base font-bold text-[#061459]">
+            {remoteSyncCompleted
+              ? 'Profil Usulan Tidak Ditemukan'
+              : 'Menyiapkan Dokumen PDF Profil Usulan...'}
+          </h1>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            {remoteSyncCompleted
+              ? 'Tautan Mode Perlihat Saja tidak cocok dengan paket usulan aktif atau paket usulan telah dihapus/belum dipublikasikan.'
+              : 'Sedang mengambil data resmi Profil Usulan dalam Mode Perlihat Saja (Read-Only).'}
+          </p>
+          {isInAppReadOnlyPreview && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsInAppReadOnlyPreview(false);
+                setStandalonePdfProposalId(null);
+                setAccessMode('account');
+              }}
+              className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-white bg-[#0A1D6E] hover:bg-[#061459] rounded-lg cursor-pointer"
+            >
+              Kembali ke Mode Edit
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F3F6FB] text-slate-900 flex">
       {/* Mobile Sidebar Backdrop */}
@@ -1797,6 +1997,9 @@ function DashboardWorkspace() {
                 onDeleteProposals={(targets) => setPendingDeleteTargets(targets)}
                 onDuplicateProposals={(targets) => void handleDuplicateProposals(targets)}
                 onShiftProposalYears={handleShiftProposalYears}
+                onCopyProfileLink={(p) =>
+                  showNotice(`Link Dokumen PDF Profil Usulan "${p.kodeUsulan}" berhasil disalin ke clipboard.`)
+                }
                 onJumpToMap={handleFocusOnMap}
                 onAddNew={() => {
                   if (!canEdit) return;
@@ -2040,8 +2243,12 @@ function DashboardWorkspace() {
         resolvedPlaces={resolvedPlaces}
         canEdit={canEdit}
         isTemplateDemo={showTemplateDemo}
+        initialPdfDocumentView={openPreviewAsPdfDoc}
+        onConsumeInitialPdfView={() => setOpenPreviewAsPdfDoc(false)}
         canManageProposal={canManageProposal}
         onClose={() => {
+          pendingShareProposalRef.current = null;
+          setOpenPreviewAsPdfDoc(false);
           setShowTemplateDemo(false);
           setPreviewProposalId(null);
         }}
@@ -2069,6 +2276,9 @@ function DashboardWorkspace() {
           setPendingDeleteTargets([p]);
         }}
         onFocusMainMap={handleFocusOnMap}
+        onCopyProfileLink={(p) =>
+          showNotice(`Link Dokumen PDF Profil Usulan "${p.kodeUsulan}" berhasil disalin ke clipboard.`)
+        }
       />
 
       {/* Safe Deletion Confirmation Modal */}
@@ -2100,8 +2310,10 @@ function DashboardWorkspace() {
           currentYearFilter={yearFilter}
           currentSektorFilter={sektorFilter}
           totalProposalsCount={filteredProposals.length}
+          proposals={proposals}
+          selectedProposalId={selectedProposalId}
           onClose={() => setShareLinkOpen(false)}
-          onPreviewReadOnly={({ view, year, sektor }) => {
+          onPreviewReadOnly={({ view, year, sektor, proposalId }) => {
             setDrawerOpen(false);
             setEditingProposal(null);
             setPickingProposalId(null);
@@ -2111,7 +2323,11 @@ function DashboardWorkspace() {
             setSektorFilter(sektor);
             setIsInAppReadOnlyPreview(true);
             setAccessMode('readonly');
-            showNotice('Pratinjau Mode Lihat Saja aktif. Klik "Kembali ke Mode Edit" untuk keluar.');
+            if (proposalId) {
+              setShowTemplateDemo(false);
+              setStandalonePdfProposalId(proposalId);
+            }
+            showNotice('Pratinjau Link Profil (Perlihat Saja) aktif. Klik "Kembali ke Mode Edit" untuk keluar.');
           }}
           onCopiedNotice={() =>
             showNotice('Link web Lihat Saja (Read-Only) berhasil disalin ke clipboard.')

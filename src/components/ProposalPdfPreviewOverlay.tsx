@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowLeft,
+  Check,
   CheckCircle2,
   Circle,
   Download,
@@ -8,7 +10,9 @@ import {
   Eye,
   FileCheck2,
   FileText,
+  Link2,
   ListChecks,
+  Lock,
   MapPin,
   PenLine,
   PieChart,
@@ -36,14 +40,22 @@ import {
   loadPuWordmarkDataUrl,
   PU_WORDMARK_SRC,
 } from '../utils/puLogoAsset';
+import {
+  buildProposalProfileShareUrl,
+  copyTextToClipboard,
+} from '../utils/shareProposalLink';
 
 interface ProposalPdfPreviewOverlayProps {
   isOpen: boolean;
+  initialMode?: PreviewMode;
+  standaloneReadOnly?: boolean;
+  onBackToEditor?: () => void;
   onClose: () => void;
   onDownloadPdf: () => void;
   onPrintDirect: () => void;
   onEditSignatories?: () => void;
   onToggleIncludeDetailRc?: (nextVal: boolean) => void;
+  onCopyPdfLink?: (url: string) => void;
   pdfInput: ProposalProfilePdfInput;
 }
 
@@ -128,16 +140,28 @@ function formatNumberMiliar(val: number): string {
 
 export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps> = ({
   isOpen,
+  initialMode = 'sheet',
+  standaloneReadOnly = false,
+  onBackToEditor,
   onClose,
   onDownloadPdf,
   onPrintDirect,
   onEditSignatories,
   onToggleIncludeDetailRc,
+  onCopyPdfLink,
   pdfInput,
 }) => {
-  const [mode, setMode] = useState<PreviewMode>('sheet');
+  const [mode, setMode] = useState<PreviewMode>(initialMode);
   const [zoomPct, setZoomPct] = useState<number>(100);
   const [pdfPayload, setPdfPayload] = useState<ProposalProfilePdfPreviewPayload | null>(null);
+  const [pdfLinkCopied, setPdfLinkCopied] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setPdfLinkCopied(false);
+    }
+  }, [isOpen, initialMode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -288,15 +312,25 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
       <header className="bg-[#061459] text-white border-b-2 border-[#E89611] px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-[#E89611] text-[#051044] flex items-center justify-center shrink-0">
-            <Eye className="w-4 h-4" />
+            {standaloneReadOnly ? <Lock className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </div>
           <div className="min-w-0">
-            <h2
-              id="profil-pdf-preview-title"
-              className="text-sm font-bold tracking-tight truncate"
-            >
-              Preview Cetak PDF · Profil Usulan ({proposal.kodeUsulan})
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2
+                id="profil-pdf-preview-title"
+                className="text-sm font-bold tracking-tight truncate"
+              >
+                {standaloneReadOnly
+                  ? `Profil Usulan (${proposal.kodeUsulan}) · View Dokumen PDF`
+                  : `Preview Cetak PDF · Profil Usulan (${proposal.kodeUsulan})`}
+              </h2>
+              {standaloneReadOnly && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-400/20 border border-amber-300/50 text-[10px] font-semibold text-amber-200 whitespace-nowrap">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Mode Perlihat Saja (Read-Only)</span>
+                </span>
+              )}
+            </div>
             <p className="text-[11px] text-amber-200/95 truncate">
               Format A4 Landscape ·{' '}
               {pdfPayload ? `${pdfPayload.pageCount} Halaman PDF` : 'Menyiapkan dokumen...'} ·{' '}
@@ -365,7 +399,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
             </div>
           )}
 
-          {onToggleIncludeDetailRc && (
+          {!standaloneReadOnly && onToggleIncludeDetailRc && (
             <button
               type="button"
               onClick={() => onToggleIncludeDetailRc(!includeDetailRc)}
@@ -381,7 +415,7 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
             </button>
           )}
 
-          {onEditSignatories && (
+          {!standaloneReadOnly && onEditSignatories && (
             <button
               type="button"
               onClick={() => {
@@ -395,16 +429,63 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
             </button>
           )}
 
+          {onBackToEditor && (
+            <button
+              type="button"
+              onClick={onBackToEditor}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-600 border border-blue-400/50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali ke Mode Edit</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
-              onClose();
-              window.setTimeout(onPrintDirect, 120);
+              if (!standaloneReadOnly) {
+                onClose();
+                window.setTimeout(onPrintDirect, 120);
+              } else {
+                onPrintDirect();
+              }
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-100 hover:text-white bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
           >
             <Printer className="w-3.5 h-3.5 text-amber-300" />
             <span>Cetak Printer</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const url = buildProposalProfileShareUrl(proposal.id, { format: 'pdf' });
+              void copyTextToClipboard(url).then((ok) => {
+                if (ok) {
+                  setPdfLinkCopied(true);
+                  onCopyPdfLink?.(url);
+                  window.setTimeout(() => setPdfLinkCopied(false), 2500);
+                }
+              });
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
+              pdfLinkCopied
+                ? 'bg-emerald-700 text-white border-emerald-400/60'
+                : 'text-indigo-100 hover:text-white bg-white/10 hover:bg-white/15 border-white/15'
+            }`}
+            title="Salin Link Profil untuk Perlihat Saja (View Dokumen PDF)"
+          >
+            {pdfLinkCopied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-200" />
+                <span>Link Tersalin</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="w-3.5 h-3.5 text-amber-300" />
+                <span>Salin Link Perlihat</span>
+              </>
+            )}
           </button>
 
           <button
@@ -416,14 +497,16 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
             <span>Unduh PDF</span>
           </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-indigo-200 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-            aria-label="Tutup Preview Cetak PDF Profil Usulan"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {!standaloneReadOnly && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-indigo-200 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              aria-label="Tutup Preview Cetak PDF Profil Usulan"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -431,28 +514,50 @@ export const ProposalPdfPreviewOverlay: React.FC<ProposalPdfPreviewOverlayProps>
       <div
         className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-800/85"
         onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
+          if (!standaloneReadOnly && e.target === e.currentTarget) onClose();
         }}
       >
-        {mode === 'pdf' && pdfPayload ? (
-          <div className="max-w-[1160px] mx-auto h-full min-h-[540px] flex flex-col gap-3">
-            <div className="bg-slate-900/90 text-slate-200 border border-slate-700 rounded-lg px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
-              <span>
-                Berkas: <strong className="font-mono text-amber-300">{pdfPayload.fileName}</strong>{' '}
-                ({pdfPayload.pageCount} halaman A4 Landscape)
-              </span>
-              <span className="text-slate-400">
-                Jika viewer PDF tidak muncul di browser Anda, gunakan tab{' '}
-                <strong className="text-white">Tata Letak A4</strong> atau klik{' '}
-                <strong className="text-amber-300">Unduh PDF</strong>.
-              </span>
+        {mode === 'pdf' ? (
+          pdfPayload ? (
+            <div className="max-w-[1160px] mx-auto h-full min-h-[540px] flex flex-col gap-3">
+              <div className="bg-slate-900/90 text-slate-200 border border-slate-700 rounded-lg px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Berkas: <strong className="font-mono text-amber-300">{pdfPayload.fileName}</strong>{' '}
+                  ({pdfPayload.pageCount} halaman A4 Landscape)
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={pdfPayload.blobUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-amber-300 font-medium transition-colors"
+                  >
+                    <span>Buka PDF Penuh</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <span className="text-slate-400 hidden md:inline">
+                    Gunakan tab <strong className="text-white">Tata Letak A4</strong> atau{' '}
+                    <strong className="text-amber-300">Unduh PDF</strong> jika viewer browser dibatasi.
+                  </span>
+                </div>
+              </div>
+              <iframe
+                src={pdfPayload.blobUrl}
+                title="Pratinjau Dokumen PDF Profil Usulan"
+                className="w-full flex-1 min-h-[600px] bg-white rounded-lg border border-slate-700 shadow-2xl"
+              />
             </div>
-            <iframe
-              src={pdfPayload.blobUrl}
-              title="Pratinjau Dokumen PDF Profil Usulan"
-              className="w-full flex-1 min-h-[600px] bg-white rounded-lg border border-slate-700 shadow-2xl"
-            />
-          </div>
+          ) : (
+            <div className="max-w-[1160px] mx-auto h-full min-h-[420px] flex items-center justify-center">
+              <div className="bg-slate-900/90 border border-slate-700 text-slate-100 rounded-xl px-6 py-5 text-center space-y-2 shadow-xl">
+                <FileText className="w-8 h-8 text-[#E89611] mx-auto animate-pulse" />
+                <div className="text-sm font-semibold">Menyiapkan Dokumen PDF Profil Usulan...</div>
+                <div className="text-xs text-slate-400">
+                  Menyusun tata letak resmi A4 Landscape untuk {proposal.kodeUsulan}.
+                </div>
+              </div>
+            </div>
+          )
         ) : (
           <div className="flex flex-col items-center gap-6">
             <div

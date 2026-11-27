@@ -10,7 +10,12 @@ import {
   X,
 } from 'lucide-react';
 import { SEKTOR_SHORT_LABELS } from '../data/initialProposals';
-import { SektorCiptaKarya, WorkspaceView } from '../types/ciptaKarya';
+import { SektorCiptaKarya, UsulanProgram, WorkspaceView } from '../types/ciptaKarya';
+import {
+  buildProposalProfileShareUrl,
+  copyTextToClipboard,
+  getShareHostInfo,
+} from '../utils/shareProposalLink';
 
 type YearOption = 'ALL' | '2027' | '2028' | '2029' | '2030';
 type SektorOption = 'ALL' | SektorCiptaKarya;
@@ -21,11 +26,14 @@ interface ShareReadOnlyLinkModalProps {
   currentYearFilter: YearOption;
   currentSektorFilter: SektorOption;
   totalProposalsCount: number;
+  proposals?: UsulanProgram[];
+  selectedProposalId?: string | null;
   onClose: () => void;
   onPreviewReadOnly: (options: {
     view: WorkspaceView;
     year: YearOption;
     sektor: SektorOption;
+    proposalId?: string | null;
   }) => void;
   onCopiedNotice?: (url: string) => void;
 }
@@ -50,6 +58,8 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
   currentYearFilter,
   currentSektorFilter,
   totalProposalsCount,
+  proposals = [],
+  selectedProposalId = null,
   onClose,
   onPreviewReadOnly,
   onCopiedNotice,
@@ -57,6 +67,10 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
   const defaultSafeView =
     currentView === WorkspaceView.OVERVIEW ? WorkspaceView.MATRIX : currentView;
 
+  const [targetScope, setTargetScope] = useState<'ALL' | 'PROFILE'>('ALL');
+  const [selectedProfileId, setSelectedProfileId] = useState<string>(
+    selectedProposalId ?? proposals[0]?.id ?? ''
+  );
   const [selectedView, setSelectedView] = useState<WorkspaceView>(defaultSafeView);
   const [selectedYear, setSelectedYear] = useState<YearOption>(currentYearFilter);
   const [selectedSektor, setSelectedSektor] = useState<SektorOption>(currentSektorFilter);
@@ -70,26 +84,19 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
     );
     setSelectedYear(currentYearFilter);
     setSelectedSektor(currentSektorFilter);
+    setTargetScope('ALL');
+    setSelectedProfileId(selectedProposalId ?? proposals[0]?.id ?? '');
     setCopied(false);
-  }, [isOpen, currentView, currentYearFilter, currentSektorFilter]);
+  }, [isOpen, currentView, currentYearFilter, currentSektorFilter, selectedProposalId, proposals]);
 
-  const hostInfo = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return { currentOrigin: '', sharedOrigin: '', isDevHost: false };
-    }
-    const { protocol, hostname, port, origin } = window.location;
-    const isDevHost = hostname.startsWith('ais-dev-');
-    const sharedHostname = isDevHost ? hostname.replace(/^ais-dev-/, 'ais-pre-') : hostname;
-    const sharedOrigin = `${protocol}//${sharedHostname}${port ? `:${port}` : ''}`;
-    return {
-      currentOrigin: origin,
-      sharedOrigin,
-      isDevHost,
-    };
-  }, [isOpen]);
+  const hostInfo = useMemo(() => getShareHostInfo(), [isOpen]);
 
   const generatedUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
+    if (targetScope === 'PROFILE' && selectedProfileId) {
+      return buildProposalProfileShareUrl(selectedProfileId, { preferSharedHost });
+    }
+
     const baseOrigin =
       hostInfo.isDevHost && preferSharedHost
         ? hostInfo.sharedOrigin
@@ -105,31 +112,21 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
       url.searchParams.set('sektor', SEKTOR_QUERY_CODES[selectedSektor]);
     }
     return url.toString();
-  }, [hostInfo, preferSharedHost, selectedView, selectedYear, selectedSektor]);
+  }, [
+    hostInfo,
+    preferSharedHost,
+    selectedView,
+    selectedYear,
+    selectedSektor,
+    targetScope,
+    selectedProfileId,
+  ]);
 
   if (!isOpen) return null;
 
   const handleCopyUrl = async () => {
     if (!generatedUrl) return;
-    let success = false;
-    try {
-      await navigator.clipboard.writeText(generatedUrl);
-      success = true;
-    } catch {
-      try {
-        const tempInput = document.createElement('textarea');
-        tempInput.value = generatedUrl;
-        tempInput.style.position = 'fixed';
-        tempInput.style.opacity = '0';
-        document.body.appendChild(tempInput);
-        tempInput.select();
-        success = document.execCommand('copy');
-        document.body.removeChild(tempInput);
-      } catch {
-        success = false;
-      }
-    }
-
+    const success = await copyTextToClipboard(generatedUrl);
     if (success) {
       setCopied(true);
       onCopiedNotice?.(generatedUrl);
@@ -193,7 +190,75 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
             </div>
           </div>
 
+          {/* Target Scope: Whole App vs Specific Proposal Profile */}
+          {proposals.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold text-slate-700">
+                Jenis Tautan yang Dibagikan
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTargetScope('ALL')}
+                  className={`text-left px-3 py-2 rounded-lg border text-xs transition-colors cursor-pointer ${
+                    targetScope === 'ALL'
+                      ? 'bg-blue-50 border-blue-600 text-blue-900 font-medium'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>Seluruh Daftar Usulan</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    Buka tampilan matriks, GIS, atau proyeksi anggaran
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetScope('PROFILE');
+                    if (!selectedProfileId && proposals[0]) {
+                      setSelectedProfileId(proposals[0].id);
+                    }
+                  }}
+                  className={`text-left px-3 py-2 rounded-lg border text-xs transition-colors cursor-pointer ${
+                    targetScope === 'PROFILE'
+                      ? 'bg-blue-50 border-blue-600 text-blue-900 font-medium'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>Link Profil (Perlihat Saja · PDF)</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    Hanya membuka View Dokumen PDF 1 paket usulan (tidak melihat data lain)
+                  </div>
+                </button>
+              </div>
+
+              {targetScope === 'PROFILE' && (
+                <div>
+                  <label
+                    htmlFor="share-profile-select"
+                    className="block text-[11px] font-semibold text-slate-700 mb-1"
+                  >
+                    Pilih Paket Usulan
+                  </label>
+                  <select
+                    id="share-profile-select"
+                    value={selectedProfileId}
+                    onChange={(e) => setSelectedProfileId(e.target.value)}
+                    className="w-full h-9 px-2.5 text-xs border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                  >
+                    {proposals.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.kodeUsulan} — {p.namaProgram}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Link Options */}
+          {targetScope === 'ALL' && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label
@@ -259,6 +324,7 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
               </select>
             </div>
           </div>
+          )}
 
           {/* Domain Selector when running on Dev Host */}
           {hostInfo.isDevHost && (
@@ -360,9 +426,10 @@ export const ShareReadOnlyLinkModal: React.FC<ShareReadOnlyLinkModalProps> = ({
             onClick={() => {
               onClose();
               onPreviewReadOnly({
-                view: selectedView,
-                year: selectedYear,
-                sektor: selectedSektor,
+                view: targetScope === 'PROFILE' ? WorkspaceView.MATRIX : selectedView,
+                year: targetScope === 'PROFILE' ? 'ALL' : selectedYear,
+                sektor: targetScope === 'PROFILE' ? 'ALL' : selectedSektor,
+                proposalId: targetScope === 'PROFILE' ? selectedProfileId : null,
               });
             }}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap"

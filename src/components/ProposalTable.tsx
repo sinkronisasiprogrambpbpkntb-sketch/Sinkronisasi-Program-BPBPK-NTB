@@ -8,6 +8,7 @@ import {
   Edit3,
   ExternalLink,
   Eye,
+  Link2,
   LocateFixed,
   Minus,
   Plus,
@@ -24,6 +25,7 @@ import {
   tryParseNumberFlexible,
 } from '../data/initialProposals';
 import { PaguTahunan, ResolvedPlaceInfo, SumberDana, UsulanProgram } from '../types/ciptaKarya';
+import { buildProposalProfileShareUrl, copyTextToClipboard } from '../utils/shareProposalLink';
 import { ShiftYearModal } from './ShiftYearModal';
 import {
   StatusChecklistFilter,
@@ -50,6 +52,7 @@ interface ProposalTableProps {
     updates: Array<{ id: string; nextPagu: PaguTahunan }>,
     delta: number
   ) => Promise<void> | void;
+  onCopyProfileLink?: (proposal: UsulanProgram, url: string) => void;
   onJumpToMap?: (id: string) => void;
   onAddNew: () => void;
   onSaveAll?: () => void;
@@ -512,6 +515,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
   onDeleteProposals,
   onDuplicateProposals,
   onShiftProposalYears,
+  onCopyProfileLink,
   onJumpToMap,
   onAddNew,
   onSaveAll,
@@ -527,6 +531,7 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
   const [kabupatenFilter, setKabupatenFilter] = useState<string>('ALL');
   const [selectedStatuses, setSelectedStatuses] = useState<string[] | null>(null);
   const [localSelectedFunding, setLocalSelectedFunding] = useState<string[] | null>(null);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   const [shiftYearModalState, setShiftYearModalState] = useState<{
     targets: UsulanProgram[];
     scopeLabel?: string;
@@ -1258,6 +1263,42 @@ export const ProposalTable: React.FC<ProposalTableProps> = ({
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>Profil Usulan</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const url = buildProposalProfileShareUrl(p.id, { format: 'pdf' });
+                            void copyTextToClipboard(url).then((ok) => {
+                              if (ok) {
+                                setCopiedLinkId(p.id);
+                                window.setTimeout(() => {
+                                  setCopiedLinkId((prev) => (prev === p.id ? null : prev));
+                                }, 2500);
+                                onCopyProfileLink?.(p, url);
+                              }
+                            });
+                          }}
+                          className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border transition-colors cursor-pointer whitespace-nowrap ${
+                            copiedLinkId === p.id
+                              ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
+                              : 'text-[#061459] bg-white border-[#C7D3E8] hover:bg-[#F3F6FB]'
+                          }`}
+                          title={`Generate & Salin Link Profil untuk Perlihat Saja (View Dokumen PDF) · ${p.kodeUsulan}`}
+                          aria-label={`Generate Link Perlihat Saja ${p.namaProgram}`}
+                        >
+                          {copiedLinkId === p.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-700" />
+                              <span>Tersalin</span>
+                            </>
+                          ) : (
+                            <>
+                              <Link2 className="w-3.5 h-3.5 text-[#0A1D6E]" />
+                              <span>Link Perlihat</span>
+                            </>
+                          )}
                         </button>
 
                         {allowManageRow && (

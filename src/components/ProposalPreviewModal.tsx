@@ -3,18 +3,21 @@ import type { GeoJsonObject } from 'geojson';
 import L from 'leaflet';
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Circle,
+  Copy,
   Download,
   Edit3,
   ExternalLink,
   Eye,
   FileCheck2,
   ImagePlus,
+  Link2,
   ListChecks,
   LocateFixed,
   MapPin,
@@ -43,6 +46,11 @@ import {
 } from '../utils/puLogoAsset';
 import { ProposalPdfPreviewOverlay } from './ProposalPdfPreviewOverlay';
 import { JabatanSelectField } from './JabatanSelectField';
+import {
+  buildProposalProfileShareUrl,
+  copyTextToClipboard,
+  getShareHostInfo,
+} from '../utils/shareProposalLink';
 import {
   buildSpatialGeoJsonLayers,
   deriveReadinessFromRcTable,
@@ -246,6 +254,8 @@ export interface ProposalPreviewModalProps {
   resolvedPlaces: Record<string, ResolvedPlaceInfo>;
   canEdit: boolean;
   isTemplateDemo?: boolean;
+  initialPdfDocumentView?: boolean;
+  onConsumeInitialPdfView?: () => void;
   canManageProposal?: (proposal: UsulanProgram) => boolean;
   onClose: () => void;
   onSelectProposal: (id: string) => void;
@@ -255,6 +265,7 @@ export interface ProposalPreviewModalProps {
   onEditProposal: (proposal: UsulanProgram) => void;
   onDeleteProposal: (proposal: UsulanProgram) => void;
   onFocusMainMap?: (id: string) => void;
+  onCopyProfileLink?: (proposal: UsulanProgram, url: string) => void;
 }
 
 const PROFIL_PDF_SIGNATORIES_STORAGE_KEY = 'simpra_ntb_profil_pdf_signatories_v1';
@@ -277,7 +288,7 @@ function createEmptyProfilSignatories(): PdfSignatoriesConfig {
   };
 }
 
-function loadInitialProfilSignatories(): PdfSignatoriesConfig {
+export function loadInitialProfilSignatories(): PdfSignatoriesConfig {
   const fallback = createEmptyProfilSignatories();
   if (typeof window === 'undefined') return fallback;
   try {
@@ -396,6 +407,8 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   resolvedPlaces,
   canEdit,
   isTemplateDemo = false,
+  initialPdfDocumentView = false,
+  onConsumeInitialPdfView,
   canManageProposal,
   onClose,
   onSelectProposal,
@@ -405,9 +418,14 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
   onEditProposal,
   onDeleteProposal,
   onFocusMainMap,
+  onCopyProfileLink,
 }) => {
   const [miniMapType, setMiniMapType] = useState<'roadmap' | 'hybrid'>('roadmap');
   const [locationMediaTab, setLocationMediaTab] = useState<'map' | 'image'>('map');
+  const [showShareLinkPanel, setShowShareLinkPanel] = useState<boolean>(false);
+  const [preferSharedHost, setPreferSharedHost] = useState<boolean>(true);
+  const [linkCopied, setLinkCopied] = useState<boolean>(false);
+  const [pdfOverlayMode, setPdfOverlayMode] = useState<'sheet' | 'pdf'>('sheet');
   const [rcDraft, setRcDraft] = useState<string>('0');
   const [rcTableDraft, setRcTableDraft] = useState<Record<RcDocKey, RcDocumentEntry>>(
     () => resolveProposalTemplateDetails(proposal ?? ({
@@ -626,6 +644,27 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
     imageDraftUrl,
     signatories,
   ]);
+
+  useEffect(() => {
+    setLinkCopied(false);
+    if (!proposal) {
+      setShowShareLinkPanel(false);
+      setPdfOverlayMode('sheet');
+    }
+  }, [proposal]);
+
+  useEffect(() => {
+    if (!proposal || isTemplateDemo || !initialPdfDocumentView) return;
+    setPdfOverlayMode('pdf');
+    setShowPdfPreview(true);
+    onConsumeInitialPdfView?.();
+  }, [proposal, isTemplateDemo, initialPdfDocumentView, onConsumeInitialPdfView]);
+
+  const shareHostInfo = useMemo(() => getShareHostInfo(), []);
+  const profileShareUrl = useMemo(() => {
+    if (!proposal || isTemplateDemo) return '';
+    return buildProposalProfileShareUrl(proposal.id, { preferSharedHost, format: 'pdf' });
+  }, [proposal, isTemplateDemo, preferSharedHost]);
 
   if (!proposal || !pdfPreviewInput) return null;
 
@@ -1138,6 +1177,20 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
               <>
                 <button
                   type="button"
+                  onClick={() => setShowShareLinkPanel((prev) => !prev)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border cursor-pointer whitespace-nowrap transition-colors ${
+                    showShareLinkPanel
+                      ? 'bg-[#E89611] text-[#051044] border-amber-300 font-semibold'
+                      : 'bg-[#040E42]/80 hover:bg-[#0A1D6E] border-white/15 text-indigo-100 hover:text-white'
+                  }`}
+                  title="Generate link Profil untuk Perlihat Saja (View Dokumen PDF)"
+                >
+                  <Link2 className={`w-3.5 h-3.5 ${showShareLinkPanel ? 'text-[#051044]' : 'text-amber-300'}`} />
+                  <span>Link Perlihat Saja</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleDownloadSlideHtml}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#040E42]/80 hover:bg-[#0A1D6E] border border-white/15 text-indigo-100 hover:text-white cursor-pointer whitespace-nowrap"
                 >
@@ -1163,7 +1216,10 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setShowPdfPreview(true)}
+                  onClick={() => {
+                    setPdfOverlayMode('sheet');
+                    setShowPdfPreview(true);
+                  }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#E89611] hover:bg-amber-400 text-[#051044] cursor-pointer whitespace-nowrap shadow-xs"
                   title="Lihat pratinjau hasil Cetak PDF Profil Usulan"
                 >
@@ -1253,6 +1309,101 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
             </button>
           </div>
         </div>
+
+        {showShareLinkPanel && !isTemplateDemo && (
+          <div className="px-4 sm:px-6 py-3 bg-[#F3F6FB] border-b border-[#C7D3E8] flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 shrink-0 print:hidden">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#061459] whitespace-nowrap">
+                <Link2 className="w-3.5 h-3.5 text-[#E89611]" />
+                <span>Link Profil Perlihat Saja · PDF ({proposal.kodeUsulan})</span>
+              </span>
+              {shareHostInfo.isDevHost && (
+                <div className="inline-flex items-center rounded-md border border-[#C7D3E8] bg-white p-0.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setPreferSharedHost(true)}
+                    className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                      preferSharedHost
+                        ? 'bg-[#061459] text-white font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Link Publik
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreferSharedHost(false)}
+                    className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                      !preferSharedHost
+                        ? 'bg-[#061459] text-white font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Dev Preview
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 lg:max-w-2xl">
+              <input
+                type="text"
+                readOnly
+                value={profileShareUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                aria-label={`Link langsung Profil Usulan ${proposal.kodeUsulan}`}
+                className="flex-1 min-w-0 h-8 px-2.5 font-mono text-[11px] bg-white border border-[#C7D3E8] rounded-lg text-slate-800 focus:outline-none focus:border-[#0A1D6E]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  void copyTextToClipboard(profileShareUrl).then((ok) => {
+                    if (ok) {
+                      setLinkCopied(true);
+                      onCopyProfileLink?.(proposal, profileShareUrl);
+                      window.setTimeout(() => setLinkCopied(false), 2500);
+                    }
+                  });
+                }}
+                className={`inline-flex items-center gap-1 px-3 h-8 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  linkCopied
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-[#0A1D6E] hover:bg-[#061459] text-white'
+                }`}
+              >
+                {linkCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Tersalin</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Salin Link</span>
+                  </>
+                )}
+              </button>
+              <a
+                href={profileShareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2.5 h-8 text-xs font-medium text-[#061459] bg-white border border-[#C7D3E8] hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                title="Buka link profil usulan di tab baru"
+              >
+                <span>Buka</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowShareLinkPanel(false)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-md hover:bg-white cursor-pointer shrink-0"
+                aria-label="Tutup panel link profil"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {uploadAlert && (
           <div className="px-6 py-2 bg-red-50 border-b border-red-200 text-xs text-red-800 print:hidden">
@@ -2824,6 +2975,7 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
 
       <ProposalPdfPreviewOverlay
         isOpen={showPdfPreview}
+        initialMode={pdfOverlayMode}
         onClose={() => setShowPdfPreview(false)}
         onDownloadPdf={() => {
           void (async () => {
@@ -2839,14 +2991,19 @@ export const ProposalPreviewModal: React.FC<ProposalPreviewModalProps> = ({
           })();
         }}
         onPrintDirect={() => window.print()}
-        onEditSignatories={() => {
-          setShowDetailedRc(true);
-          window.setTimeout(() => {
-            const el = document.getElementById('profil-pdf-signatory-panel');
-            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 80);
-        }}
+        onEditSignatories={
+          allowManageCurrent
+            ? () => {
+                setShowDetailedRc(true);
+                window.setTimeout(() => {
+                  const el = document.getElementById('profil-pdf-signatory-panel');
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 80);
+              }
+            : undefined
+        }
         onToggleIncludeDetailRc={(nextVal) => setIncludeDetailRcInPdf(nextVal)}
+        onCopyPdfLink={(url) => onCopyProfileLink?.(proposal, url)}
         pdfInput={pdfPreviewInput}
       />
     </div>

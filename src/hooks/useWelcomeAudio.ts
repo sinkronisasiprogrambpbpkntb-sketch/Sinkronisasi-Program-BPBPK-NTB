@@ -30,7 +30,8 @@ export interface WelcomeAudioControls {
   dismissPrompt: () => void;
 }
 
-export function useWelcomeAudio(): WelcomeAudioControls {
+export function useWelcomeAudio(options?: { disabled?: boolean }): WelcomeAudioControls {
+  const isDisabled = Boolean(options?.disabled);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoArmedRef = useRef<boolean>(false);
   const dismissedRef = useRef<boolean>(false);
@@ -117,6 +118,11 @@ export function useWelcomeAudio(): WelcomeAudioControls {
   );
 
   useEffect(() => {
+    if (isDisabled) {
+      setNeedsInteraction(false);
+      setIsPlaying(false);
+      return;
+    }
     if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
 
     const existingEl = document.getElementById(WELCOME_AUDIO_ELEMENT_ID);
@@ -240,7 +246,7 @@ export function useWelcomeAudio(): WelcomeAudioControls {
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       audioRef.current = null;
     };
-  }, [startTrack]);
+  }, [startTrack, isDisabled]);
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
